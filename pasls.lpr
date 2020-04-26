@@ -29,7 +29,7 @@ uses
   lsp, general, 
 
   { Protocols }
-  synchronization, completion, hover, gotoDeclaration, signatureHelp;
+  synchronization, completion, hover, gotoDeclaration, gotoImplementation, signatureHelp, references;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';

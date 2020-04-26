@@ -85,6 +85,19 @@ type
     property range: TRange read fRange write fRange;
   end;
 
+  { TLocation }
+
+  TLocationItem = class(TCollectionItem)
+  private
+    fUri: TDocumentUri;
+    fRange: TRange;
+  published
+    property uri: TDocumentUri read fUri write fUri;
+    property range: TRange read fRange write fRange;
+  end;
+  
+  TLocationItemCollection = specialize TGenericCollection<TLocationItem>;
+
   { TLocationLink }
 
   TLocationLink = class(TPersistent)

@@ -243,7 +243,9 @@ type
   end;
 
 implementation
-
+uses
+  SysUtils;
+  
 { TCompletion }
 
 function TCompletion.Process(var Params: TCompletionParams): TCompletionList;
@@ -277,6 +279,7 @@ begin with Params do
         Completion.detail := Identifier.Node.DescAsString;
         Completion.insertText := Identifier.Identifier;
         Completion.insertTextFormat := TInsertTextFormat.PlainText;
+        Completion.sortText := IntToStr(I);
       end;
     end else begin
       if CodeToolBoss.ErrorMessage<>'' then

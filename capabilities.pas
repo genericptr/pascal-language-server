@@ -90,14 +90,16 @@ var
 begin
   textDocumentSync := TTextDocumentSyncOptions.Create;
 
+  hoverProvider := true;
+  declarationProvider := true;
+  implementationProvider := true;
+  referencesProvider := true;
+
   completionProvider := TCompletionOptions.Create;
   triggerCharacters := TStringList.Create;
   triggerCharacters.Add('.');
   triggerCharacters.Add('^');
   completionProvider.triggerCharacters := triggerCharacters;
-
-  hoverProvider := true;
-  declarationProvider := true;
 
   signatureHelpProvider := TSignatureHelpOptions.Create;
   triggerCharacters := TStringList.Create;
