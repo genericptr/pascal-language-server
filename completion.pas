@@ -24,7 +24,7 @@ unit completion;
 interface
 
 uses
-  Classes, URIParser, CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools,
+  Classes, URIParser, CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
   lsp, basic;
 
 type
@@ -151,7 +151,7 @@ type
   published
     // The label of this completion item. By default also the text
     // that is inserted when selecting this completion.
-    property label_: string read fLabel write fLabel;
+    property &label: string read fLabel write fLabel;
     // The kind of this completion item. Based of the kind an icon is
     // chosen by the editor. The standardized set of available values
     // is defined in `CompletionItemKind`.
@@ -273,8 +273,9 @@ begin with Params do
       begin
         Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
         Completion := TCompletionItem(Completions.Add);
+        Completion.&label := Identifier.Identifier;
+        Completion.detail := Identifier.Node.DescAsString;
         Completion.insertText := Identifier.Identifier;
-        Completion.detail:=Identifier.Node.DescAsString;
         Completion.insertTextFormat := TInsertTextFormat.PlainText;
       end;
     end else begin
@@ -282,6 +283,7 @@ begin with Params do
         writeln(stderr, 'Parse error: ',CodeToolBoss.ErrorMessage)
       else
         writeln(stderr, 'Error: no context');
+      Result.isIncomplete := true;
     end;
 
     Result := TCompletionList.Create;

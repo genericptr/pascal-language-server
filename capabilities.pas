@@ -61,11 +61,23 @@ type
   private
     fTextDocumentSync: TTextDocumentSyncOptions;
     fCompletionProvider: TCompletionOptions;
+    fHoverProvider: boolean;
+    fDefinitionProvider: boolean;
+    fDeclarationProvider: boolean;
+    fReferencesProvider: boolean;
+    fImplementationProvider: boolean;
+    fSignatureHelpProvider: TSignatureHelpOptions;
   public
     constructor Create;
   published
     property textDocumentSync: TTextDocumentSyncOptions read fTextDocumentSync write fTextDocumentSync;
     property completionProvider: TCompletionOptions read fCompletionProvider write fCompletionProvider;
+    property hoverProvider: boolean read fHoverProvider write fHoverProvider;
+    property definitionProvider: boolean read fDefinitionProvider write fDefinitionProvider;
+    property declarationProvider: boolean read fDeclarationProvider write fDeclarationProvider;
+    property referencesProvider: boolean read fReferencesProvider write fReferencesProvider;
+    property implementationProvider: boolean read fImplementationProvider write fImplementationProvider;
+    property signatureHelpProvider: TSignatureHelpOptions read fSignatureHelpProvider write fSignatureHelpProvider;
   end;
 
 implementation
@@ -73,9 +85,26 @@ implementation
 { TServerCapabilities }
 
 constructor TServerCapabilities.Create;
+var
+  triggerCharacters: TStringList;
 begin
   textDocumentSync := TTextDocumentSyncOptions.Create;
+
   completionProvider := TCompletionOptions.Create;
+  triggerCharacters := TStringList.Create;
+  triggerCharacters.Add('.');
+  triggerCharacters.Add('^');
+  completionProvider.triggerCharacters := triggerCharacters;
+
+  hoverProvider := true;
+  declarationProvider := true;
+
+  signatureHelpProvider := TSignatureHelpOptions.Create;
+  triggerCharacters := TStringList.Create;
+  triggerCharacters.Add('(');
+  triggerCharacters.Add(')');
+  triggerCharacters.Add(',');
+  signatureHelpProvider.triggerCharacters := triggerCharacters;
 end;
 
 end.

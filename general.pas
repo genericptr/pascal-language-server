@@ -33,6 +33,17 @@ type
 
   TVoidParams = class(TPersistent);
 
+  { TInitializationOptions }
+
+  TInitializationOptions = class(TPersistent)
+  private
+    fFPCOptions: TStringList;
+  published
+    property FPCOptions: TStringList read fFPCOptions write fFPCOptions;
+  public
+    procedure AfterConstruction; override;
+  end;
+
   { TInitializeParams }
 
   TInitializeParams = class(TPersistent)
@@ -40,10 +51,12 @@ type
     //fProcessId: string;
     fRootUri: string;
     fCapabilities: TClientCapabilities;
+    fInitializationOptions: TInitializationOptions;
   published
     //property processId: string read fProcessId write fProcessId;
     property rootUri: string read fRootUri write fRootUri;
     property capabilities: TClientCapabilities read fCapabilities write fCapabilities;
+    property initializationOptions: TInitializationOptions read fInitializationOptions write fInitializationOptions;
   end;
 
   { TInitializeResult }
@@ -96,17 +109,29 @@ type
 
 implementation
 
+{ TInitializationOptions }
+
+procedure TInitializationOptions.AfterConstruction;
+begin
+  inherited;
+
+  FPCOptions := TStringList.Create;
+end;
+
 { TInitialize }
 
 function TInitialize.Process(var Params : TInitializeParams): TInitializeResult;
 var
   CodeToolsOptions: TCodeToolsOptions;
+  Option: String;
 begin with Params do
   begin
     CodeToolsOptions := TCodeToolsOptions.Create;
     with CodeToolsOptions do
     begin
       InitWithEnvironmentVariables;
+      for Option in initializationOptions.FPCOptions do
+        FPCOptions := FPCOptions + Option + ' ';
       ProjectDir := ParseURI(rootUri).Path;
     end;
     with CodeToolBoss do

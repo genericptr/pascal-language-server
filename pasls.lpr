@@ -22,8 +22,14 @@ program pasls;
 {$mode objfpc}{$H+}
 
 uses
+  { RTL }
   SysUtils, fpjson, jsonparser, jsonscanner,
-  lsp, general, synchronization, completion;
+
+  { LSP }
+  lsp, general, 
+
+  { Protocols }
+  synchronization, completion, hover, gotoDeclaration, signatureHelp;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';

@@ -20,6 +20,7 @@
 unit basic;
 
 {$mode objfpc}{$H+}
+{$modeswitch advancedrecords}
 
 interface
 
@@ -54,6 +55,8 @@ type
     // If the character value is greater than the line length it
     // defaults back to the line length.
     property character: Integer read fCharacter write fCharacter;
+  public
+    constructor Create(l, c: integer);
   end;
 
   { TRange }
@@ -66,7 +69,9 @@ type
     // The range's start position.
     property start: TPosition read fStart write fStart;
     // The range's end position.
-    property end_: TPosition read fEnd write fEnd;
+    property &end: TPosition read fEnd write fEnd;
+  public
+    constructor Create(line, column: integer);
   end;
 
   { TLocation }
@@ -199,7 +204,7 @@ type
     // The position inside the text document.
     property position: TPosition read fPosition write fPosition;
   end;
-
+  
   { TMarkupKind }
 
   // Describes the content type that a client supports in various
@@ -208,7 +213,14 @@ type
   //
   // Please note that `MarkupKinds` must not start with a `$`. This
   // kinds are reserved for internal usage.
-  TMarkupKind = string;
+  
+  TMarkupKind = record
+  public const
+    PlainText = 'plaintext';   // Plain text is supported as a content format
+    Markdown = 'markdown';     // Markdown is supported as a content format
+  private
+    value: string;
+  end;
 
   { TMarkupContent }
 
@@ -218,12 +230,49 @@ type
     fValue: string;
   published
     // The type of the Markup
-    property kind: TMarkupKind read fKind write fKind;
+    property kind: string read fKind.value write fKind.value;
     // The content itself
     property value: string read fValue write fValue;
+  public
+    constructor Create(content: string);
   end;
 
+{ Utilities }
+
+function PathToURI(path: String): TDocumentUri;
+
 implementation
+
+{ Utilities }
+
+function PathToURI(path: String): TDocumentUri;
+begin
+  result := 'file://'+path;
+end;
+
+{ TPosition }
+
+constructor TPosition.Create(l, c: integer);
+begin
+  line := l;
+  character := c;
+end;
+
+{ TRange }
+
+constructor TRange.Create(line, column: integer);
+begin
+  fStart := TPosition.Create(line, column);
+  fEnd := TPosition.Create(line, column);
+end;
+
+{ TMarkupContent }
+
+constructor TMarkupContent.Create(content: string);
+begin
+  value := content;
+  kind := TMarkupKind.PlainText;
+end;
 
 { TGenericCollection }
 
