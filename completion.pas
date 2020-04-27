@@ -286,6 +286,7 @@ begin with Params do
         writeln(stderr, 'Parse error: ',CodeToolBoss.ErrorMessage)
       else
         writeln(stderr, 'Error: no context');
+      Flush(stderr);
       Result.isIncomplete := true;
     end;
 

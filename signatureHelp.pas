@@ -112,99 +112,107 @@ uses
 
 function TSignatureHelpRequest.Process(var Params: TTextDocumentPositionParams): TSignatureHelp;
 
-  function ExtractProcHead(CurContext: TCodeContextInfoItem): String;
+  procedure ExtractProcParts(CurContext: TCodeContextInfoItem; out Code: String; out ParamList: TStringList);
   var
-    Code: String;
+    Params: String;
     CurExprType: TExpressionType;
     CodeNode, ChildNode: TCodeTreeNode;
     CodeTool: TFindDeclarationTool;
-    ParamList: TCodeTreeNode;
   begin
-    CurExprType:=CurContext.Expr;
-    Code:=ExpressionTypeDescNames[CurExprType.Desc];
-    if CurExprType.Context.Node<>nil then
+    ParamList := nil;
+    CurExprType := CurContext.Expr;
+    Code := ExpressionTypeDescNames[CurExprType.Desc];
+    if CurExprType.Context.Node <> nil then
       begin
-        CodeNode:=CurExprType.Context.Node;
-        CodeTool:=CurExprType.Context.Tool;
+        CodeNode := CurExprType.Context.Node;
+        CodeTool := CurExprType.Context.Tool;
         case CodeNode.Desc of
           ctnProcedure:
             begin
-              Code:=CodeTool.ExtractProcHead(CodeNode,
-                  [phpWithVarModifiers,phpWithParameterNames,phpWithDefaultValues,
-                   phpWithResultType]);
+              Code := CodeTool.ExtractProcHead(CodeNode,
+                      [phpWithVarModifiers,phpWithParameterNames,phpWithDefaultValues,
+                      phpWithResultType]);
 
-              // todo: get param name/type pairs
-              //ParamList:=CodeTool.GetProcParamList(CodeNode);
-              //if ParamList <> nil then
-              //  begin
-              //    ChildNode:=ParamList.FirstChild;
-              //    while ChildNode<>nil do
-              //      begin
-              //        Code += ChildNode.DescAsString+' ';
-              //        ChildNode:=ChildNode.NextBrother;
-              //      end;
-              //  end;
+              // TODO: how can we use actual code tools to do this properly?
+              Params := CodeTool.ExtractProcHead(CodeNode,
+                        [phpWithoutName, phpWithoutBrackets, phpWithoutSemicolon,
+                         phpWithVarModifiers,phpWithParameterNames,phpWithDefaultValues]);
+              
+              if Params <> '' then
+                begin
+                  ParamList := TStringList.Create;
+                  ParamList.Delimiter := ';';
+                  ParamList.StrictDelimiter := True;
+                  ParamList.DelimitedText := Params;
+                end;
             end;
         end;
       end;
-    Result := Code;
   end;
 
 var
   URI: TURI;
   Code: TCodeBuffer;
   X, Y, I, ItemIndex: Integer;
-  Hint: String;
   CodeContext: TCodeContextInfo;
   Item: TCodeContextInfoItem;
   Signature: TSignatureInformation;
   Parameters: TParameterInformationCollection;
   Parameter: TParameterInformation;
+  Head: String;
+  ParamList: TStringList;
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
     Y := position.line;
-
-    writeln(stderr, 'signature at ', x,',', y);
-    flush(stderr);
-
     CodeContext := nil;
     try
       if not CodeToolBoss.FindCodeContext(Code, X + 1, Y + 1, CodeContext) or (CodeContext = nil) or (CodeContext.Count = 0) then
-        exit(nil);
+        begin
+          if CodeToolBoss.ErrorMessage <> '' then
+            begin
+              writeln(StdErr, 'Parse error: ', CodeToolBoss.ErrorMessage);
+              Flush(StdErr);
+            end;
+          exit(nil);
+        end;
 
-      // todo: this can contain overloads I think
       Result := TSignatureHelp.Create;
       Result.signatures := TSignatureInformationCollection.Create;
+
+      // TODO: how do we know which one is active given the current parameters?
+      // right now we're using a best guess but code tools should know this
+      Result.activeSignature := 0;
 
       for ItemIndex := 0 to CodeContext.Count - 1 do
         begin
           Item := CodeContext[ItemIndex];
-          writeln(stderr, 'signature for ', CodeContext.ProcName, ' param=', CodeContext.ParameterIndex, ' head=',ExtractProcHead(Item));
-          flush(stderr);
+          ExtractProcParts(Item, Head, ParamList);
 
-          // The labels of each function parameter must be a substring of the label of the entire function for signatureHelp
-          // So it should look something like DoThis(Param 0, Param 1, Param 2)
           Signature := TSignatureInformation(Result.signatures.Add);
-          Signature.&label := ExtractProcHead(Item);
+          Signature.&label := Head;
 
-          //Signature.&label := CodeContext.ProcName+'(param1: integer; param2: integer; param3: integer)';
-          // TODO:Item.Params is for compiler functions!
-          //if Item.Params <> nil then
-          //  begin
-          //    Parameters := TParameterInformationCollection.Create;
-          //    for I := 0 to Item.Params.Count - 1 do
-          //      begin
-          //        Parameter := TParameterInformation(Parameters.Add);
-          //        Parameter.&label := Item.Params[I];
-          //      end;
-          //    Signature.parameters := Parameters;
-          //  end;
+          if ParamList <> nil then
+            begin
+
+              // if the overload has at least this many parameters
+              // move to being the active signtature
+              if ParamList.Count >= CodeContext.ParameterIndex then
+                Result.activeSignature := ItemIndex;
+
+              Parameters := TParameterInformationCollection.Create;
+              for I := 0 to ParamList.Count - 1 do
+                begin
+                  Parameter := TParameterInformation(Parameters.Add);
+                  Parameter.&label := ParamList[I];
+                end;
+              Signature.parameters := Parameters;
+              ParamList.Free;
+            end;
         end;
         
-        Result.activeSignature := 0;
         Result.activeParameter := CodeContext.ParameterIndex - 1;
 
     finally

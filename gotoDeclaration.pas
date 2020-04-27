@@ -39,6 +39,14 @@ begin with Params do
         Result := TLocation.Create;
         Result.URI := PathToURI(NewCode.Filename);
         Result.Range := TRange.Create(NewY - 1, NewX - 1);
+      end
+    else
+      begin
+        if CodeToolBoss.ErrorMessage <> '' then
+          begin
+            writeln(StdErr, 'Parse error: ', CodeToolBoss.ErrorMessage);
+            Flush(StdErr);
+          end;
       end;
   end;
 end;

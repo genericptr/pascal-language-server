@@ -96,7 +96,7 @@ type
     property range: TRange read fRange write fRange;
   end;
   
-  TLocationItemCollection = specialize TGenericCollection<TLocationItem>;
+  TLocationItems = specialize TGenericCollection<TLocationItem>;
 
   { TLocationLink }
 
@@ -220,12 +220,12 @@ type
   
   { TMarkupKind }
 
-  // Describes the content type that a client supports in various
-  // result literals like `Hover`, `ParameterInfo` or
-  // `CompletionItem`.
-  //
-  // Please note that `MarkupKinds` must not start with a `$`. This
-  // kinds are reserved for internal usage.
+  { Describes the content type that a client supports in various
+    result literals like `Hover`, `ParameterInfo` or
+    `CompletionItem`.
+  
+    Please note that `MarkupKinds` must not start with a `$`. This
+    kinds are reserved for internal usage. }
   
   TMarkupKind = record
   public const
@@ -250,6 +250,111 @@ type
     constructor Create(content: string);
   end;
 
+  { TDiagnostic }
+
+
+  TDiagnosticSeverity = ( Error = 1,
+                          Warning = 2,
+                          Information = 3,
+                          Hint = 4
+                          );
+
+  TDiagnosticTag = ( // Unused or unnecessary code.
+                     // Clients are allowed to render diagnostics with this tag faded out instead of having
+                     // an error squiggle.
+                     Unnecessary = 1,
+
+                     //Deprecated or obsolete code.
+                     //Clients are allowed to rendered diagnostics with this tag strike through.
+                     Deprecated = 2
+                     );
+  TDiagnosticTags = set of TDiagnosticTag;
+
+  // Represents a related message and source code location for a diagnostic. This should be
+  // used to point to code locations that cause or are related to a diagnostics, e.g when duplicating
+  // a symbol in a scope.
+  TDiagnosticRelatedInformation = class (TCollectionItem)
+  private
+    fLocation: TLocation;
+    fMessage: string;
+  published
+    // The location of this related diagnostic information.
+    property location: TLocation read fLocation write fLocation;
+    // The message of this related diagnostic information.
+    property message: string read fMessage write fMessage;
+  end;
+
+  TDiagnosticRelatedInformationItems = specialize TGenericCollection<TDiagnosticRelatedInformation>;
+
+  // Represents a diagnostic, such as a compiler error or warning. Diagnostic objects are only valid in the scope of a resource.
+
+  TDiagnostic = class (TCollectionItem)
+  private
+    fRange: TRange;
+    fSeverity: TDiagnosticSeverity;
+    fCode: string;
+    fSource: string;
+    fMessage: string;
+    fTags: TDiagnosticTags;
+    fRelatedInformation: TDiagnosticRelatedInformationItems;
+  published
+    // The range at which the message applies.
+    property range: TRange read fRange write fRange;
+
+    // The diagnostic's severity. Can be omitted. If omitted it is up to the
+    // client to interpret diagnostics as error, warning, info or hint.
+    property severity: TDiagnosticSeverity read fSeverity write fSeverity;
+
+    // The diagnostic's code, which might appear in the user interface.
+    property code: string read fCode write fCode;
+
+    // A human-readable string describing the source of this
+    // diagnostic, e.g. 'typescript' or 'super lint'.
+    property source: string read fSource write fSource;
+
+    // The diagnostic's message.
+    property message: string read fMessage write fMessage;
+
+    // Additional metadata about the diagnostic.
+    // @since 3.15.0
+    property tags: TDiagnosticTags read fTags write fTags;
+
+    // An array of related diagnostic information, e.g. when symbol-names within
+    // a scope collide all definitions can be marked via this property. (OPTIONAL)
+    property relatedInformation: TDiagnosticRelatedInformationItems read fRelatedInformation write fRelatedInformation;
+  end;
+
+  TDiagnosticItems = specialize TGenericCollection<TDiagnostic>;
+
+  { TCommand }
+
+  TCommand = class(TPersistent)
+  private
+    fTitle: string;
+    fCommand: string;
+    fArguments: TStrings;
+  published
+    // Title of the command, like `save`.
+    property title: string read fTitle write fTitle;
+    // The identifier of the actual command handler.
+    property command: string read fCommand write fCommand;
+    // Arguments that the command handler should be  invoked with.
+    property arguments: TStrings read fArguments write fArguments;
+  public
+    procedure AfterConstruction; override;
+  end;
+
+  { TWorkspaceEdit }
+
+  { A workspace edit represents changes to many resources managed in the workspace. 
+    The edit should either provide changes or documentChanges. 
+    If the client can handle versioned document edits and if documentChanges are present, 
+    the latter are preferred over changes. }
+
+  TWorkspaceEdit = class (TPersistent)
+    // TODO: not implemented!
+  end;
+
 { Utilities }
 
 function PathToURI(path: String): TDocumentUri;
@@ -261,6 +366,15 @@ implementation
 function PathToURI(path: String): TDocumentUri;
 begin
   result := 'file://'+path;
+end;
+
+{ TCommand }
+
+procedure TCommand.AfterConstruction;
+begin
+  inherited;
+
+  arguments := TStringList.Create;
 end;
 
 { TPosition }

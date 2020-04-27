@@ -39,7 +39,7 @@ type
   public
     class constructor Create;
     class function ToObject(const JSON: TJSONData): T; static;
-    class function ToJSON(AObject: T): TJSONData; static;
+    class function ToJSON(AObject: TObject): TJSONData; static;
   end;
 
   { TLSPProcessor }
@@ -140,9 +140,12 @@ begin
   JSONDeStreamer.JSONToObject(JSON as TJSONObject, Result);
 end;
 
-class function TLSPStreaming.ToJSON(AObject: T): TJSONData;
+class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;
 begin
-  Result := JSONStreamer.ObjectToJSON(AObject);
+  if AObject.InheritsFrom(TCollection) then
+    Result := JSONStreamer.StreamCollection(TCollection(AObject))
+  else
+    Result := JSONStreamer.ObjectToJSON(AObject);
 end;
 
 { TLSPProcessor }

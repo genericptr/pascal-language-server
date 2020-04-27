@@ -66,6 +66,7 @@ type
     fDeclarationProvider: boolean;
     fReferencesProvider: boolean;
     fImplementationProvider: boolean;
+    fCodeActionProvider: boolean;
     fSignatureHelpProvider: TSignatureHelpOptions;
   public
     constructor Create;
@@ -77,6 +78,7 @@ type
     property declarationProvider: boolean read fDeclarationProvider write fDeclarationProvider;
     property referencesProvider: boolean read fReferencesProvider write fReferencesProvider;
     property implementationProvider: boolean read fImplementationProvider write fImplementationProvider;
+    property codeActionProvider: boolean read fCodeActionProvider write fCodeActionProvider;
     property signatureHelpProvider: TSignatureHelpOptions read fSignatureHelpProvider write fSignatureHelpProvider;
   end;
 
@@ -94,6 +96,7 @@ begin
   declarationProvider := true;
   implementationProvider := true;
   referencesProvider := true;
+  codeActionProvider := true;
 
   completionProvider := TCompletionOptions.Create;
   triggerCharacters := TStringList.Create;
