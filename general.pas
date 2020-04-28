@@ -25,9 +25,24 @@ interface
 
 uses
   Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
-  lsp, capabilities;
+  lsp, basic, capabilities;
 
 type
+
+  { TWorkspaceFolder }
+
+  TWorkspaceFolder = class(TCollectionItem)
+  private
+    fUri: TDocumentUri;
+    fName: String;
+  published
+    // The associated URI for this workspace folder.
+    property uri: TDocumentUri read fUri write fUri;
+    // The name of the workspace folder. Used to refer to this
+    // workspace folder in the user interface.
+    property name: string read fName write fName;
+  end;
+  TWorkspaceFolderItems = specialize TGenericCollection<TWorkspaceFolder>;
 
   { TVoidParams }
 
@@ -37,9 +52,13 @@ type
 
   TInitializationOptions = class(TPersistent)
   private
-    fFPCOptions: TStringList;
+    fFPCOptions: TStrings;
+    fProgram: String;
   published
-    property FPCOptions: TStringList read fFPCOptions write fFPCOptions;
+    // FPC compiler switches passed to TCodeToolsOptions on initialization
+    property FPCOptions: TStrings read fFPCOptions write fFPCOptions;
+    // Optional path to main program file (used for FindReferences)
+    property &program: String read fProgram write fProgram;
   public
     procedure AfterConstruction; override;
   end;
@@ -52,11 +71,15 @@ type
     fRootUri: string;
     fCapabilities: TClientCapabilities;
     fInitializationOptions: TInitializationOptions;
+    fWorkspaceFolders: TWorkspaceFolderItems;
   published
     //property processId: string read fProcessId write fProcessId;
     property rootUri: string read fRootUri write fRootUri;
     property capabilities: TClientCapabilities read fCapabilities write fCapabilities;
     property initializationOptions: TInitializationOptions read fInitializationOptions write fInitializationOptions;
+    property workspaceFolders: TWorkspaceFolderItems read fWorkspaceFolders write fWorkspaceFolders;
+  public
+    procedure AfterConstruction; override;
   end;
 
   { TInitializeResult }
@@ -107,7 +130,20 @@ type
     procedure Process(var Params : TCancelParams); override;
   end;
 
+var
+  MainProgramFile: String = '';
+
 implementation
+uses
+  SysUtils, RegExpr;
+
+{ TInitializeParams }
+
+procedure TInitializeParams.AfterConstruction;
+begin
+  inherited;
+  workspaceFolders := TWorkspaceFolderItems.Create;
+end;
 
 { TInitializationOptions }
 
@@ -123,17 +159,43 @@ end;
 function TInitialize.Process(var Params : TInitializeParams): TInitializeResult;
 var
   CodeToolsOptions: TCodeToolsOptions;
-  Option: String;
+  Option, Path: String;
+  URI: TURI;
+  Item: TCollectionItem;
+  re: TRegExpr;
 begin with Params do
   begin
     CodeToolsOptions := TCodeToolsOptions.Create;
+    re := TRegExpr.Create('^(-\w+)(.*)$');
     with CodeToolsOptions do
     begin
       InitWithEnvironmentVariables;
+
+      // keep a global reference the main program file
+      MainProgramFile := ExpandFileName(initializationOptions.&program);
+
+      // todo: this should be an option in initializationOptions
+      for Item in workspaceFolders do
+        begin
+          URI := ParseURI(TWorkspaceFolder(Item).uri);
+          Path := URI.Path + URI.Document;
+          FPCOptions := FPCOptions + '-Fu' + Path + ' ';
+        end;
+
       for Option in initializationOptions.FPCOptions do
-        FPCOptions := FPCOptions + Option + ' ';
+        begin
+          // parse compiler switches and expand file names
+          if re.Exec(Option) then
+            FPCOptions := FPCOptions + re.Match[1] + ExpandFileName(re.Match[2]) + ' '
+          else
+            FPCOptions := FPCOptions + Option + ' ';
+        end;
+      //writeln(StdErr, FPCOptions);
+      //flush(stderr);
       ProjectDir := ParseURI(rootUri).Path;
     end;
+    re.Free;
+    
     with CodeToolBoss do
     begin
       Init(CodeToolsOptions);

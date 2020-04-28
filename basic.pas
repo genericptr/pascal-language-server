@@ -21,6 +21,7 @@ unit basic;
 
 {$mode objfpc}{$H+}
 {$modeswitch advancedrecords}
+{$scopedenums on}
 
 interface
 
@@ -71,7 +72,8 @@ type
     // The range's end position.
     property &end: TPosition read fEnd write fEnd;
   public
-    constructor Create(line, column: integer);
+    constructor Create(line, column: integer); overload;
+    constructor Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
   end;
 
   { TLocation }
@@ -391,6 +393,12 @@ constructor TRange.Create(line, column: integer);
 begin
   fStart := TPosition.Create(line, column);
   fEnd := TPosition.Create(line, column);
+end;
+
+constructor TRange.Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
+begin
+  fStart := TPosition.Create(startLine, startColumn);
+  fEnd := TPosition.Create(endLine, endColumn);
 end;
 
 { TMarkupContent }

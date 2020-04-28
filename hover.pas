@@ -94,7 +94,7 @@ begin with Params do
       begin
         if CodeToolBoss.ErrorMessage <> '' then
           begin
-            writeln(StdErr, 'Parse error: ', CodeToolBoss.ErrorMessage);
+            writeln(StdErr, CodeToolBoss.ErrorMessage);
             Flush(StdErr);
           end;
         exit(nil);
@@ -102,7 +102,7 @@ begin with Params do
 
     Result := THoverResponse.Create;
     Result.contents := TMarkupContent.Create(Hint);
-    Result.range := nil;
+    Result.range := TRange.Create(Y, X);
   end;
 end;
 

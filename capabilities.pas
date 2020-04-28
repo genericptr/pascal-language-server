@@ -67,6 +67,7 @@ type
     fReferencesProvider: boolean;
     fImplementationProvider: boolean;
     fCodeActionProvider: boolean;
+    fDocumentHighlightProvider: boolean;
     fSignatureHelpProvider: TSignatureHelpOptions;
   public
     constructor Create;
@@ -79,6 +80,7 @@ type
     property referencesProvider: boolean read fReferencesProvider write fReferencesProvider;
     property implementationProvider: boolean read fImplementationProvider write fImplementationProvider;
     property codeActionProvider: boolean read fCodeActionProvider write fCodeActionProvider;
+    property documentHighlightProvider: boolean read fDocumentHighlightProvider write fDocumentHighlightProvider;
     property signatureHelpProvider: TSignatureHelpOptions read fSignatureHelpProvider write fSignatureHelpProvider;
   end;
 
@@ -96,8 +98,8 @@ begin
   declarationProvider := true;
   implementationProvider := true;
   referencesProvider := true;
-  codeActionProvider := true;
-
+  documentHighlightProvider := true;
+  
   completionProvider := TCompletionOptions.Create;
   triggerCharacters := TStringList.Create;
   triggerCharacters.Add('.');

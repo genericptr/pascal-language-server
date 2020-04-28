@@ -20,6 +20,7 @@
 unit completion;
 
 {$mode objfpc}{$H+}
+{$scopedenums on}
 
 interface
 
