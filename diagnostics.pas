@@ -49,9 +49,30 @@ begin
   inherited;
 end;
 
+
+procedure PublishDiagnostic(fileName: string; line, column: integer);
+var
+  notification: TPublishDiagnostics;
+  params: TPublishDiagnosticsParams;
+  diagnostic: TDiagnostic;
+begin
+  params := TPublishDiagnosticsParams.Create;
+  params.uri := PathToURI(fileName);
+  diagnostic := TDiagnostic(params.diagnostics.Add);
+  with diagnostic do
+    begin
+      range := TRange.Create(line, column);
+      severity := TDiagnosticSeverity.Information;
+      code := '100';
+      source := 'Free Pascal Compiler';
+      message := 'This is a diagnostic hint';
+      tags := [];
+      relatedInformation := nil;
+    end;
+end;
+
 //procedure TPublishDiagnostics.Process(var Params : TPublishDiagnosticsParams);
 //begin with Params do
-  
 //end;
 
 initialization

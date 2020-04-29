@@ -109,7 +109,7 @@ begin with Params do
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
     Y := position.line;
-    Result := nil;
+    Result := TDocumentHighlightItems.Create;
 
     //writeln(stderr, 'documentHighlight: ', URI.Path, ' -> ', Y+1,':',X+1, ' ', CodeToolBoss.CurCodeTool.CLassName);
 
@@ -130,7 +130,6 @@ begin with Params do
 
     if CodeToolBoss.FindBlockCounterPart(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine) then
       begin
-        Result := TDocumentHighlightItems.Create;
         //writeln(stderr, '* block: ', NewY,':',NewX,':',NewTopLine);
         //if CodeToolBoss.GetIdentifierAt(Code,NewX,NewY,Identifier) then
         //  writeln(StdErr, 'Start -> ',Identifier);

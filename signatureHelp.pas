@@ -106,7 +106,8 @@ type
 
 implementation
 uses
-  SysUtils, FindDeclarationTool, CodeTree, PascalParserTool;
+  SysUtils, FindDeclarationTool, CodeTree, PascalParserTool,
+  codeUtils;
 
 { TSignatureHelpRequest }
 
@@ -114,10 +115,11 @@ function TSignatureHelpRequest.Process(var Params: TTextDocumentPositionParams):
 
   procedure ExtractProcParts(CurContext: TCodeContextInfoItem; out Code: String; out ParamList: TStringList);
   var
-    Params: String;
+    Params, ResultType: String;
     CurExprType: TExpressionType;
     CodeNode, ChildNode: TCodeTreeNode;
     CodeTool: TFindDeclarationTool;
+    i: integer;
   begin
     ParamList := nil;
     CurExprType := CurContext.Expr;
@@ -129,22 +131,39 @@ function TSignatureHelpRequest.Process(var Params: TTextDocumentPositionParams):
         case CodeNode.Desc of
           ctnProcedure:
             begin
-              Code := CodeTool.ExtractProcHead(CodeNode,
-                      [phpWithVarModifiers,phpWithParameterNames,phpWithDefaultValues,
-                      phpWithResultType]);
+              ResultType := CodeTool.ExtractProcHead(CodeNode, [
+                phpWithoutClassName,   // skip classname
+                phpWithoutName,        // skip function name
+                phpWithoutGenericParams,// skip <> after proc name
+                phpWithoutParamList,   // skip param list
+                phpWithoutParamTypes,  // skip colon, param types and default values
+                phpWithoutBrackets,    // skip start- and end-bracket of parameter list
+                phpWithoutSemicolon,   // skip semicolon at end
+                phpWithResultType]);
 
-              // TODO: how can we use actual code tools to do this properly?
               Params := CodeTool.ExtractProcHead(CodeNode,
-                        [phpWithoutName, phpWithoutBrackets, phpWithoutSemicolon,
-                         phpWithVarModifiers,phpWithParameterNames,phpWithDefaultValues]);
+                        [phpWithoutName, 
+                         phpWithoutBrackets, 
+                         phpWithoutSemicolon,
+                         phpWithVarModifiers,
+                         phpWithParameterNames,
+                         phpWithDefaultValues]);
               
               if Params <> '' then
                 begin
-                  ParamList := TStringList.Create;
-                  ParamList.Delimiter := ';';
-                  ParamList.StrictDelimiter := True;
-                  ParamList.DelimitedText := Params;
+                  ParamList := ParseParamList(Params);
+                  // rebuild the param list into a single string
+                  Params := '(';
+                  for i := 0 to ParamList.Count - 1 do
+                    begin
+                      Params += ParamList[i];
+                      if I < ParamList.Count - 1 then
+                        Params += '; '; 
+                    end;
+                  Params += ')';
                 end;
+
+              Code := Params+ResultType;
             end;
         end;
       end;
@@ -173,7 +192,7 @@ begin with Params do
         begin
           if CodeToolBoss.ErrorMessage <> '' then
             begin
-              writeln(StdErr, 'Parse error: ', CodeToolBoss.ErrorMessage);
+              writeln(StdErr, CodeToolBoss.ErrorMessage);
               Flush(StdErr);
             end;
           exit(nil);
@@ -183,7 +202,6 @@ begin with Params do
       Result.signatures := TSignatureInformationCollection.Create;
 
       // TODO: how do we know which one is active given the current parameters?
-      // right now we're using a best guess but code tools should know this
       Result.activeSignature := 0;
 
       for ItemIndex := 0 to CodeContext.Count - 1 do
@@ -192,16 +210,10 @@ begin with Params do
           ExtractProcParts(Item, Head, ParamList);
 
           Signature := TSignatureInformation(Result.signatures.Add);
-          Signature.&label := Head;
+          Signature.&label := CodeContext.ProcName+Head;
 
           if ParamList <> nil then
             begin
-
-              // if the overload has at least this many parameters
-              // move to being the active signtature
-              if ParamList.Count >= CodeContext.ParameterIndex then
-                Result.activeSignature := ItemIndex;
-
               Parameters := TParameterInformationCollection.Create;
               for I := 0 to ParamList.Count - 1 do
                 begin

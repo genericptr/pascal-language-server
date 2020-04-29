@@ -180,8 +180,8 @@ begin with Params do
     // if the main program file was provided via initializationOptions -> program
     // then use this unit as the root for searching, otherwise default to the
     // current text document
-    if MainProgramFile <> '' then
-      Root := MainProgramFile
+    if ServerSettings.MainProgramFile <> '' then
+      Root := ServerSettings.MainProgramFile
     else
       Root := Path;
     FindReferences(Path, Path, X + 1, Y + 1, Result);

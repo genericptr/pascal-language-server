@@ -130,9 +130,6 @@ type
     procedure Process(var Params : TCancelParams); override;
   end;
 
-var
-  MainProgramFile: String = '';
-
 implementation
 uses
   SysUtils, RegExpr;
@@ -171,8 +168,12 @@ begin with Params do
     begin
       InitWithEnvironmentVariables;
 
-      // keep a global reference the main program file
-      MainProgramFile := ExpandFileName(initializationOptions.&program);
+      // get settings
+      ServerSettings.MainProgramFile := ExpandFileName(initializationOptions.&program);
+      ServerSettings.Options := [
+            //TServerOption.InsertCompletionsAsSnippets,
+            TServerOption.InsertCompletionProcedureBrackets
+      ];
 
       // todo: this should be an option in initializationOptions
       for Item in workspaceFolders do

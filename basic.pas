@@ -29,6 +29,22 @@ uses
   Classes;
 
 type
+  TServerOption = (
+      InsertCompletionsAsSnippets,        // Procedure completions with parameters are inserted as snippets
+      InsertCompletionProcedureBrackets   // Procedure completions with parameters (non-snippet) insert
+                                          // empty brackets (and insert as snippet)
+    );
+  TServerOptions = set of TServerOption;
+  
+  TServerSettings = record
+    MainProgramFile: String;
+    Options: TServerOptions;
+  end;
+
+var
+  ServerSettings: TServerSettings;
+
+type
 
   { TGenericCollection }
 
@@ -417,4 +433,3 @@ begin
 end;
 
 end.
-

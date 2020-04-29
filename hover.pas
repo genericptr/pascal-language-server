@@ -33,46 +33,6 @@ type
   end;
 
 implementation
-uses
-  fpjson,
-  diagnostics;
-
-procedure PublishDiagnostic(fileName: string; line, column: integer);
-var
-  notification: TPublishDiagnostics;
-  params: TPublishDiagnosticsParams;
-  diagnostic: TDiagnostic;
-  Request, Response: TJSONData;
-  Content: string;
-begin
-  params := TPublishDiagnosticsParams.Create;
-  params.uri := PathToURI(fileName);
-  diagnostic := TDiagnostic(params.diagnostics.Add);
-  with diagnostic do
-    begin
-      range := TRange.Create(line, column);
-      severity := TDiagnosticSeverity.Information;
-      code := '100';
-      source := 'Free Pascal Compiler';
-      message := 'This is a diagnostic hint';
-      tags := [];
-      relatedInformation := nil;
-    end;
-
-  (*
-    interface NotificationMessage extends Message {
-      /**
-       * The method to be invoked.
-       */
-      method: string;
-
-      /**
-       * The notification's params.
-       */
-      params?: array | object;
-    }
-  *)
-end;
 
 { THoverRequest }
 
@@ -88,6 +48,7 @@ begin with Params do
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
     Y := position.line;
+    Result := THoverResponse.Create;
 
     Hint := CodeToolBoss.FindSmartHint(Code, X + 1, Y + 1);
     if Hint = '' then
@@ -100,7 +61,6 @@ begin with Params do
         exit(nil);
       end;
 
-    Result := THoverResponse.Create;
     Result.contents := TMarkupContent.Create(Hint);
     Result.range := TRange.Create(Y, X);
   end;

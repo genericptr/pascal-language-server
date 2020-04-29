@@ -245,19 +245,92 @@ type
 
 implementation
 uses
-  SysUtils;
+  SysUtils, FGL, PascalParserTool,
+  codeUtils;
   
+type
+  TIdentifierListItemHelper = class helper for TIdentifierListItem
+    function ParamPairList: string;
+    function ParamNameList: string;
+    function ParamTypeList: string;
+  end;
+
+function TIdentifierListItemHelper.ParamPairList: string;
+var
+  ANode: TCodeTreeNode;
+begin
+  Result:='';
+  ANode:=Node;
+  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
+    Result:=Tool.ExtractProcHead(ANode,
+       [phpWithoutClassKeyword,
+        phpWithoutClassName,
+        phpWithoutName,
+        phpWithParameterNames,
+        phpWithoutBrackets,
+        phpWithoutSemicolon,
+        phpDoNotAddSemicolon
+        //phpInUpperCase
+        ]);
+  end;
+end;
+
+function TIdentifierListItemHelper.ParamTypeList: string;
+var
+  ANode: TCodeTreeNode;
+begin
+  Result:='';
+  ANode:=Node;
+  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
+    Result:=Tool.ExtractProcHead(ANode,
+       [phpWithoutClassKeyword,
+        phpWithoutClassName,
+        phpWithoutName,
+        phpWithoutBrackets,
+        phpWithoutSemicolon,
+        phpDoNotAddSemicolon
+        //phpInUpperCase
+        ]);
+    Result:=StringReplace(Result, ',', '', []);
+  end;
+end;
+
+function TIdentifierListItemHelper.ParamNameList: string;
+var
+  ANode: TCodeTreeNode;
+begin
+  Result:='';
+  ANode:=Node;
+  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
+    Result:=Tool.ExtractProcHead(ANode,
+       [phpWithoutBrackets, 
+       phpWithoutClassKeyword,
+       phpWithoutClassName,
+       phpWithoutName,
+       phpWithoutSemicolon,
+       phpDoNotAddSemicolon,
+       phpWithoutParamTypes,
+       phpWithParameterNames
+       //phpInUpperCase
+       ]);
+  end;
+end;
+
 { TCompletion }
 
 function TCompletion.Process(var Params: TCompletionParams): TCompletionList;
+type
+  TIdentifierMap = specialize TFPGMap<ShortString, TIdentifierListItem>;
 var
   URI: TURI;
   Code: TCodeBuffer;
-  X, Y, PStart, PEnd, Count, I: Integer;
+  X, Y, PStart, PEnd, Count, I, J: Integer;
   Line: string;
   Completions: TCompletionItems;
   Identifier: TIdentifierListItem;
   Completion: TCompletionItem;
+  SnippetText, RawList: String;
+  IdentifierMap: TIdentifierMap = nil;
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
@@ -267,20 +340,52 @@ begin with Params do
     Line := Code.GetLine(Y);
     GetIdentStartEndAtPosition(Line, X + 1, PStart, PEnd);
     CodeToolBoss.IdentifierList.Prefix := Copy(Line, PStart, PEnd - PStart);
-
+    
+    IdentifierMap := TIdentifierMap.Create;
     Completions := TCompletionItems.Create;
+
     if CodeToolBoss.GatherIdentifiers(Code,X + 1,Y + 1) then
     begin
       Count := CodeToolBoss.IdentifierList.GetFilteredCount;
       for I := 0 to Count - 1 do
       begin
         Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
-        Completion := TCompletionItem(Completions.Add);
-        Completion.&label := Identifier.Identifier;
-        Completion.detail := Identifier.Node.DescAsString;
-        Completion.insertText := Identifier.Identifier;
-        Completion.insertTextFormat := TInsertTextFormat.PlainText;
-        Completion.sortText := IntToStr(I);
+
+        // TODO: currently the parsing is temporary also until we can 
+        // figure out how to use code tools properly
+        if (TServerOption.InsertCompletionsAsSnippets in ServerSettings.Options) and 
+          Identifier.IsProcNodeWithParams then
+          begin
+            RawList := Identifier.ParamNameList;
+            SnippetText := ParseParamList(RawList, True);
+            Completion := TCompletionItem(Completions.Add);
+            Completion.&label := Identifier.Identifier+'('+RawList+')';
+            Completion.insertText := Identifier.Identifier+'('+SnippetText+');';
+            Completion.insertTextFormat := TInsertTextFormat.Snippet;
+            // this ensures the sort order is maintained in Sublime Text
+            Completion.sortText := IntToStr(I);
+          end
+        else if IdentifierMap.IndexOf(Identifier.Identifier) = -1 then
+          begin
+            Completion := TCompletionItem(Completions.Add);
+            Completion.&label := Identifier.Identifier;
+            Completion.detail := Identifier.Node.DescAsString;
+            if (TServerOption.InsertCompletionProcedureBrackets in ServerSettings.Options) and 
+              Identifier.IsProcNodeWithParams then
+              begin
+                Completion.insertText := Identifier.Identifier+'($0)';
+                Completion.insertTextFormat := TInsertTextFormat.Snippet;
+              end
+            else
+              begin
+                Completion.insertText := Identifier.Identifier;
+                Completion.insertTextFormat := TInsertTextFormat.PlainText;
+              end;
+            // this ensures the sort order is maintained in Sublime Text
+            Completion.sortText := IntToStr(I);
+            IdentifierMap.Add(Identifier.Identifier, Identifier);
+          end;
+
       end;
     end else begin
       if CodeToolBoss.ErrorMessage<>'' then
@@ -294,6 +399,8 @@ begin with Params do
     Result := TCompletionList.Create;
     Result.items := Completions;
   end;
+
+  FreeAndNil(IdentifierMap);
 end;
 
 initialization
