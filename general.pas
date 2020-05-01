@@ -171,17 +171,27 @@ begin with Params do
       // get settings
       ServerSettings.MainProgramFile := ExpandFileName(initializationOptions.&program);
       ServerSettings.Options := [
+            // note(ryan): this is causing bugs in Sublime Text
+            // will be fixed in ST4
+            // https://github.com/sublimehq/sublime_text/issues/819
             //TServerOption.InsertCompletionsAsSnippets,
-            TServerOption.InsertCompletionProcedureBrackets
+            TServerOption.InsertCompletionProcedureBrackets,
+            TServerOption.IncludeWorkspaceFoldersAsUnitPaths,
+            TServerOption.IncludeWorkspaceFoldersAsIncludePaths
       ];
 
-      // todo: this should be an option in initializationOptions
-      for Item in workspaceFolders do
-        begin
-          URI := ParseURI(TWorkspaceFolder(Item).uri);
-          Path := URI.Path + URI.Document;
-          FPCOptions := FPCOptions + '-Fu' + Path + ' ';
-        end;
+      // include workspace paths as search paths
+      if (TServerOption.IncludeWorkspaceFoldersAsUnitPaths in ServerSettings.Options) or
+        (TServerOption.IncludeWorkspaceFoldersAsIncludePaths in ServerSettings.Options) then
+        for Item in workspaceFolders do
+          begin
+            URI := ParseURI(TWorkspaceFolder(Item).uri);
+            Path := URI.Path + URI.Document;
+            if TServerOption.IncludeWorkspaceFoldersAsUnitPaths in ServerSettings.Options then
+              FPCOptions := FPCOptions + '-Fu' + Path + ' ';
+            if TServerOption.IncludeWorkspaceFoldersAsIncludePaths in ServerSettings.Options then
+              FPCOptions := FPCOptions + '-Fi' + Path + ' ';
+          end;
 
       for Option in initializationOptions.FPCOptions do
         begin
