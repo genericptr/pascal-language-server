@@ -246,7 +246,7 @@ type
 implementation
 uses
   SysUtils, FGL, PascalParserTool,
-  codeUtils;
+  codeUtils, diagnostics, settings;
   
 type
   TIdentifierListItemHelper = class helper for TIdentifierListItem
@@ -343,63 +343,72 @@ begin with Params do
     
     IdentifierMap := TIdentifierMap.Create;
     Completions := TCompletionItems.Create;
+    Result := TCompletionList.Create;
 
-    if CodeToolBoss.GatherIdentifiers(Code,X + 1,Y + 1) then
-    begin
-      Count := CodeToolBoss.IdentifierList.GetFilteredCount;
-      for I := 0 to Count - 1 do
-      begin
-        Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
+    try
+      if CodeToolBoss.GatherIdentifiers(Code,X + 1,Y + 1) then
+        begin
+          Count := CodeToolBoss.IdentifierList.GetFilteredCount;
+          for I := 0 to Count - 1 do
+            begin
+              Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
 
-        // TODO: currently the parsing is temporary also until we can 
-        // figure out how to use code tools properly
-        if (TServerOption.InsertCompletionsAsSnippets in ServerSettings.Options) and 
-          Identifier.IsProcNodeWithParams then
-          begin
-            RawList := Identifier.ParamNameList;
-            SnippetText := ParseParamList(RawList, True);
-            Completion := TCompletionItem(Completions.Add);
-            Completion.&label := Identifier.Identifier+'('+RawList+')';
-            Completion.insertText := Identifier.Identifier+'('+SnippetText+');';
-            Completion.insertTextFormat := TInsertTextFormat.Snippet;
-            // according to LSP plugin devs filterText should be the identifier name
-            // if the label contains non-alpha-numeric characters
-            Completion.filterText := Identifier.Identifier;
-            // this ensures the sort order is maintained in Sublime Text
-            Completion.sortText := IntToStr(I);
-          end
-        else if IdentifierMap.IndexOf(Identifier.Identifier) = -1 then
-          begin
-            Completion := TCompletionItem(Completions.Add);
-            Completion.&label := Identifier.Identifier;
-            Completion.detail := Identifier.Node.DescAsString;
-            if (TServerOption.InsertCompletionProcedureBrackets in ServerSettings.Options) and 
-              Identifier.IsProcNodeWithParams then
-              begin
-                Completion.insertText := Identifier.Identifier+'($0)';
-                Completion.insertTextFormat := TInsertTextFormat.Snippet;
-              end
-            else
-              begin
-                Completion.insertText := Identifier.Identifier;
-                Completion.insertTextFormat := TInsertTextFormat.PlainText;
-              end;
-            // this ensures the sort order is maintained in Sublime Text
-            Completion.sortText := IntToStr(I);
-            IdentifierMap.Add(Identifier.Identifier, Identifier);
-          end;
-
-      end;
-    end else begin
-      if CodeToolBoss.ErrorMessage<>'' then
-        writeln(stderr, 'Parse error: ',CodeToolBoss.ErrorMessage)
-      else
-        writeln(stderr, 'Error: no context');
-      Flush(stderr);
-      Result.isIncomplete := true;
+              // TODO: currently the parsing is temporary also until we can 
+              // figure out how to use code tools properly
+              if (TServerOption.InsertCompletionsAsSnippets in ServerSettings.Options) and 
+                Identifier.IsProcNodeWithParams then
+                begin
+                  RawList := Identifier.ParamNameList;
+                  SnippetText := ParseParamList(RawList, True);
+                  Completion := TCompletionItem(Completions.Add);
+                  Completion.&label := Identifier.Identifier+'('+RawList+')';
+                  Completion.insertText := Identifier.Identifier+'('+SnippetText+');';
+                  Completion.insertTextFormat := TInsertTextFormat.Snippet;
+                  // according to LSP plugin devs filterText should be the identifier name
+                  // if the label contains non-alpha-numeric characters
+                  Completion.filterText := Identifier.Identifier;
+                  // this ensures the sort order is maintained in Sublime Text
+                  Completion.sortText := IntToStr(I);
+                end
+              else if IdentifierMap.IndexOf(Identifier.Identifier) = -1 then
+                begin
+                  Completion := TCompletionItem(Completions.Add);
+                  Completion.&label := Identifier.Identifier;
+                  Completion.detail := Identifier.Node.DescAsString;
+                  if (TServerOption.InsertCompletionProcedureBrackets in ServerSettings.Options) and 
+                    Identifier.IsProcNodeWithParams then
+                    begin
+                      Completion.insertText := Identifier.Identifier+'($0)';
+                      Completion.insertTextFormat := TInsertTextFormat.Snippet;
+                    end
+                  else
+                    begin
+                      Completion.insertText := Identifier.Identifier;
+                      Completion.insertTextFormat := TInsertTextFormat.PlainText;
+                    end;
+                  // this ensures the sort order is maintained in Sublime Text
+                  Completion.sortText := IntToStr(I);
+                  IdentifierMap.Add(Identifier.Identifier, Identifier);
+                end;
+            end;
+        end else begin
+          //if CodeToolBoss.ErrorMessage<>'' then
+          //  writeln(stderr, 'Parse error: ',CodeToolBoss.ErrorMessage)
+          //else
+          //  writeln(StdErr, 'Error: no context');
+          PublishCodeToolsError;
+          Flush(StdErr);
+          Result.isIncomplete := true;
+        end;
+    except
+      on E: Exception do
+        begin
+          writeln(StdErr, 'Completion Error: ', E.ClassName, ' ', E.Message);
+          flush(StdErr);
+          Result.isIncomplete := true;
+        end;
     end;
 
-    Result := TCompletionList.Create;
     Result.items := Completions;
   end;
 

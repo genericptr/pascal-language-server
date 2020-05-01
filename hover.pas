@@ -33,6 +33,8 @@ type
   end;
 
 implementation
+uses
+  SysUtils, diagnostics;
 
 { THoverRequest }
 
@@ -50,16 +52,20 @@ begin with Params do
     Y := position.line;
     Result := THoverResponse.Create;
 
-    Hint := CodeToolBoss.FindSmartHint(Code, X + 1, Y + 1);
-    if Hint = '' then
-      begin
-        if CodeToolBoss.ErrorMessage <> '' then
-          begin
-            writeln(StdErr, CodeToolBoss.ErrorMessage);
-            Flush(StdErr);
-          end;
-        exit(nil);
-      end;
+    try
+      Hint := CodeToolBoss.FindSmartHint(Code, X + 1, Y + 1);
+      if Hint = '' then
+        begin
+          PublishCodeToolsError;
+          exit;
+        end;
+    except
+      on E: Exception do
+        begin
+          writeln(StdErr, 'Hover Error: ', E.ClassName, ' ', E.Message);
+          flush(StdErr);
+        end;
+    end;
 
     Result.contents := TMarkupContent.Create(Hint);
     Result.range := TRange.Create(Y, X);

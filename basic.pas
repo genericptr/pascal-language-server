@@ -29,24 +29,6 @@ uses
   Classes;
 
 type
-  TServerOption = (
-      InsertCompletionsAsSnippets,        // Procedure completions with parameters are inserted as snippets
-      InsertCompletionProcedureBrackets,  // Procedure completions with parameters (non-snippet) insert
-                                          // empty brackets (and insert as snippet)
-      IncludeWorkspaceFoldersAsUnitPaths,
-      IncludeWorkspaceFoldersAsIncludePaths
-    );
-  TServerOptions = set of TServerOption;
-  
-  TServerSettings = record
-    MainProgramFile: String;
-    Options: TServerOptions;
-  end;
-
-var
-  ServerSettings: TServerSettings;
-
-type
 
   { TGenericCollection }
 
@@ -442,15 +424,18 @@ var
   Content: String;
 begin
   Data := specialize TLSPStreaming<TNotificationMessage>.ToJSON(self);
-  Content := Data.AsJSON;
+  if Data <> nil then
+    begin
+      Content := Data.AsJSON;
 
-  WriteLn('Content-Type: ', ContentType);
-  WriteLn('Content-Length: ', Content.Length);
-  WriteLn;
-  Write(Content);
-  Flush(Output);
+      WriteLn('Content-Type: ', ContentType);
+      WriteLn('Content-Length: ', Content.Length);
+      WriteLn;
+      Write(Content);
+      Flush(Output);
 
-  Data.Free;
+      Data.Free;
+    end;
 end;
 
 { TCommand }

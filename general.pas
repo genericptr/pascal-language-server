@@ -132,7 +132,8 @@ type
 
 implementation
 uses
-  SysUtils, RegExpr;
+  SysUtils, RegExpr,
+  settings;
 
 { TInitializeParams }
 

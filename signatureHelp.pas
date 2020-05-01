@@ -107,7 +107,7 @@ type
 implementation
 uses
   SysUtils, FindDeclarationTool, CodeTree, PascalParserTool,
-  codeUtils;
+  codeUtils, diagnostics;
 
 { TSignatureHelpRequest }
 
@@ -190,11 +190,7 @@ begin with Params do
     try
       if not CodeToolBoss.FindCodeContext(Code, X + 1, Y + 1, CodeContext) or (CodeContext = nil) or (CodeContext.Count = 0) then
         begin
-          if CodeToolBoss.ErrorMessage <> '' then
-            begin
-              writeln(StdErr, CodeToolBoss.ErrorMessage);
-              Flush(StdErr);
-            end;
+          PublishCodeToolsError;
           exit(nil);
         end;
 

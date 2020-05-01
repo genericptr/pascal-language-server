@@ -46,7 +46,9 @@ type
   end;
 
 implementation
-
+uses
+  settings;
+  
 procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
 var
   DeclCode, StartSrcCode, Code: TCodeBuffer;
