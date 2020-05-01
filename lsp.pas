@@ -24,18 +24,35 @@ unit lsp;
 interface
 
 uses
-  Classes, SysUtils, TypInfo, fpjson, fpjsonrtti, fpjsonrpc;
+  Classes, SysUtils, TypInfo, fpjson, fpjsonrtti, fpjsonrpc,
+  basic;
 
 type
+
+  { TLSPStreamer }
+
+  TLSPStreamer = class(TJSONStreamer)
+  protected
+    function StreamClassProperty(const AObject: TObject): TJSONData; override;
+  end;
+
+  { TLSPDeStreamer }
+
+  TLSPDeStreamer = class(TJSONDeStreamer)
+  protected
+    procedure DoRestoreProperty(AObject: TObject; PropInfo: PPropInfo;
+                                PropData: TJSONData); override;
+  end;
 
   { TLSPStreaming }
 
   generic TLSPStreaming<T: TPersistent> = class
   private
-    class var JSONStreamer: TJSONStreamer;
-    class var JSONDeStreamer: TJSONDeStreamer;
-    class procedure GetObject(Sender: TOBject; AObject: TObject; Info: PPropInfo;
-      AData: TJSONObject; DataName: TJSONStringType; var AValue: TObject); static;
+    class var Streamer: TLSPStreamer;
+    class var DeStreamer: TLSPDeStreamer;
+    class procedure GetObject(Sender: TOBject; AObject: TObject;
+                              Info: PPropInfo; AData: TJSONObject;
+                              DataName: TJSONStringType; var AValue: TObject); static;
   public
     class constructor Create;
     class function ToObject(const JSON: TJSONData): T; static;
@@ -111,33 +128,101 @@ function LSPHandlerManager: TCustomJSONRPCHandlerManager;
 
 implementation
 
+{ TLSPStreamer }
+
+function TLSPStreamer.StreamClassProperty(const AObject: TObject): TJSONData;
+var
+  C: TClass;
+  OptionalVariant: TOptionalVariantBase;
+  OptionalObject: TOptionalObjectBase;
+begin
+  if not Assigned(AObject) then
+  begin
+    Result := inherited StreamClassProperty(AObject);
+    Exit;
+  end;
+  C := AObject.ClassType;
+  if C.InheritsFrom(TOptionalVariantBase) then
+  begin
+    OptionalVariant := TOptionalVariantBase(AObject);
+    if OptionalVariant.HasValue then
+      Result := StreamVariant(OptionalVariant.Value)
+    else Result := nil
+  end
+  else if C.InheritsFrom(TOptionalObjectBase) then
+  begin
+    OptionalObject := TOptionalObjectBase(AObject);
+    if OptionalObject.HasValue then
+      if OptionalObject.Value = nil then Result := TJSONNull.Create
+      else Result := ObjectToJSON(OptionalObject.Value)
+    else Result := nil
+  end
+  else Result := inherited StreamClassProperty(AObject)
+end;
+
+{ TLSPDeStreamer }
+
+procedure TLSPDeStreamer.DoRestoreProperty(AObject: TObject; PropInfo: PPropInfo; PropData: TJSONData);
+var
+  C: TClass;
+  Optional: TObject;
+  OptionalVariant: TOptionalVariantBase;
+  OptionalObject: TOptionalObjectBase;
+begin
+  if PropInfo^.PropType^.Kind = tkClass then
+  begin
+    C := GetTypeData(PropInfo^.PropType)^.ClassType;
+    if C.InheritsFrom(TOptionalVariantBase) then
+    begin
+      Optional := C.Create;
+      OptionalVariant := TOptionalVariantBase(Optional);
+      SetObjectProp(AObject, PropInfo, Optional);
+      OptionalVariant.Value := JSONToVariant(PropData);
+    end
+    else if C.InheritsFrom(TOptionalObjectBase) then
+    begin
+      Optional := C.Create;
+      OptionalObject := TOptionalObjectBase(Optional);
+      SetObjectProp(AObject, PropInfo, Optional);
+      if PropData.JSONType = jtNull then OptionalObject.Value := nil
+      else
+      begin
+        OptionalObject.Value := OptionalObject.ValueClass.Create;
+        JSONToObject(PropData as TJSONObject, OptionalObject.Value);
+      end;
+    end
+    else inherited DoRestoreProperty(AObject, PropInfo, PropData)
+  end
+  else
+    inherited DoRestoreProperty(AObject, PropInfo, PropData)
+end;
+
 { TLSPStreaming }
 
-class procedure TLSPStreaming.GetObject(Sender: TOBject; AObject: TObject; Info: PPropInfo;
-  AData: TJSONObject; DataName: TJSONStringType; var AValue: TObject);
+class procedure TLSPStreaming.GetObject(Sender: TOBject; AObject: TObject;
+                                        Info: PPropInfo; AData: TJSONObject;
+                                        DataName: TJSONStringType; var AValue: TObject);
 var
   C: TClass;
 begin
   C := GetTypeData(Info^.PropType)^.ClassType;
-  if C.InheritsFrom(TPersistent) then
-    AValue := C.Create;
+  if C.InheritsFrom(TPersistent) then AValue := C.Create;
 end;
-
-{ RegisterLSPHandler }
 
 class constructor TLSPStreaming.Create;
 begin
-  JSONStreamer := TJSONStreamer.Create(nil);
-  JSONStreamer.Options := JSONStreamer.Options +
+  Streamer := TLSPStreamer.Create(nil);
+  Streamer.Options := Streamer.Options +
     [jsoEnumeratedAsInteger, jsoSetEnumeratedAsInteger, jsoTStringsAsArray];
-  JSONDeStreamer := TJSONDeStreamer.Create(nil);
-  JSONDeStreamer.OnGetObject := @GetObject;
+
+  DeStreamer := TLSPDeStreamer.Create(nil);
+  DeStreamer.OnGetObject := @GetObject;
 end;
 
 class function TLSPStreaming.ToObject(const JSON: TJSONData): T;
 begin
   Result := T.Create;
-  JSONDeStreamer.JSONToObject(JSON as TJSONObject, Result);
+  DeStreamer.JSONToObject(JSON as TJSONObject, Result);
 end;
 
 class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;

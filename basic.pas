@@ -26,9 +26,59 @@ unit basic;
 interface
 
 uses
-  Classes;
+  Classes, SysUtils;
 
 type
+
+  { TOptional }
+
+  generic TOptional<T> = class
+  private
+    fHasValue: Boolean;
+    fValue: T;
+    function GetValue: T;
+    procedure SetValue(AValue: T);
+  public
+    property HasValue: Boolean read fHasValue;
+    property Value: T read GetValue write SetValue;
+    procedure Clear;
+  end;
+
+  { TOptionalVariantBase }
+
+  TOptionalVariantBase = class(specialize TOptional<Variant>);
+
+  { TOptionalVariant }
+
+  generic TOptionalVariant<T> = class(TOptionalVariantBase)
+  private
+    function GetValue: T;
+    procedure SetValue(AValue: T);
+  public
+    constructor Create;
+    constructor Create(AValue: T);
+    property Value: T read GetValue write SetValue;
+  end;
+
+  { TOptionalObjectBase }
+
+  TOptionalObjectBase = class(specialize TOptional<TObject>)
+  public
+    function ValueClass: TClass; virtual; abstract;
+  end;
+
+  { TOptionalObject }
+
+  generic TOptionalObject<T> = class(TOptionalObjectBase)
+  private
+    function GetValue: T;
+    procedure SetValue(AValue: T);
+  public
+    constructor Create;
+    constructor Create(AValue: T);
+    function ValueClass: TClass; override;
+    property Value: T read GetValue write SetValue;
+  end;
 
   { TGenericCollection }
 
@@ -475,6 +525,76 @@ constructor TMarkupContent.Create(content: string);
 begin
   value := content;
   kind := TMarkupKind.PlainText;
+end;
+
+{ TOptional }
+
+function TOptional.GetValue: T;
+begin
+  if fHasValue then Result := fValue
+  else Exception.Create('no value');
+end;
+
+procedure TOptional.SetValue(AValue: T);
+begin
+  fValue := AValue;
+  fHasValue := True;
+end;
+
+procedure TOptional.Clear;
+begin
+  fHasValue := False;
+end;
+
+{ TOptionalVariant }
+
+function TOptionalVariant.GetValue: T;
+begin
+  Result := T(inherited Value);
+end;
+
+procedure TOptionalVariant.SetValue(AValue: T);
+begin
+  inherited Value := AValue;
+end;
+
+constructor TOptionalVariant.Create;
+begin
+  inherited Create;
+end;
+
+constructor TOptionalVariant.Create(AValue: T);
+begin
+  Create;
+  SetValue(AValue);
+end;
+
+{ TOptionalObject }
+
+function TOptionalObject.GetValue: T;
+begin
+  Result := T(inherited Value);
+end;
+
+procedure TOptionalObject.SetValue(AValue: T);
+begin
+  inherited Value := AValue;
+end;
+
+constructor TOptionalObject.Create;
+begin
+  inherited Create;
+end;
+
+constructor TOptionalObject.Create(AValue: T);
+begin
+  Create;
+  SetValue(AValue);
+end;
+
+function TOptionalObject.ValueClass: TClass;
+begin
+  Result := T;
 end;
 
 { TGenericCollection }
