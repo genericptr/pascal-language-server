@@ -31,8 +31,10 @@ uses
 type
   TServerOption = (
       InsertCompletionsAsSnippets,        // Procedure completions with parameters are inserted as snippets
-      InsertCompletionProcedureBrackets   // Procedure completions with parameters (non-snippet) insert
+      InsertCompletionProcedureBrackets,  // Procedure completions with parameters (non-snippet) insert
                                           // empty brackets (and insert as snippet)
+      IncludeWorkspaceFoldersAsUnitPaths,
+      IncludeWorkspaceFoldersAsIncludePaths
     );
   TServerOptions = set of TServerOption;
   
@@ -310,7 +312,7 @@ type
   private
     fRange: TRange;
     fSeverity: TDiagnosticSeverity;
-    fCode: string;
+    fCode: integer;
     fSource: string;
     fMessage: string;
     fTags: TDiagnosticTags;
@@ -324,7 +326,7 @@ type
     property severity: TDiagnosticSeverity read fSeverity write fSeverity;
 
     // The diagnostic's code, which might appear in the user interface.
-    property code: string read fCode write fCode;
+    property code: integer read fCode write fCode;
 
     // A human-readable string describing the source of this
     // diagnostic, e.g. 'typescript' or 'super lint'.
@@ -335,11 +337,13 @@ type
 
     // Additional metadata about the diagnostic.
     // @since 3.15.0
-    property tags: TDiagnosticTags read fTags write fTags;
+    // TODO: must be optional
+    //property tags: TDiagnosticTags read fTags write fTags;
 
     // An array of related diagnostic information, e.g. when symbol-names within
     // a scope collide all definitions can be marked via this property. (OPTIONAL)
-    property relatedInformation: TDiagnosticRelatedInformationItems read fRelatedInformation write fRelatedInformation;
+    // TODO: must be optional
+    //property relatedInformation: TDiagnosticRelatedInformationItems read fRelatedInformation write fRelatedInformation;
   end;
 
   TDiagnosticItems = specialize TGenericCollection<TDiagnostic>;
@@ -373,17 +377,80 @@ type
     // TODO: not implemented!
   end;
 
+  { TAbstractMessage }
+
+  { A general message as defined by JSON-RPC. The language server 
+    protocol always uses “2.0” as the jsonrpc version. }
+
+  TAbstractMessage = class(TPersistent)
+  private
+    fJsonrpc: String;
+    function GetJSONRPC: String;
+  published
+    property jsonrpc: String read GetJSONRPC;
+  end;
+
+  { TNotificationMessage }
+
+  { A notification message. A processed notification message 
+    must not send a response back. They work like events. }
+
+  TNotificationMessage = class(TAbstractMessage)
+  private
+    fMethod: string;
+    fParams: TPersistent;
+  published
+    // The method to be invoked.
+    property method: string read fMethod write fMethod;
+    // The notification's params.
+    // params?: Array<any> | object;
+    property params: TPersistent read fParams write fParams;
+  public
+    procedure Send;
+  end;
+
+const
+  ContentType = 'application/vscode-jsonrpc; charset=utf-8';
+
 { Utilities }
 
 function PathToURI(path: String): TDocumentUri;
 
 implementation
+uses
+  SysUtils, fpjson, lsp;
 
 { Utilities }
 
 function PathToURI(path: String): TDocumentUri;
 begin
   result := 'file://'+path;
+end;
+
+{ TAbstractMessage }
+
+function TAbstractMessage.GetJSONRPC: String;
+begin
+  result := '2.0';
+end;
+
+{ TNotificationMessage }
+
+procedure TNotificationMessage.Send;
+var
+  Data: TJSONData;
+  Content: String;
+begin
+  Data := specialize TLSPStreaming<TNotificationMessage>.ToJSON(self);
+  Content := Data.AsJSON;
+
+  WriteLn('Content-Type: ', ContentType);
+  WriteLn('Content-Length: ', Content.Length);
+  WriteLn;
+  Write(Content);
+  Flush(Output);
+
+  Data.Free;
 end;
 
 { TCommand }
