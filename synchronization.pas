@@ -45,6 +45,42 @@ type
     procedure Process(var Params : TDidOpenTextDocumentParams); override;
   end;
 
+  { TDidSaveTextDocumentParams }
+
+  TDidSaveTextDocumentParams = class(TPersistent)
+  private
+    fTextDocument: TTextDocumentItem;
+    fText: string;
+  published
+    // The document that was saved.
+    property textDocument: TTextDocumentItem read fTextDocument write fTextDocument;
+    // Optional the content when saved. Depends on the includeText value
+    // when the save notification was requested.
+    property text: string read fText write fText;
+  end;
+
+  { TDidSaveTextDocument }
+
+  TDidSaveTextDocument = class(specialize TLSPNotification<TDidSaveTextDocumentParams>)
+    procedure Process(var Params : TDidSaveTextDocumentParams); override;
+  end;
+
+  { TDidCloseTextDocumentParams }
+
+  TDidCloseTextDocumentParams = class(TPersistent)
+  private
+    fTextDocument: TTextDocumentItem;
+  published
+    // The document that was closed.
+    property textDocument: TTextDocumentItem read fTextDocument write fTextDocument;
+  end;
+
+  { TDidCloseTextDocument }
+
+  TDidCloseTextDocument = class(specialize TLSPNotification<TDidCloseTextDocumentParams>)
+    procedure Process(var Params : TDidCloseTextDocumentParams); override;
+  end;
+
   { TTextDocumentContentChangeEvent }
 
   // An event describing a change to a text document. If range and
@@ -94,6 +130,8 @@ type
   end;
 
 implementation
+uses
+  SysUtils, codeUtils, diagnostics;
 
 { TDidChangeTextDocumentParams }
 
@@ -113,8 +151,37 @@ begin with Params do
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.LoadFile(URI.Path + URI.Document, false, false);
     Code.Source := textDocument.text;
+    CheckSyntax(Code);
   end;
 end;
+
+{ TDidSaveTextDocument }
+
+procedure TDidSaveTextDocument.Process(var Params : TDidSaveTextDocumentParams);
+var
+  URI: TURI;
+  Code: TCodeBuffer;
+begin with Params do
+  begin
+    URI := ParseURI(textDocument.uri);
+    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    CheckSyntax(Code);
+  end;
+end;
+
+{ TDidCloseTextDocument }
+
+procedure TDidCloseTextDocument.Process(var Params : TDidCloseTextDocumentParams);
+var
+  URI: TURI;
+  Code: TCodeBuffer;
+begin with Params do
+  begin
+    URI := ParseURI(textDocument.uri);
+    // TODO: clear errors
+  end;
+end;
+
 
 { TDidChangeTextDocument }
 
@@ -136,5 +203,7 @@ end;
 
 initialization
   LSPHandlerManager.RegisterHandler('textDocument/didOpen', TDidOpenTextDocument);
+  LSPHandlerManager.RegisterHandler('textDocument/didClose', TDidCloseTextDocument);
   LSPHandlerManager.RegisterHandler('textDocument/didChange', TDidChangeTextDocument);
+  LSPHandlerManager.RegisterHandler('textDocument/didSave', TDidSaveTextDocument);
 end.

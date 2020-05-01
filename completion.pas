@@ -362,6 +362,9 @@ begin with Params do
             Completion.&label := Identifier.Identifier+'('+RawList+')';
             Completion.insertText := Identifier.Identifier+'('+SnippetText+');';
             Completion.insertTextFormat := TInsertTextFormat.Snippet;
+            // according to LSP plugin devs filterText should be the identifier name
+            // if the label contains non-alpha-numeric characters
+            Completion.filterText := Identifier.Identifier;
             // this ensures the sort order is maintained in Sublime Text
             Completion.sortText := IntToStr(I);
           end
