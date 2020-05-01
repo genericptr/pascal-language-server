@@ -228,9 +228,9 @@ end;
 class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;
 begin
   if AObject.InheritsFrom(TCollection) then
-    Result := JSONStreamer.StreamCollection(TCollection(AObject))
+    Result := Streamer.StreamCollection(TCollection(AObject))
   else
-    Result := JSONStreamer.ObjectToJSON(AObject);
+    Result := Streamer.ObjectToJSON(AObject);
 end;
 
 { TLSPProcessor }

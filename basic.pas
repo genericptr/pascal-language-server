@@ -450,7 +450,7 @@ function PathToURI(path: String): TDocumentUri;
 
 implementation
 uses
-  SysUtils, fpjson, lsp;
+  fpjson, lsp;
 
 { Utilities }
 
