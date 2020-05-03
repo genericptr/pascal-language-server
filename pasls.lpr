@@ -22,6 +22,7 @@ program pasls;
 {$mode objfpc}{$H+}
 
 uses
+  TestCodeTools,
   { RTL }
   SysUtils, fpjson, jsonparser, jsonscanner,
 
@@ -31,7 +32,7 @@ uses
   { Protocols }
   basic, synchronization, completion, hover, gotoDeclaration, 
   gotoImplementation, signatureHelp, references, codeAction,
-  diagnostics, documentHighlight;
+  diagnostics, documentHighlight, documentSymbol, workspace;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';
@@ -42,6 +43,10 @@ var
   I, Length: Integer;
   Request, Response: TJSONData;
 begin
+  //TestProjectSymbols;
+  //writeln('================================================================');
+  //TestProjectSymbols;
+  //exit;
   Dispatcher := TLSPDispatcher.Create(nil);
   TJSONData.CompressedJSON := True;
   SetTextLineEnding(Input, #13#10);

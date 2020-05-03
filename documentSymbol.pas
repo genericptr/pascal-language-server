@@ -207,6 +207,7 @@ type
       constructor Create;
       destructor Destroy; override;
 
+      function CollectSymbols: TSymbolInformationItems;
       procedure ClearErrors;
 
       function Find(Path: String): TSymbolInformationItems;
@@ -476,6 +477,31 @@ begin
   Index := SymbolTable.FindIndexOf(FileName);
   if Index <> -1 then
     SymbolTable.Delete(Index);
+end;
+
+function TSymbolManager.CollectSymbols: TSymbolInformationItems;
+var
+  i: integer;
+  Item: TCollectionItem;
+  Symbol: TSymbolInformation;
+  Entry: TSymbolTableEntry;
+begin
+  Result := nil;
+  for i := 0 to SymbolTable.Count - 1 do
+    begin
+      Entry := TSymbolTableEntry(SymbolTable[i]);
+      if Entry <> nil then
+        // TODO: how do we concat?
+        //for Item in Entry.Items do
+        //  begin
+        //    Symbol := TSymbolInformation(Result.Add);
+        //    Symbol.
+        //  end;
+        begin
+          Result := Entry.Items;
+          exit;
+        end;
+    end;
 end;
 
 procedure TSymbolManager.ClearErrors; 
