@@ -25,7 +25,7 @@ interface
 
 uses
   Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
-  lsp, basic, capabilities;
+  lsp, basic, capabilities, documentSymbol;
 
 type
 
@@ -192,6 +192,9 @@ begin with Params do
               FPCOptions := FPCOptions + '-Fu' + Path + ' ';
             if TServerOption.IncludeWorkspaceFoldersAsIncludePaths in ServerSettings.Options then
               FPCOptions := FPCOptions + '-Fi' + Path + ' ';
+
+            // TODO: check in WorkspaceClientCapabilities if we have workspace symbols
+            TSymbolManager.SharedManager.Scan(Path);
           end;
 
       for Option in initializationOptions.FPCOptions do

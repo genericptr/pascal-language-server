@@ -131,7 +131,7 @@ type
 
 implementation
 uses
-  SysUtils, codeUtils, diagnostics;
+  SysUtils, codeUtils, diagnostics, documentSymbol;
 
 { TDidChangeTextDocumentParams }
 
@@ -145,13 +145,16 @@ end;
 procedure TDidOpenTextDocument.Process(var Params : TDidOpenTextDocumentParams);
 var
   URI: TURI;
+  Path: String;
   Code: TCodeBuffer;
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.LoadFile(URI.Path + URI.Document, false, false);
+    Path := URI.Path + URI.Document;
+    Code := CodeToolBoss.FindFile(Path);
     Code.Source := textDocument.text;
     CheckSyntax(Code);
+    TSymbolManager.SharedManager.Reload(Code);
   end;
 end;
 
@@ -166,6 +169,7 @@ begin with Params do
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     CheckSyntax(Code);
+    TSymbolManager.SharedManager.Reload(Code);
   end;
 end;
 

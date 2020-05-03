@@ -123,6 +123,7 @@ type
     property &end: TPosition read fEnd write fEnd;
   public
     constructor Create(line, column: integer); overload;
+    constructor Create(line, column, len: integer); overload;
     constructor Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
   end;
 
@@ -135,6 +136,8 @@ type
   published
     property uri: TDocumentUri read fUri write fUri;
     property range: TRange read fRange write fRange;
+  public
+    constructor Create(Path: String; Line, Column, Span: Integer); overload;
   end;
 
   { TLocation }
@@ -505,12 +508,26 @@ begin
   character := c;
 end;
 
+{ TLocation }
+
+constructor TLocation.Create(Path: String; Line, Column, Span: Integer);
+begin
+  uri := PathToURI(Path);
+  range := TRange.Create(Line, Column, Span);
+end;
+
 { TRange }
 
 constructor TRange.Create(line, column: integer);
 begin
   fStart := TPosition.Create(line, column);
   fEnd := TPosition.Create(line, column);
+end;
+
+constructor TRange.Create(line, column, len: integer);
+begin
+  fStart := TPosition.Create(line, column);
+  fEnd := TPosition.Create(line, column + len);
 end;
 
 constructor TRange.Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;

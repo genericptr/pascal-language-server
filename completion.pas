@@ -245,7 +245,7 @@ type
 
 implementation
 uses
-  SysUtils, FGL, PascalParserTool,
+  SysUtils, Contnrs, PascalParserTool,
   codeUtils, diagnostics, settings;
   
 type
@@ -270,7 +270,6 @@ begin
         phpWithoutBrackets,
         phpWithoutSemicolon,
         phpDoNotAddSemicolon
-        //phpInUpperCase
         ]);
   end;
 end;
@@ -289,7 +288,6 @@ begin
         phpWithoutBrackets,
         phpWithoutSemicolon,
         phpDoNotAddSemicolon
-        //phpInUpperCase
         ]);
     Result:=StringReplace(Result, ',', '', []);
   end;
@@ -311,7 +309,6 @@ begin
        phpDoNotAddSemicolon,
        phpWithoutParamTypes,
        phpWithParameterNames
-       //phpInUpperCase
        ]);
   end;
 end;
@@ -319,8 +316,6 @@ end;
 { TCompletion }
 
 function TCompletion.Process(var Params: TCompletionParams): TCompletionList;
-type
-  TIdentifierMap = specialize TFPGMap<ShortString, TIdentifierListItem>;
 var
   URI: TURI;
   Code: TCodeBuffer;
@@ -330,7 +325,7 @@ var
   Identifier: TIdentifierListItem;
   Completion: TCompletionItem;
   SnippetText, RawList: String;
-  IdentifierMap: TIdentifierMap = nil;
+  IdentifierMap: TFPHashList;
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
@@ -341,7 +336,7 @@ begin with Params do
     GetIdentStartEndAtPosition(Line, X + 1, PStart, PEnd);
     CodeToolBoss.IdentifierList.Prefix := Copy(Line, PStart, PEnd - PStart);
     
-    IdentifierMap := TIdentifierMap.Create;
+    IdentifierMap := TFPHashList.Create;
     Completions := TCompletionItems.Create;
     Result := TCompletionList.Create;
 
@@ -370,7 +365,7 @@ begin with Params do
                   // this ensures the sort order is maintained in Sublime Text
                   Completion.sortText := IntToStr(I);
                 end
-              else if IdentifierMap.IndexOf(Identifier.Identifier) = -1 then
+              else if IdentifierMap.Find(Identifier.Identifier) = nil then
                 begin
                   Completion := TCompletionItem(Completions.Add);
                   Completion.&label := Identifier.Identifier;

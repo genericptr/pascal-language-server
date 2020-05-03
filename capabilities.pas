@@ -69,6 +69,7 @@ type
     fCodeActionProvider: boolean;
     fDocumentHighlightProvider: boolean;
     fDocumentSymbolProvider: boolean;
+    fWorkspaceSymbolProvider: boolean;
     fSignatureHelpProvider: TSignatureHelpOptions;
   public
     constructor Create;
@@ -83,6 +84,7 @@ type
     property codeActionProvider: boolean read fCodeActionProvider write fCodeActionProvider;
     property documentHighlightProvider: boolean read fDocumentHighlightProvider write fDocumentHighlightProvider;
     property documentSymbolProvider: boolean read fDocumentSymbolProvider write fDocumentSymbolProvider;
+    property workspaceSymbolProvider: boolean read fWorkspaceSymbolProvider write fWorkspaceSymbolProvider;
     property signatureHelpProvider: TSignatureHelpOptions read fSignatureHelpProvider write fSignatureHelpProvider;
   end;
 
@@ -102,6 +104,7 @@ begin
   referencesProvider := true;
   documentHighlightProvider := true;
   documentSymbolProvider := true;
+  workspaceSymbolProvider := true;
   
   completionProvider := TCompletionOptions.Create;
   triggerCharacters := TStringList.Create;

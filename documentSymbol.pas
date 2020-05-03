@@ -24,7 +24,8 @@ unit documentSymbol;
 interface
 
 uses
-  Classes, URIParser,
+  Classes, Contnrs, URIParser,
+  CodeToolManager, CodeCache, CodeTree,
   lsp, basic;
 
 type
@@ -155,59 +156,160 @@ type
     function Process(var Params: TDocumentSymbolParams): TPersistent; override;
   end;
 
-implementation
-uses
-  // rtl
-  SysUtils, FGL,
-  // code tools
-  CodeToolManager, CodeToolsConfig, CodeCache, IdentCompletionTool, 
-  BasicCodeTools, CodeTree, FindDeclarationTool, PascalParserTool,
-  KeywordFuncLists;
 
-{
-  Find all symbols in global/interface scope:
-
-  - public class methods
-  - global variables, types and constants
-  - functions
-  - classes, records, objects
-}
-
-type
-  TSymbol = class
-    Name: string;
-    Kind: TSymbolKind;
-    constructor Create(_Name: String; _kind: TSymbolKind);
+  { TSymbolTableEntry }
+  TSymbolTableEntry = class
+    private
+      Key: ShortString;
+      Items: TSymbolInformationItems;
+      Code: TCodeBuffer;
+    public
+      constructor Create(_Code: TCodeBuffer);
+      destructor Destroy; override;
+      procedure Clear;
   end;
-  TSymbolList = specialize TFPGList<TSymbol>;
 
-constructor TSymbol.Create(_Name: String; _Kind: TSymbolKind);
-begin
-  Name := _name;
-  Kind := _Kind;
-end;
+  { TSymbolExtractor }
 
-type
-  TDocumentSymbols = class
+  TSymbolExtractor = class
     private
       Code: TCodeBuffer;
-      Symbols: TSymbolList; 
+      Tool: TCodeTool;
+      Entry: TSymbolTableEntry;
+      UsedIdentifiers: TFPHashList;
 
-      function HandleProcedure(node: TCodeTreeNode): String;
-      procedure HandleMembers(constref StructIdentifier: String; Node: TCodeTreeNode); 
-      procedure HandleDefinitions(var node: TCodeTreeNode); 
-      function GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
       procedure WalkTree(node: TCodeTreeNode); 
+      function FindProcHead(Node: TCodeTreeNode): TCodeTreeNode;
+      function AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbolInformation; overload;
+      function AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbolInformation; overload;
+      function GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
+      function GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false): String; inline;
     public
-      constructor Create;
+      constructor Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
+      destructor Destroy; override;
   end;
 
-constructor TDocumentSymbols.Create;
+  { TSymbolManager }
+
+  TSymbolManager = class
+    private
+      class var _Manager: TSymbolManager;
+    private
+      SymbolTable: TFPHashObjectList;
+      ErrorList: TStringList;
+
+      function Load(Path: String): TCodeBuffer;
+      procedure RemoveFile(FileName: String);
+      procedure AddError(Message: String); 
+    public
+      class function SharedManager: TSymbolManager;
+
+      constructor Create;
+      destructor Destroy; override;
+
+      procedure ClearErrors;
+
+      function Find(Path: String): TSymbolInformationItems;
+      function Reload(Code: TCodeBuffer): TSymbolInformationItems; overload;
+      function Reload(Path: String): TSymbolInformationItems; overload;
+      procedure Scan(Path: String);
+  end;
+
+function SymbolKindToString(kind: TSymbolKind): ShortString;
+function SymbolKindFromString(kind: ShortString): TSymbolKind;
+
+implementation
+uses
+  SysUtils, FileUtil,
+  CodeToolsConfig, IdentCompletionTool, 
+  BasicCodeTools, FindDeclarationTool, PascalParserTool,
+  KeywordFuncLists;
+
+function SymbolKindToString(kind: TSymbolKind): ShortString;
 begin
-  Symbols := TSymbolList.Create; 
+  case kind of
+    SymbolKindFile: result := 'File';
+    SymbolKindModule: result := 'Module';
+    SymbolKindNamespace: result := 'Namespace';
+    SymbolKindPackage: result := 'Package';
+    SymbolKindClass: result := 'Class';
+    SymbolKindMethod: result := 'Method';
+    SymbolKindProperty: result := 'Property';
+    SymbolKindField: result := 'Field';
+    SymbolKindConstructor: result := 'Constructor';
+    SymbolKindEnum: result := 'Enum';
+    SymbolKindInterface: result := 'Interface';
+    SymbolKindFunction: result := 'Function';
+    SymbolKindVariable: result := 'Variable';
+    SymbolKindConstant: result := 'Constant';
+    SymbolKindString: result := 'String';
+    SymbolKindNumber: result := 'Number';
+    SymbolKindBoolean: result := 'Boolean';
+    SymbolKindArray: result := 'Array';
+    SymbolKindObject: result := 'Object';
+    SymbolKindKey: result := 'Key';
+    SymbolKindNull: result := 'Null';
+    SymbolKindEnumMember: result := 'EnumMember';
+    SymbolKindStruct: result := 'Struct';
+    SymbolKindEvent: result := 'Event';
+    SymbolKindOperator: result := 'Operator';
+    SymbolKindTypeParameter: result := 'TypeParameter'
+  end;
 end;
 
-function TDocumentSymbols.GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
+function SymbolKindFromString(kind: ShortString): TSymbolKind;
+begin
+  if (kind = 'File') then result := SymbolKindFile
+  else if (kind = 'Module') then result := SymbolKindModule
+  else if (kind = 'Namespace') then result := SymbolKindNamespace
+  else if (kind = 'Package') then result := SymbolKindPackage
+  else if (kind = 'Class') then result := SymbolKindClass
+  else if (kind = 'Method') then result := SymbolKindMethod
+  else if (kind = 'Property') then result := SymbolKindProperty
+  else if (kind = 'Field') then result := SymbolKindField
+  else if (kind = 'Constructor') then result := SymbolKindConstructor
+  else if (kind = 'Enum') then result := SymbolKindEnum
+  else if (kind = 'Interface') then result := SymbolKindInterface
+  else if (kind = 'Function') then result := SymbolKindFunction
+  else if (kind = 'Variable') then result := SymbolKindVariable
+  else if (kind = 'Constant') then result := SymbolKindConstant
+  else if (kind = 'String') then result := SymbolKindString
+  else if (kind = 'Number') then result := SymbolKindNumber
+  else if (kind = 'Boolean') then result := SymbolKindBoolean
+  else if (kind = 'Array') then result := SymbolKindArray
+  else if (kind = 'Object') then result := SymbolKindObject
+  else if (kind = 'Key') then result := SymbolKindKey
+  else if (kind = 'Null') then result := SymbolKindNull
+  else if (kind = 'EnumMember') then result := SymbolKindEnumMember
+  else if (kind = 'Struct') then result := SymbolKindStruct
+  else if (kind = 'Event') then result := SymbolKindEvent
+  else if (kind = 'Operator') then result := SymbolKindOperator
+  else if (kind = 'TypeParameter') then result := SymbolKindTypeParameter
+end;
+
+{ TSymbolTableEntry }
+
+procedure TSymbolTableEntry.Clear;
+begin
+  Items.Clear;
+end;
+
+destructor TSymbolTableEntry.Destroy; 
+begin
+  Items.Free;
+  inherited;
+end;
+
+constructor TSymbolTableEntry.Create(_Code: TCodeBuffer);
+begin
+  Code := _Code;
+  Key := ExtractFileName(Code.FileName);
+  Items := TSymbolInformationItems.Create;
+end;
+
+{ TSymbolExtractor }
+
+function TSymbolExtractor.GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
 var len: integer;
 begin
   if (Identifier=nil) then begin
@@ -231,157 +333,302 @@ begin
     Result:='';
 end;
 
-function TDocumentSymbols.HandleProcedure(node: TCodeTreeNode): String;
+function TSymbolExtractor.GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false): String;
 var
-  Identifier: String = '';
+  Source: String;
 begin
-  while node <> nil do
+  Source := Tool.Scanner.CleanedSrc;
+  Result := GetIdentifier(@Source[StartPos], aSkipAmp, IncludeDot);
+end;
+
+function TSymbolExtractor.FindProcHead(Node: TCodeTreeNode): TCodeTreeNode;
+begin
+  Assert(Node.Desc = ctnProcedure, 'Must start from procedure node');
+  result := nil;
+  Node := Node.FirstChild;
+  while Node <> nil do
     begin
       if Node.Desc = ctnProcedureHead then
-        begin
-          Identifier := GetIdentifier(@Code.Tool.Scanner.CleanedSrc[node.StartPos], true, true);
-          result := Identifier;
-          break;
-        end;
-      node := node.NextBrother;
+        exit(Node);
+      Node := Node.NextBrother;
     end;
 end;
 
-procedure TDocumentSymbols.HandleMembers(constref StructIdentifier: String; Node: TCodeTreeNode); 
+function TSymbolExtractor.AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbolInformation;
 var
-  Identifier: String;
-  Symbol: TSymbol;
+  Identifier: string;
+begin
+  Identifier := GetIdentifierAtPos(Pos, true, true);
+  Result := AddSymbol(Pos, Identifier, Kind);
+end;
+
+function TSymbolExtractor.AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbolInformation;
+var
+  Symbol: TSymbolInformation;
+  CodePos: TCodePosition;
+  Line, Column: Integer;
+begin
+  Tool.CleanPosToCodePos(Pos, CodePos);
+  Code.AbsoluteToLineCol(CodePos.P, Line, Column);
+
+  Symbol := TSymbolInformation(Entry.Items.Add);
+  Symbol.name := Name;
+  Symbol.kind := Kind;
+  Symbol.location := TLocation.Create(Code.FileName, Line - 1, Column - 1, Length(Name));
+
+  Result := Symbol;
+end;
+
+procedure TSymbolExtractor.WalkTree(Node: TCodeTreeNode); 
+var
+  ProcHead: String;
+  Symbol: TSymbolInformation;
 begin
   while Node <> nil do
     begin
-      //writeln('  MEMBER: ',node.Desc, ': ', node.DescAsString, ' -> ', node.ChildCount);
+      //writeln(Node.DescAsString, ' -> ', Node.ChildCount);
 
       case Node.Desc of
+        
+        // top-level procedures/functions
         ctnProcedure:
           begin
-            Identifier := HandleProcedure(Node.FirstChild);
-            if Identifier <> '' then
+            // todo: how do we know if this is a method or function?
+            ProcHead := Tool.ExtractProcName(Node, []);
+            if UsedIdentifiers.Find(ProcHead) = nil then
               begin
-                Identifier := StructIdentifier+'.'+Identifier;
-                Symbol := TSymbol.Create(Identifier, SymbolKindFunction);
-                Symbols.Add(Symbol);
-                //writeln('  PROC: ',Identifier);
+                // todo: for TDocumentSymbol there is a detail field 
+                // which we can fill with the signature
+                //ProcHead := Tool.ExtractProcHead(Node,
+                //                             [phpWithResultType,
+                //                             phpWithoutClassKeyword,
+                //                             phpWithoutClassName,
+                //                             phpWithoutSemicolon,
+                //                             phpDoNotAddSemicolon,
+                //                             phpWithParameterNames
+                //                             ]);
+                Symbol := AddSymbol(Node.StartPos, ProcHead, SymbolKindFunction);
+                UsedIdentifiers.Add(ProcHead, Symbol);
               end;
+            // stop searching so we don't get into parameter lists
+            Node := Node.NextBrother;
+            continue;
           end;
 
-        // hidden visibility
-        ctnClassPrivate,
-        ctnClassProtected:
-          ;
+        ctnVarDefinition:
+          AddSymbol(Node.StartPos, SymbolKindVariable);
+        ctnConstDefinition:
+          AddSymbol(Node.StartPos, SymbolKindConstant);
+        ctnEnumIdentifier:
+          AddSymbol(Node.StartPos, SymbolKindEnum);
+        ctnTypeDefinition:
+          begin
+            // todo: how do we know if this is a class type?
+            AddSymbol(Node.StartPos, SymbolKindTypeParameter);
+          end;
 
-        otherwise
-          HandleMembers(StructIdentifier, Node.FirstChild);
-      end;
+        // object members
+        ctnClass,
+        ctnRecordType,
+        ctnObject,
+        ctnClassInterface,
+        ctnObjCClass,
+        ctnObjCCategory,
+        ctnObjCProtocol,
+        ctnTypeHelper,
+        ctnRecordHelper,
+        ctnClassHelper:
+          begin
+            // TODO: we only do this when we return TDocumentSymbol which
+            // support a tree structure (using children)
+            Node := Node.NextBrother;
+            continue;
+          end;
+      end;              
+
+      if Node.ChildCount > 0 then
+        WalkTree(Node.FirstChild);  
 
       Node := Node.NextBrother;
     end;
 end;
 
-procedure TDocumentSymbols.HandleDefinitions(var node: TCodeTreeNode); 
-var
-  Identifier: string;
-  Symbol: TSymbol;
+constructor TSymbolExtractor.Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
 begin
-  while node <> nil do
-    begin
-      //writeln('DEF: ', node.DescAsString, ' -> ', node.ChildCount);
-
-      case Node.Desc of
-        ctnVarDefinition:
-          begin
-            // todo: handle var - get type!
-            Identifier:=GetIdentifier(@Code.Source[node.StartPos], false, false);
-            //writeln('  VAR: ',Identifier);
-            Symbol := TSymbol.Create(Identifier, SymbolKindVariable);
-            Symbols.Add(Symbol);
-          end;
-        ctnConstDefinition:
-          begin
-            Identifier:=GetIdentifier(@Code.Source[node.StartPos], false, false);
-            //writeln('  CONST: ',Identifier);
-            Symbol := TSymbol.Create(Identifier, SymbolKindConstant);
-            Symbols.Add(Symbol);
-          end;
-        ctnTypeDefinition,
-        ctnEnumIdentifier:
-          begin
-            Identifier:=GetIdentifier(@Code.Source[node.StartPos], false, false);
-            writeln('  TYPE: ',Identifier);
-            // todo: what wrong kind
-            Symbol := TSymbol.Create(Identifier, SymbolKindTypeParameter);
-            Symbols.Add(Symbol);
-          end;
-      end;
-
-      // recurse into object types
-      if node.ChildCount > 0 then
-        case node.Desc of
-          ctnClass,
-          ctnRecordType,
-          ctnObject,
-          ctnClassInterface,
-          ctnObjCClass,
-          ctnObjCCategory,
-          ctnObjCProtocol,
-          ctnTypeHelper,
-          ctnRecordHelper,
-          ctnClassHelper:
-            begin
-              Identifier:=GetIdentifier(@Code.Source[node.Parent.StartPos], false, false);
-              HandleMembers(Identifier, node.FirstChild);
-            end;
-          otherwise
-            HandleDefinitions(node.FirstChild);
-        end;
-
-      node := node.NextBrother;
-    end;
+  Entry := _Entry;
+  Code := _Code;
+  Tool := _Tool;
+  UsedIdentifiers := TFPHashList.Create;
 end;
 
-procedure TDocumentSymbols.WalkTree(node: TCodeTreeNode); 
-var
-  Identifier: string;
-  Symbol: TSymbol;
+destructor TSymbolExtractor.Destroy; 
 begin
-  while node <> nil do
+  UsedIdentifiers.Free;
+  inherited;
+end;
+
+{ TSymbolManager }
+
+procedure TSymbolManager.RemoveFile(FileName: String);
+var
+  Index: integer;
+begin
+  Index := SymbolTable.FindIndexOf(FileName);
+  if Index <> -1 then
+    SymbolTable.Delete(Index);
+end;
+
+procedure TSymbolManager.ClearErrors; 
+begin
+  ErrorList.Clear;
+end;
+
+procedure TSymbolManager.AddError(Message: String); 
+begin
+  // todo: diagnostics is not really working right now
+  // so just log to stderr instead
+  //ErrorList.Add(Message);
+  writeln(StdErr, Message);
+  Flush(stderr);
+end;
+
+procedure TSymbolManager.Scan(Path: String);
+var
+  Files: TStringList;
+  FileName: String;
+begin
+  Files := TStringList.Create;
+  try
+    FindAllFiles(Files, Path, '*.pas;*.pp;*.p;*.inc', true);
+    for FileName in Files do
+      begin
+        Reload(FileName);
+      end;
+    writeln('loaded ', SymbolTable.Count, ' entries.');
+  finally
+    Files.Free;
+  end;
+
+end;
+
+//type
+//  TSymbolManagerThread = class(TThread)
+//    private
+//      class var Pending: TStringList;
+//      class var QueueLock: TCriticalSection;
+//    protected
+//      class procedure AddPending(Path: String);
+//      procedure Execute; override;
+//  end;
+
+//class procedure TSymbolManagerThread.AddPending(Path: String);
+//begin
+//  QueueLock.Enter;
+//  Pending.Add(Path);
+//  QueueLock.Leave;
+//  Wakup;
+//end;
+
+//procedure TSymbolManagerThread.Execute;
+//var
+//  Path: String;
+//begin
+//  QueueLock.Enter;
+//  Path := Pending.Last;
+//  Pending.Delete(Pending.Count - 1);
+//  writeln('execute Path');
+//  QueueLock.Leave;
+//end;
+
+function TSymbolManager.Load(Path: String): TCodeBuffer;
+begin
+  Result := CodeToolBoss.FindFile(Path);  
+
+  // the file hasn't been loaded yet
+  if Result = nil then
+    Result := CodeToolBoss.LoadFile(Path, true, false);     
+   
+  if Result = nil then
+    AddError('file '+Path+' can''t be loaded');
+end;
+
+function TSymbolManager.Find(Path: String): TSymbolInformationItems;
+var
+  Entry: TSymbolTableEntry;
+  FileName: ShortString;
+begin
+  // TODO: make a TSymbolTableEntry.FileKey to standardize this
+  FileName := ExtractFileName(Path);
+  Entry := TSymbolTableEntry(SymbolTable.Find(FileName));
+  if Entry <> nil then
+    Result := Entry.Items
+  else
+    Result := nil;
+end;
+
+function TSymbolManager.Reload(Code: TCodeBuffer): TSymbolInformationItems;
+var
+  FileName: ShortString;
+  Entry: TSymbolTableEntry;
+  Tool: TCodeTool;
+  Extractor: TSymbolExtractor;
+begin
+  if not CodeToolBoss.Explore(Code, Tool, false, false) then
     begin
-      //writeln(node.Desc, ': ', node.DescAsString, ' -> ', node.ChildCount);
-
-      if node.ChildCount > 0 then
-        case Node.Desc of
-          
-          // procedures/functions
-          ctnProcedure:
-            begin
-              Identifier := HandleProcedure(node.FirstChild);
-              if Identifier <> '' then
-                begin
-                  Symbol := TSymbol.Create(Identifier, SymbolKindFunction);
-                  Symbols.Add(Symbol);
-                  //writeln('  GLOBAL PROC: ',Identifier);
-                end;
-            end;
-
-          // var/types/consts
-          ctnVarDefinition,
-          ctnTypeDefinition,
-          ctnConstDefinition:
-            begin
-              HandleDefinitions(node);
-              continue;
-            end;
-
-          otherwise
-            WalkTree(node.FirstChild);  
-        end;              
-
-      node := node.NextBrother;
+      AddError(CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
+      exit(nil);
     end;
+
+  FileName := ExtractFileName(Code.FileName);
+
+  // find a symbol table entry for the file
+  Entry := TSymbolTableEntry(SymbolTable.Find(FileName));
+  if Entry = nil then
+    begin
+      Entry := TSymbolTableEntry.Create(Code);
+      SymbolTable.Add(FileName, Entry);
+    end;
+
+  // clear existing items before reloading
+  Entry.Clear;
+
+  // now that we have a symbol table entry we can extract
+  // relevant symbols from the node tree
+  Extractor := TSymbolExtractor.Create(Entry, Code, Tool);  
+  Extractor.WalkTree(Tool.Tree.Root);
+  Extractor.Free;
+
+  result := Entry.Items;
+end;
+
+function TSymbolManager.Reload(Path: String): TSymbolInformationItems;
+var
+  Code: TCodeBuffer;
+begin
+  Code := Load(Path);
+  if Code = nil then
+    exit(nil);
+  Result := Reload(Code);
+end;
+
+class function TSymbolManager.SharedManager: TSymbolManager;
+begin
+  if _Manager = nil then
+    _Manager := TSymbolManager.Create;
+  result := _Manager;
+end;
+
+constructor TSymbolManager.Create;
+begin
+  SymbolTable := TFPHashObjectList.Create;
+  ErrorList := TStringList.Create;
+end;
+
+destructor TSymbolManager.Destroy; 
+begin
+  ErrorList.Free;
+  SymbolTable.Free;
+  inherited;
 end;
 
 { TDocumentSymbolRequest }
@@ -390,52 +637,17 @@ function TDocumentSymbolRequest.Process(var Params: TDocumentSymbolParams): TPer
 var
   URI: TURI;
   Path: String;
-  Item: TSymbolInformation;
-  Items: TSymbolInformationItems;
-  Code: TCodeBuffer;
-  DocumentSymbols: TDocumentSymbols;
-  Symbol: TSymbol;
-  Tool: TCodeTool;
-  i: integer;
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Path := URI.Path + URI.Document;
-    writeln(stderr, 'document symbols: ', Path);
-    flush(stderr);
-
-    Items := TSymbolInformationItems.Create;
-
-    Code := CodeToolBoss.LoadFile(Path,true,false);
-    
-    if not CodeToolBoss.Explore(Code,Tool,false,true) then
-      begin
-        writeln(StdErr, 'parser error -> '+CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
-        flush(stderr);
-        exit;
-      end;
-
-    DocumentSymbols := TDocumentSymbols.Create;
-    DocumentSymbols.Code := Code;
-    DocumentSymbols.WalkTree(CodeToolBoss.CurCodeTool.Tree.Root);
-
-    for Symbol in DocumentSymbols.Symbols do
-      begin
-        Item := TSymbolInformation(Items.Add);
-        Item.name := Symbol.Name;
-        Item.kind := Symbol.Kind;
-        // todo: constructor
-        //Item.location := TLocation.Create;
-        //Item.location.uri := PathToURI(Path);
-        //Item.location.range := TRange.Create(27, 1, 45, 1);
-      end;
-    
-    DocumentSymbols.Free;
-
-    result := Items;
+    result := TSymbolManager.SharedManager.Find(Path);
   end;
 end;
 
 initialization
+  //TSymbolExtractorThread.Pending := TStringList.Create;
+  //TSymbolExtractorThread.QueueLock := TCriticalSection.Create;
+
   LSPHandlerManager.RegisterHandler('textDocument/documentSymbol', TDocumentSymbolRequest);
 end.
