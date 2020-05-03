@@ -32,7 +32,7 @@ uses
   { Protocols }
   basic, synchronization, completion, hover, gotoDeclaration, 
   gotoImplementation, signatureHelp, references, codeAction,
-  diagnostics, documentHighlight, documentSymbol, workspace;
+  documentHighlight, documentSymbol, workspace;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';
