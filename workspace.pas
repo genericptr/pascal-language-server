@@ -56,9 +56,7 @@ uses
 function TWorkspaceSymbolRequest.Process(var Params: TWorkspaceSymbolParams): TSymbolInformationItems;
 begin with Params do
   begin
-    writeln(stderr, 'workspace symbols for ', query);
-
-    Result := TSymbolManager.SharedManager.Reload('/Users/ryanjoseph/Desktop/FPCLS-Test/units/node.pas');
+    Result := TSymbolManager.SharedManager.CollectSymbols;
   end;
 end;
 
