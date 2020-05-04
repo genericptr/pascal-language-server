@@ -387,12 +387,7 @@ begin with Params do
                 end;
             end;
         end else begin
-          //if CodeToolBoss.ErrorMessage<>'' then
-          //  writeln(stderr, 'Parse error: ',CodeToolBoss.ErrorMessage)
-          //else
-          //  writeln(StdErr, 'Error: no context');
           PublishCodeToolsError;
-          Flush(StdErr);
           Result.isIncomplete := true;
         end;
     except
