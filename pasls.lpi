@@ -118,5 +118,13 @@
         <UseExternalDbgSyms Value="True"/>
       </Debugging>
     </Linking>
+    <Other>
+      <Verbosity>
+        <ShowWarn Value="True"/>
+        <ShowNotes Value="False"/>
+        <ShowHints Value="False"/>
+      </Verbosity>
+      <CustomOptions Value="-dLSP:=3014 -dx86_64 -vbr -gw -godwarfcpp"/>
+    </Other>
   </CompilerOptions>
 </CONFIG>
