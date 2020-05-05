@@ -283,7 +283,7 @@ begin with Params do
             begin
               Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
 
-              if (TServerOption.InsertCompletionsAsSnippets in ServerSettings.Options) and 
+              if ServerSettings.options.insertCompletionsAsSnippets and 
                 Identifier.IsProcNodeWithParams then
                 begin
                   RawList := Identifier.ParamNameList;
@@ -309,7 +309,7 @@ begin with Params do
                   //if Parent <> '' then
                   //  Completion.detail := Identifier.Node.DescAsString+' ('+Parent+')';
 
-                  if (TServerOption.InsertCompletionProcedureBrackets in ServerSettings.Options) and 
+                  if ServerSettings.options.insertCompletionProcedureBrackets and 
                     Identifier.IsProcNodeWithParams then
                     begin
                       Completion.insertText := Identifier.Identifier+'($0)';

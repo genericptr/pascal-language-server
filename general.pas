@@ -25,7 +25,7 @@ interface
 
 uses
   Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
-  lsp, basic, capabilities, documentSymbol;
+  lsp, basic, capabilities, documentSymbol, settings;
 
 type
 
@@ -50,17 +50,7 @@ type
 
   { TInitializationOptions }
 
-  TInitializationOptions = class(TPersistent)
-  private
-    fFPCOptions: TStrings;
-    fProgram: String;
-  published
-    // FPC compiler switches passed to TCodeToolsOptions on initialization
-    property FPCOptions: TStrings read fFPCOptions write fFPCOptions;
-    // Optional path to main program file (used for FindReferences)
-    property &program: String read fProgram write fProgram;
-  public
-    procedure AfterConstruction; override;
+  TInitializationOptions = class(TServerSettings)
   end;
 
   { TInitializeParams }
@@ -132,24 +122,15 @@ type
 
 implementation
 uses
-  SysUtils, RegExpr,
-  settings;
+  SysUtils, RegExpr;
 
 { TInitializeParams }
 
 procedure TInitializeParams.AfterConstruction;
 begin
   inherited;
+
   workspaceFolders := TWorkspaceFolderItems.Create;
-end;
-
-{ TInitializationOptions }
-
-procedure TInitializationOptions.AfterConstruction;
-begin
-  inherited;
-
-  FPCOptions := TStringList.Create;
 end;
 
 { TInitialize }
@@ -169,28 +150,16 @@ begin with Params do
     begin
       InitWithEnvironmentVariables;
 
-      // get settings
-      ServerSettings.MainProgramFile := ExpandFileName(initializationOptions.&program);
-      ServerSettings.Options := [
-            // note(ryan): this is causing bugs in Sublime Text
-            // will be fixed in ST4
-            // https://github.com/sublimehq/sublime_text/issues/819
-            //TServerOption.InsertCompletionsAsSnippets,
-            TServerOption.InsertCompletionProcedureBrackets,
-            TServerOption.IncludeWorkspaceFoldersAsUnitPaths,
-            TServerOption.IncludeWorkspaceFoldersAsIncludePaths
-      ];
-
       // include workspace paths as search paths
-      if (TServerOption.IncludeWorkspaceFoldersAsUnitPaths in ServerSettings.Options) or
-        (TServerOption.IncludeWorkspaceFoldersAsIncludePaths in ServerSettings.Options) then
+      if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths or
+        ServerSettings.options.includeWorkspaceFoldersAsIncludePaths then
         for Item in workspaceFolders do
           begin
             URI := ParseURI(TWorkspaceFolder(Item).uri);
             Path := URI.Path + URI.Document;
-            if TServerOption.IncludeWorkspaceFoldersAsUnitPaths in ServerSettings.Options then
+            if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths then
               FPCOptions := FPCOptions + '-Fu' + Path + ' ';
-            if TServerOption.IncludeWorkspaceFoldersAsIncludePaths in ServerSettings.Options then
+            if ServerSettings.options.includeWorkspaceFoldersAsIncludePaths then
               FPCOptions := FPCOptions + '-Fi' + Path + ' ';
 
             // TODO: check in WorkspaceClientCapabilities if we have workspace symbols
@@ -205,7 +174,7 @@ begin with Params do
           else
             FPCOptions := FPCOptions + Option + ' ';
         end;
-        
+
       //writeln(StdErr, FPCOptions);
       //flush(stderr);
       ProjectDir := ParseURI(rootUri).Path;

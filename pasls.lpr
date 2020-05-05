@@ -20,9 +20,6 @@
 program pasls;
 
 {$mode objfpc}{$H+}
-{$ifndef LSP}
-{$error LSP macro must be set with current API version number, i.e. -dLSP:=3014 for API 3.14}
-{$endif}
 
 uses
   TestCodeTools,

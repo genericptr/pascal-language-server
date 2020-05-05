@@ -100,9 +100,10 @@ type
     // If a server provides both `allCommitCharacters` and commit
     // characters on an individual completion item the ones on the
     // completion item win.
-    {$if LSP >= 3015}
+    //
+    // @since 3.2.0
     property allCommitCharacters: TStrings read fAllCommitCharacters write fAllCommitCharacters;
-    {$endif}
+
     // The server provides support to resolve additional information
     // for a completion item.
     property resolveProvider: Boolean read fResolveProvider write fResolveProvider;

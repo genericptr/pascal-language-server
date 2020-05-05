@@ -20,32 +20,60 @@
 unit settings;
 
 {$mode objfpc}{$H+}
-{$modeswitch advancedrecords}
-{$scopedenums on}
 
 interface
+uses
+  Classes;
 
 type
-  TServerOption = (
-      InsertCompletionsAsSnippets,        // Procedure completions with parameters are inserted as snippets
-      InsertCompletionProcedureBrackets,  // Procedure completions with parameters (non-snippet) insert
-                                          // empty brackets (and insert as snippet)
-      IncludeWorkspaceFoldersAsUnitPaths,
-      IncludeWorkspaceFoldersAsIncludePaths,
+  TServerOptions = class(TPersistent)
+  private
+    fInsertCompletionsAsSnippets: boolean;
+    fInsertCompletionProcedureBrackets: boolean;
+    fIncludeWorkspaceFoldersAsUnitPaths: boolean;
+    fIncludeWorkspaceFoldersAsIncludePaths: boolean;
+    fCheckSyntax: boolean;
+    fPublishDiagnostics: boolean;
+  published
+    // procedure completions with parameters are inserted as snippets
+    property insertCompletionsAsSnippets: boolean read fInsertCompletionsAsSnippets write fInsertCompletionsAsSnippets;
+    // procedure completions with parameters (non-snippet) insert
+    // empty brackets (and insert as snippet)
+    property insertCompletionProcedureBrackets: boolean read fInsertCompletionProcedureBrackets write fInsertCompletionProcedureBrackets;
+    property includeWorkspaceFoldersAsUnitPaths: boolean read fIncludeWorkspaceFoldersAsUnitPaths write fIncludeWorkspaceFoldersAsUnitPaths;
+    property includeWorkspaceFoldersAsIncludePaths: boolean read fIncludeWorkspaceFoldersAsIncludePaths write fIncludeWorkspaceFoldersAsIncludePaths;
+    // syntax will be checked when file opens or saves
+    property checkSyntax: boolean read fCheckSyntax write fCheckSyntax;
+    // syntax errors will be published as diagnostics
+    property publishDiagnostics: boolean read fPublishDiagnostics write fPublishDiagnostics;
+  end;
 
-      CheckSyntax,                        // syntax will be checked when file opens or saves
-      PublishDiagnostics                  // syntax errors will be published as diagnostics
-    );
-  TServerOptions = set of TServerOption;
-  
-  TServerSettings = record
-    MainProgramFile: String;
-    Options: TServerOptions;
+  TServerSettings = class(TPersistent)
+  private
+    fOptions: TServerOptions;
+    fProgram: String;
+    fFPCOptions: TStrings;
+  published
+    property options: TServerOptions read fOptions write fOptions;
+    property &program: String read fProgram write fProgram;
+    property FPCOptions: TStrings read fFPCOptions write fFPCOptions;
+  public
+    procedure AfterConstruction; override;
   end;
 
 var
-  ServerSettings: TServerSettings;
+  ServerSettings: TServerSettings = nil;
 
 implementation
+
+procedure TServerSettings.AfterConstruction;
+begin
+  inherited;
+
+  ServerSettings := self;
+
+  Options := TServerOptions.Create;
+  FPCOptions := TStringList.Create;
+end;
 
 end.

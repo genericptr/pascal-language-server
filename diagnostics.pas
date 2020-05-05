@@ -89,7 +89,7 @@ procedure PublishCodeToolsError;
 var
   notification: TPublishDiagnostics;
 begin
-  if not (TServerOption.PublishDiagnostics in ServerSettings.Options) then
+  if not ServerSettings.options.publishDiagnostics then
     begin
       writeln(stderr, 'Syntax Error -> '+CodeToolBoss.ErrorCode.FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
       flush(stderr);
@@ -115,11 +115,11 @@ var
   Tool: TCodeTool;
   notification: TPublishDiagnostics;
 begin
-  if not (TServerOption.CheckSyntax in ServerSettings.Options) then
+  if not ServerSettings.options.checkSyntax then
     exit;
   if not CodeToolBoss.Explore(Code,Tool,true) then
     PublishCodeToolsError
-  else if TServerOption.PublishDiagnostics in ServerSettings.Options then
+  else if ServerSettings.options.publishDiagnostics then
     begin
       // todo: when we have a document store we can check to see
       // if we actually have any errors.

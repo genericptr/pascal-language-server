@@ -124,7 +124,7 @@
         <ShowNotes Value="False"/>
         <ShowHints Value="False"/>
       </Verbosity>
-      <CustomOptions Value="-dLSP:=3014 -dx86_64 -gw -godwarfcpp"/>
+      <CustomOptions Value="-dx86_64 -gw -godwarfcpp"/>
     </Other>
   </CompilerOptions>
 </CONFIG>
