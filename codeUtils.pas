@@ -1,5 +1,5 @@
 // Pascal Language Server
-// Copyright 2020 Arjan Adriaanse
+// Copyright 2020 Ryan Joseph
 
 // This file is part of Pascal Language Server.
 
@@ -24,12 +24,99 @@ unit codeUtils;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, 
+  IdentCompletionTool;
+
+type
+  TIdentifierListItemHelper = class helper for TIdentifierListItem
+    function ParamPairList: string;
+    function ParamNameList: string;
+    function ParamTypeList: string;
+  end;
+
+function FindIdentifierParent(Identifier: TIdentifierListItem): ShortString;
 
 function ParseParamList(RawList: String): TStringList; overload;
 function ParseParamList(RawList: String; AsSnippet: boolean): String; overload;
 
 implementation
+uses
+  CodeTree, PascalParserTool;
+
+function FindIdentifierParent(Identifier: TIdentifierListItem): ShortString;
+var
+  Node: TCodeTreeNode;
+begin
+  result := '';
+  Node := Identifier.Node;
+  while Node <> nil do
+    begin
+      if Node.Desc = ctnClass then
+        begin
+          result := Identifier.Tool.ExtractClassName(Node, false);
+          exit;
+        end;
+      Node := Node.Parent;
+    end;
+end;
+
+function TIdentifierListItemHelper.ParamPairList: string;
+var
+  ANode: TCodeTreeNode;
+begin
+  Result:='';
+  ANode:=Node;
+  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
+    Result:=Tool.ExtractProcHead(ANode,
+       [phpWithoutClassKeyword,
+        phpWithoutClassName,
+        phpWithoutName,
+        phpWithParameterNames,
+        phpWithoutBrackets,
+        phpWithoutSemicolon,
+        phpDoNotAddSemicolon
+        ]);
+  end;
+end;
+
+function TIdentifierListItemHelper.ParamTypeList: string;
+var
+  ANode: TCodeTreeNode;
+begin
+  Result:='';
+  ANode:=Node;
+  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
+    Result:=Tool.ExtractProcHead(ANode,
+       [phpWithoutClassKeyword,
+        phpWithoutClassName,
+        phpWithoutName,
+        phpWithoutBrackets,
+        phpWithoutSemicolon,
+        phpDoNotAddSemicolon
+        ]);
+    Result:=StringReplace(Result, ',', '', []);
+  end;
+end;
+
+function TIdentifierListItemHelper.ParamNameList: string;
+var
+  ANode: TCodeTreeNode;
+begin
+  Result:='';
+  ANode:=Node;
+  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
+    Result:=Tool.ExtractProcHead(ANode,
+       [phpWithoutBrackets, 
+       phpWithoutClassKeyword,
+       phpWithoutClassName,
+       phpWithoutName,
+       phpWithoutSemicolon,
+       phpDoNotAddSemicolon,
+       phpWithoutParamTypes,
+       phpWithParameterNames
+       ]);
+  end;
+end;
 
 function SplitString (s: string; delimiter: char): TStringArray;
 var

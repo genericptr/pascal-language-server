@@ -111,12 +111,12 @@
       <VerifyObjMethodCallValidity Value="True"/>
     </CodeGeneration>
     <Linking>
-      <Debugging>
+      <!-- <Debugging>
         <DebugInfoType Value="dsDwarf2Set"/>
         <UseHeaptrc Value="True"/>
         <TrashVariables Value="True"/>
         <UseExternalDbgSyms Value="True"/>
-      </Debugging>
+      </Debugging> -->
     </Linking>
     <Other>
       <Verbosity>
@@ -124,7 +124,7 @@
         <ShowNotes Value="False"/>
         <ShowHints Value="False"/>
       </Verbosity>
-      <CustomOptions Value="-dLSP:=3014 -dx86_64 -vbr -gw -godwarfcpp"/>
+      <CustomOptions Value="-dLSP:=3014 -dx86_64 -gw -godwarfcpp"/>
     </Other>
   </CompilerOptions>
 </CONFIG>

@@ -1,5 +1,5 @@
 // Pascal Language Server
-// Copyright 2020 Arjan Adriaanse
+// Copyright 2020 Ryan Joseph
 
 // This file is part of Pascal Language Server.
 
@@ -102,11 +102,13 @@ type
 
   TSymbolInformation = class(TCollectionItem)
   private
-   fName: string;
-   fKind: TSymbolKind;
-   fDeprecated: boolean;
-   fLocation: TLocation;
-   fContainerName: string;
+    fName: string;
+    fKind: TSymbolKind;
+    fDeprecated: boolean;
+    fLocation: TLocation;
+    fContainerName: string;
+  protected
+    procedure Assign(source: TPersistent); override;
   published
     // The name of this symbol.
     property name: string read fName write fName;
@@ -287,6 +289,18 @@ begin
   else if (kind = 'Operator') then result := SymbolKindOperator
   else if (kind = 'TypeParameter') then result := SymbolKindTypeParameter
 end;
+
+{ TSymbolInformation }
+
+procedure TSymbolInformation.Assign(Source: TPersistent);
+begin
+  Name := TSymbolInformation(Source).Name;
+  Kind := TSymbolInformation(Source).Kind;
+  Deprecated := TSymbolInformation(Source).Deprecated;
+  Location := TSymbolInformation(Source).Location;
+  ContainerName := TSymbolInformation(Source).ContainerName;
+end;
+
 
 { TSymbolTableEntry }
 
@@ -486,21 +500,16 @@ var
   Symbol: TSymbolInformation;
   Entry: TSymbolTableEntry;
 begin
-  Result := nil;
+  Result := TSymbolInformationItems.Create;
   for i := 0 to SymbolTable.Count - 1 do
     begin
       Entry := TSymbolTableEntry(SymbolTable[i]);
       if Entry <> nil then
-        // TODO: how do we concat?
-        //for Item in Entry.Items do
-        //  begin
-        //    Symbol := TSymbolInformation(Result.Add);
-        //    Symbol.
-        //  end;
-        begin
-          Result := Entry.Items;
-          exit;
-        end;
+        for Item in Entry.Items do
+          begin
+            Symbol := TSymbolInformation.Create(Result);
+            Symbol.Assign(Item);
+          end;
     end;
 end;
 
@@ -601,7 +610,8 @@ var
 begin
   if not CodeToolBoss.Explore(Code, Tool, false, false) then
     begin
-      AddError(CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
+      // todo: these errors are overwhelming on startup so we probably need a better way
+      //AddError(CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
       exit(nil);
     end;
 

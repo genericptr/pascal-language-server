@@ -248,71 +248,6 @@ uses
   SysUtils, Contnrs, PascalParserTool,
   codeUtils, diagnostics, settings;
   
-type
-  TIdentifierListItemHelper = class helper for TIdentifierListItem
-    function ParamPairList: string;
-    function ParamNameList: string;
-    function ParamTypeList: string;
-  end;
-
-function TIdentifierListItemHelper.ParamPairList: string;
-var
-  ANode: TCodeTreeNode;
-begin
-  Result:='';
-  ANode:=Node;
-  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
-    Result:=Tool.ExtractProcHead(ANode,
-       [phpWithoutClassKeyword,
-        phpWithoutClassName,
-        phpWithoutName,
-        phpWithParameterNames,
-        phpWithoutBrackets,
-        phpWithoutSemicolon,
-        phpDoNotAddSemicolon
-        ]);
-  end;
-end;
-
-function TIdentifierListItemHelper.ParamTypeList: string;
-var
-  ANode: TCodeTreeNode;
-begin
-  Result:='';
-  ANode:=Node;
-  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
-    Result:=Tool.ExtractProcHead(ANode,
-       [phpWithoutClassKeyword,
-        phpWithoutClassName,
-        phpWithoutName,
-        phpWithoutBrackets,
-        phpWithoutSemicolon,
-        phpDoNotAddSemicolon
-        ]);
-    Result:=StringReplace(Result, ',', '', []);
-  end;
-end;
-
-function TIdentifierListItemHelper.ParamNameList: string;
-var
-  ANode: TCodeTreeNode;
-begin
-  Result:='';
-  ANode:=Node;
-  if (ANode<>nil) and (ANode.Desc=ctnProcedure) then begin
-    Result:=Tool.ExtractProcHead(ANode,
-       [phpWithoutBrackets, 
-       phpWithoutClassKeyword,
-       phpWithoutClassName,
-       phpWithoutName,
-       phpWithoutSemicolon,
-       phpDoNotAddSemicolon,
-       phpWithoutParamTypes,
-       phpWithParameterNames
-       ]);
-  end;
-end;
-
 { TCompletion }
 
 function TCompletion.Process(var Params: TCompletionParams): TCompletionList;
@@ -320,11 +255,11 @@ var
   URI: TURI;
   Code: TCodeBuffer;
   X, Y, PStart, PEnd, Count, I, J: Integer;
-  Line: string;
+  Line: String;
   Completions: TCompletionItems;
   Identifier: TIdentifierListItem;
   Completion: TCompletionItem;
-  SnippetText, RawList: String;
+  SnippetText, RawList, Parent: String;
   IdentifierMap: TFPHashList;
 begin with Params do
   begin
@@ -348,8 +283,6 @@ begin with Params do
             begin
               Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
 
-              // TODO: currently the parsing is temporary also until we can 
-              // figure out how to use code tools properly
               if (TServerOption.InsertCompletionsAsSnippets in ServerSettings.Options) and 
                 Identifier.IsProcNodeWithParams then
                 begin
@@ -370,6 +303,12 @@ begin with Params do
                   Completion := TCompletionItem(Completions.Add);
                   Completion.&label := Identifier.Identifier;
                   Completion.detail := Identifier.Node.DescAsString;
+
+                  // todo: find parent
+                  //Parent := FindIdentifierParent(Identifier);
+                  //if Parent <> '' then
+                  //  Completion.detail := Identifier.Node.DescAsString+' ('+Parent+')';
+
                   if (TServerOption.InsertCompletionProcedureBrackets in ServerSettings.Options) and 
                     Identifier.IsProcNodeWithParams then
                     begin

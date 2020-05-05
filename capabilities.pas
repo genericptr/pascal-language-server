@@ -33,8 +33,48 @@ type
   TWorkspaceClientCapabilities = class(TPersistent)
   private
     fApplyEdit: Boolean;
+    fWorkspaceFolders: boolean;
+    fConfiguration: boolean;
   published
+    // The client supports applying batch edits to the workspace by supporting
+    // the request 'workspace/applyEdit'
     property applyEdit: Boolean read fApplyEdit write fApplyEdit;
+
+    // The client has support for workspace folders.
+    property workspaceFolders: Boolean read fWorkspaceFolders write fWorkspaceFolders;
+
+    // The client supports `workspace/configuration` requests.
+    property configuration: Boolean read fConfiguration write fConfiguration;
+
+  end;
+
+  { TWorkspaceFoldersServerCapabilities }
+
+  TWorkspaceFoldersServerCapabilities = class(TPersistent)
+  private
+    fSupported: boolean;
+    fChangeNotifications: string;
+  published
+    // The server has support for workspace folders
+    property supported: Boolean read fSupported write fSupported;
+    // Whether the server wants to receive workspace folder
+    // change notifications.
+    // 
+    // If a string is provided, the string is treated as an ID
+    // under which the notification is registered on the client
+    // side. The ID can be used to unregister for these events
+    // using the `client/unregisterCapability` request.
+    property changeNotifications: string read fChangeNotifications write fChangeNotifications;
+  end;
+
+  TWorkspaceServerCapabilities = class(TPersistent)
+  private
+    fWorkspaceFolders: TWorkspaceFoldersServerCapabilities;
+  published
+    // The server supports workspace folder.
+    property workspaceFolders: TWorkspaceFoldersServerCapabilities read fWorkspaceFolders write fWorkspaceFolders;
+  public
+    constructor Create;
   end;
 
   { TTextDocumentClientCapabilities }
@@ -60,6 +100,7 @@ type
   TServerCapabilities = class(TPersistent)
   private
     fTextDocumentSync: TTextDocumentSyncOptions;
+    fWorkspace: TWorkspaceServerCapabilities;
     fCompletionProvider: TCompletionOptions;
     fHoverProvider: boolean;
     fDefinitionProvider: boolean;
@@ -75,6 +116,7 @@ type
     constructor Create;
   published
     property textDocumentSync: TTextDocumentSyncOptions read fTextDocumentSync write fTextDocumentSync;
+    property workspace: TWorkspaceServerCapabilities read fWorkspace write fWorkspace;
     property completionProvider: TCompletionOptions read fCompletionProvider write fCompletionProvider;
     property hoverProvider: boolean read fHoverProvider write fHoverProvider;
     property definitionProvider: boolean read fDefinitionProvider write fDefinitionProvider;
@@ -90,6 +132,13 @@ type
 
 implementation
 
+{ TWorkspaceServerCapabilities }
+
+constructor TWorkspaceServerCapabilities.Create;
+begin
+  workspaceFolders := TWorkspaceFoldersServerCapabilities.Create;
+end;
+
 { TServerCapabilities }
 
 constructor TServerCapabilities.Create;
@@ -97,6 +146,9 @@ var
   triggerCharacters: TStringList;
 begin
   textDocumentSync := TTextDocumentSyncOptions.Create;
+
+  workspace := TWorkspaceServerCapabilities.Create;
+  workspace.workspaceFolders.supported := true;
 
   hoverProvider := true;
   declarationProvider := true;

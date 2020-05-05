@@ -1,5 +1,5 @@
 // Pascal Language Server
-// Copyright 2020 Arjan Adriaanse
+// Copyright 2020 Ryan Joseph
 
 // This file is part of Pascal Language Server.
 
@@ -240,11 +240,16 @@ begin with Params do
         end;
         
         Result.activeParameter := CodeContext.ParameterIndex - 1;
-
-    finally
-      CodeContext.Free;
+    except
+      on E: Exception do
+        begin
+          writeln(StdErr, 'Signature Error: ', E.ClassName, ' ', E.Message);
+          flush(StdErr);
+          exit(nil);
+        end;
     end;
 
+    FreeAndNil(CodeContext);
   end;
 end;
 

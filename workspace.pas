@@ -1,5 +1,5 @@
 // Pascal Language Server
-// Copyright 2020 Arjan Adriaanse
+// Copyright 2020 Ryan Joseph
 
 // This file is part of Pascal Language Server.
 
@@ -56,6 +56,7 @@ uses
 function TWorkspaceSymbolRequest.Process(var Params: TWorkspaceSymbolParams): TSymbolInformationItems;
 begin with Params do
   begin
+    // todo: use query string
     Result := TSymbolManager.SharedManager.CollectSymbols;
   end;
 end;

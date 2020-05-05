@@ -1,5 +1,5 @@
 // Pascal Language Server
-// Copyright 2020 Arjan Adriaanse
+// Copyright 2020 Ryan Joseph
 
 // This file is part of Pascal Language Server.
 
@@ -68,7 +68,6 @@ begin with Params do
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
     Y := position.line;
-    Result := THoverResponse.Create;
 
     try
       Hint := CodeToolBoss.FindSmartHint(Code, X + 1, Y + 1);
@@ -82,9 +81,11 @@ begin with Params do
         begin
           writeln(StdErr, 'Hover Error: ', E.ClassName, ' ', E.Message);
           flush(StdErr);
+          exit(nil);
         end;
     end;
 
+    Result := THoverResponse.Create;
     Result.contents := TMarkupContent.Create(Hint);
     Result.range := TRange.Create(Y, X);
   end;

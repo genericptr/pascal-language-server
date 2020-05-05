@@ -20,6 +20,9 @@
 program pasls;
 
 {$mode objfpc}{$H+}
+{$ifndef LSP}
+{$error LSP macro must be set with current API version number, i.e. -dLSP:=3014 for API 3.14}
+{$endif}
 
 uses
   TestCodeTools,
@@ -43,8 +46,6 @@ var
   I, Length: Integer;
   Request, Response: TJSONData;
 begin
-  //TestProjectSymbols;
-  //writeln('================================================================');
   //TestProjectSymbols;
   //exit;
   Dispatcher := TLSPDispatcher.Create(nil);
@@ -84,7 +85,7 @@ begin
         ((TJSONObject(Response).Find('id') = nil) or 
           TJSONObject(Response).Nulls['id']) then
         begin
-          Writeln(StdErr, 'invalid response -> ', response.AsJSON, ' from request ',  Content);
+          Writeln(StdErr, 'invalid response -> ', response.AsJSON);
           Flush(StdErr);
           continue;
         end;

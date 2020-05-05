@@ -1,5 +1,5 @@
 // Pascal Language Server
-// Copyright 2020 Arjan Adriaanse
+// Copyright 2020 Ryan Joseph
 
 // This file is part of Pascal Language Server.
 
@@ -32,6 +32,7 @@ type
                                           // empty brackets (and insert as snippet)
       IncludeWorkspaceFoldersAsUnitPaths,
       IncludeWorkspaceFoldersAsIncludePaths,
+
       CheckSyntax,                        // syntax will be checked when file opens or saves
       PublishDiagnostics                  // syntax errors will be published as diagnostics
     );

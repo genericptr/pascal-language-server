@@ -205,6 +205,7 @@ begin with Params do
           else
             FPCOptions := FPCOptions + Option + ' ';
         end;
+        
       //writeln(StdErr, FPCOptions);
       //flush(stderr);
       ProjectDir := ParseURI(rootUri).Path;
