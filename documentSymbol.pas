@@ -20,42 +20,43 @@
 unit documentSymbol;
 
 {$mode objfpc}{$H+}
+{define SYMBOL_EXTRACTOR_DEBUG}
 
 interface
 
 uses
-  Classes, Contnrs, URIParser,
+  Classes, Contnrs, URIParser, FPJSON,
   CodeToolManager, CodeCache, CodeTree,
-  lsp, basic;
+  lsp, basic, codeUtils;
 
 type
   TSymbolKind = (
-    SymbolKindFile = 1,
-    SymbolKindModule = 2,
-    SymbolKindNamespace = 3,
-    SymbolKindPackage = 4,
-    SymbolKindClass = 5,
-    SymbolKindMethod = 6,
-    SymbolKindProperty = 7,
-    SymbolKindField = 8,
-    SymbolKindConstructor = 9,
-    SymbolKindEnum = 10,
-    SymbolKindInterface = 11,
-    SymbolKindFunction = 12,
-    SymbolKindVariable = 13,
-    SymbolKindConstant = 14,
-    SymbolKindString = 15,
-    SymbolKindNumber = 16,
-    SymbolKindBoolean = 17,
-    SymbolKindArray = 18,
-    SymbolKindObject = 19,
-    SymbolKindKey = 20,
-    SymbolKindNull = 21,
-    SymbolKindEnumMember = 22,
-    SymbolKindStruct = 23,
-    SymbolKindEvent = 24,
-    SymbolKindOperator = 25,
-    SymbolKindTypeParameter = 26
+{}    SymbolKindFile = 1,
+{}    SymbolKindModule = 2,
+{}    SymbolKindNamespace = 3,
+{}    SymbolKindPackage = 4,
+{}    SymbolKindClass = 5,
+{}    SymbolKindMethod = 6,
+{}    SymbolKindProperty = 7,
+{}    SymbolKindField = 8,
+{}    SymbolKindConstructor = 9,
+{}    SymbolKindEnum = 10,
+{}    SymbolKindInterface = 11,
+{}    SymbolKindFunction = 12,
+{}    SymbolKindVariable = 13,
+{}    SymbolKindConstant = 14,
+{}    SymbolKindString = 15,
+{}    SymbolKindNumber = 16,
+{}    SymbolKindBoolean = 17,
+{}    SymbolKindArray = 18,
+{}    SymbolKindObject = 19,
+{}    SymbolKindKey = 20,
+{}    SymbolKindNull = 21,
+{}    SymbolKindEnumMember = 22,
+{}    SymbolKindStruct = 23,
+{}    SymbolKindEvent = 24,
+{}    SymbolKindOperator = 25,
+{}    SymbolKindTypeParameter = 26
   );
 
   { TDocumentSymbol }
@@ -104,9 +105,9 @@ type
   private
     fName: string;
     fKind: TSymbolKind;
-    fDeprecated: boolean;
+    fDeprecated: TOptionalBoolean;
     fLocation: TLocation;
-    fContainerName: string;
+    fContainerName: TOptionalString;
   protected
     procedure Assign(source: TPersistent); override;
   published
@@ -115,7 +116,7 @@ type
     // The kind of this symbol.
     property kind: TSymbolKind read fKind write fKind;
     // Indicates if this symbol is deprecated.
-    property deprecated: boolean read fDeprecated write fDeprecated;
+    property deprecated: TOptionalBoolean read fDeprecated write fDeprecated;
     // The location of this symbol. The location's range is used by a tool
     // to reveal the location in the editor. If the symbol is selected in the
     // tool the range's start information is used to position the cursor. So
@@ -130,7 +131,7 @@ type
     // user interface purposes (e.g. to render a qualifier in the user interface
     // if necessary). It can't be used to re-infer a hierarchy for the document
     // symbols.
-    property containerName: string read fContainerName write fContainerName;
+    property containerName: TOptionalString read fContainerName write fContainerName;
   end;
 
   TSymbolInformationItems = specialize TGenericCollection<TSymbolInformation>;
@@ -158,17 +159,46 @@ type
     function Process(var Params: TDocumentSymbolParams): TPersistent; override;
   end;
 
+  { TSymbol }
+  
+  type
+    TSymbolFlag = (ForwardClassDefinition);
+    TSymbolFlags = set of TSymbolFlag;
+
+  { Extra symbol container for storage }
+
+  TSymbol = class(TSymbolInformation)
+    private
+      function GetFullName: String;
+    public
+      RawJSON: String;
+      Flags: TSymbolFlags;
+      function IsGlobal: boolean;
+      property FullName: String read GetFullName;
+  end;
+  TSymbolItems = specialize TGenericCollection<TSymbol>;
 
   { TSymbolTableEntry }
+
   TSymbolTableEntry = class
     private
       Key: ShortString;
-      Items: TSymbolInformationItems;
+      Items: TSymbolItems;
       Code: TCodeBuffer;
+      SerializedItems: TJSONArray;
+      fRawJSON: String;
+      function GetSerializedSymbol(index: integer): TSymbol; inline;
+      function GetRawJSON: String;
     public
       constructor Create(_Code: TCodeBuffer);
       destructor Destroy; override;
       procedure Clear;
+      procedure Serialize;
+      procedure WriteToFile(Directory: String);
+      function AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column: Integer): TSymbol;
+      function Count: integer; inline;
+      property Symbols[Index: integer]: TSymbol read GetSerializedSymbol; default;
+      property RawJSON: String read GetRawJSON;
   end;
 
   { TSymbolExtractor }
@@ -179,11 +209,13 @@ type
       Tool: TCodeTool;
       Entry: TSymbolTableEntry;
       UsedIdentifiers: TFPHashList;
-
+      IndentLevel: integer;
+    private
       procedure WalkTree(node: TCodeTreeNode); 
+      procedure ExtractClassMethods(ClassSymbol: TSymbol; Node: TCodeTreeNode);
       function FindProcHead(Node: TCodeTreeNode): TCodeTreeNode;
-      function AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbolInformation; overload;
-      function AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbolInformation; overload;
+      function AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbol; overload;
+      function AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbol; overload;
       function GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
       function GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false): String; inline;
     public
@@ -195,8 +227,6 @@ type
 
   TSymbolManager = class
     private
-      class var _Manager: TSymbolManager;
-    private
       SymbolTable: TFPHashObjectList;
       ErrorList: TStringList;
 
@@ -204,27 +234,29 @@ type
       procedure RemoveFile(FileName: String);
       procedure AddError(Message: String); 
     public
-      class function SharedManager: TSymbolManager;
-
       constructor Create;
       destructor Destroy; override;
 
       function CollectSymbols: TSymbolInformationItems;
+      function CollectSerializedSymbols(Duplicates: boolean = true): TJSONWrapper;
       procedure ClearErrors;
 
-      function Find(Path: String): TSymbolInformationItems;
-      function Reload(Code: TCodeBuffer): TSymbolInformationItems; overload;
-      function Reload(Path: String): TSymbolInformationItems; overload;
-      procedure Scan(Path: String);
+      function Find(Path: String): TSymbolItems;
+      function Reload(Code: TCodeBuffer): TSymbolItems; overload;
+      function Reload(Path: String): TSymbolItems; overload;
+      procedure Scan(Path: String; SearchSubDirs: Boolean);
   end;
+
+var
+  SymbolManager: TSymbolManager = nil;
 
 function SymbolKindToString(kind: TSymbolKind): ShortString;
 function SymbolKindFromString(kind: ShortString): TSymbolKind;
 
 implementation
 uses
-  SysUtils, FileUtil,
-  CodeToolsConfig, IdentCompletionTool, 
+  SysUtils, FileUtil, fpjsonrtti,
+  CodeToolsConfig, IdentCompletionTool, CodeAtom,
   BasicCodeTools, FindDeclarationTool, PascalParserTool,
   KeywordFuncLists;
 
@@ -301,17 +333,105 @@ begin
   ContainerName := TSymbolInformation(Source).ContainerName;
 end;
 
+{ TSymbol }
+
+function TSymbol.IsGlobal: boolean;
+begin
+  result := ContainerName <> nil;
+end;
+
+function TSymbol.GetFullName: String;
+begin
+  if ContainerName <> nil then
+    Result := containerName.Value+'.'+Name
+  else
+    Result := Name;
+end;
 
 { TSymbolTableEntry }
+
+function TSymbolTableEntry.GetSerializedSymbol(index: integer): TSymbol;
+var
+  Symbol: TSymbol;
+begin
+  Assert(SerializedItems <> nil, 'symbol table must be serialized first.');
+
+  Symbol := TSymbol(Items.Items[index]);
+  if Symbol.RawJSON = '' then
+    Symbol.RawJSON := SerializedItems[index].AsJson;
+  result := Symbol;
+end;
+
+function TSymbolTableEntry.GetRawJSON: String;
+begin
+  Assert(SerializedItems <> nil, 'symbol table must be serialized first.');
+
+  if fRawJSON = '' then
+    begin
+      fRawJSON := SerializedItems.AsJson;
+      // TODO: trim [] from string. how?
+      //fRawJSON := Trim(fRawJSON, '[]');
+    end;
+  result := fRawJSON;
+end;
+
+function TSymbolTableEntry.Count: integer;
+begin
+  if SerializedItems <> nil then
+    result := SerializedItems.Count
+  else
+    result := 0;
+end;
+
+function TSymbolTableEntry.AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column: Integer): TSymbol;
+var
+  Symbol: TSymbol;
+begin
+  Symbol := TSymbol(Items.Add);
+  Symbol.name := Name;
+  Symbol.kind := Kind;
+  Symbol.location := TLocation.Create(FileName, Line - 1, Column - 1, Length(Name));
+
+  result := Symbol;
+end;
+
+procedure TSymbolTableEntry.Serialize;
+begin
+  //writeln('Serialize ', Key, ' ', Items.Count, ' items...');
+  SerializedItems := specialize TLSPStreaming<TSymbolInformationItems>.ToJSON(Items) as TJSONArray;
+end;
+
+procedure _WriteToFile (contents: AnsiString; path: string);
+var
+  f: TextFile;
+begin
+  try
+    AssignFile(f, path);
+    Rewrite(f);
+    Write(f, contents);
+    CloseFile(f);
+  except
+    on E:Exception do
+      writeln(path, ': ', E.Message);
+  end;
+end;
+
+procedure TSymbolTableEntry.WriteToFile(Directory: String);
+begin
+  _WriteToFile(SerializedItems.FormatJSON, Directory+'/'+Key+'.json');
+  halt;
+end;
 
 procedure TSymbolTableEntry.Clear;
 begin
   Items.Clear;
+  FreeAndNil(SerializedItems);
 end;
 
 destructor TSymbolTableEntry.Destroy; 
 begin
   Items.Free;
+  FreeAndNil(SerializedItems);
   inherited;
 end;
 
@@ -319,13 +439,17 @@ constructor TSymbolTableEntry.Create(_Code: TCodeBuffer);
 begin
   Code := _Code;
   Key := ExtractFileName(Code.FileName);
-  Items := TSymbolInformationItems.Create;
+  Items := TSymbolItems.Create;
 end;
 
 { TSymbolExtractor }
 
 function TSymbolExtractor.GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
-var len: integer;
+// todo:  we need to include these also
+const
+  OperatorNameCharacters = ['+', '*', '-', '/', '<', '>', '=', ':'];
+var
+  len: integer;
 begin
   if (Identifier=nil) then begin
     Result:='';
@@ -369,7 +493,7 @@ begin
     end;
 end;
 
-function TSymbolExtractor.AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbolInformation;
+function TSymbolExtractor.AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbol;
 var
   Identifier: string;
 begin
@@ -377,40 +501,102 @@ begin
   Result := AddSymbol(Pos, Identifier, Kind);
 end;
 
-function TSymbolExtractor.AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbolInformation;
+function TSymbolExtractor.AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbol;
 var
-  Symbol: TSymbolInformation;
   CodePos: TCodePosition;
   Line, Column: Integer;
 begin
   Tool.CleanPosToCodePos(Pos, CodePos);
   Code.AbsoluteToLineCol(CodePos.P, Line, Column);
+  Result := Entry.AddSymbol(Name, Kind, Code.FileName, Line, Column);
+end;
 
-  Symbol := TSymbolInformation(Entry.Items.Add);
-  Symbol.name := Name;
-  Symbol.kind := Kind;
-  Symbol.location := TLocation.Create(Code.FileName, Line - 1, Column - 1, Length(Name));
+function IndentLevelString(level: integer): ShortString;
+var
+  i: integer;
+begin
+  result := '';
+  for i := 0 to level - 1 do
+    result += '  ';
+end;
 
-  Result := Symbol;
+procedure TSymbolExtractor.ExtractClassMethods(ClassSymbol: TSymbol; Node: TCodeTreeNode);
+var
+  ProcHead, ContainerName: String;
+  Symbol: TSymbolInformation;
+  ExternalClass: boolean;
+begin
+  Inc(IndentLevel);
+  ExternalClass := false;
+
+  while Node <> nil do
+    begin
+      {$ifdef SYMBOL_EXTRACTOR_DEBUG}
+      writeln(IndentLevelString(IndentLevel - 1), Node.DescAsString, ' -> ', Node.ChildCount);
+      {$endif}
+
+      case Node.Desc of
+        ctnClassExternal:
+          begin
+            Tool.MoveCursorToCleanPos(Node.EndPos);
+            Tool.ReadNextAtom;
+            // objective-c forward class definition, i.e:
+            // ACAccount = objcclass external;
+            // which we should skip
+            if Tool.CurPos.Flag = cafSemicolon then
+              begin
+                Include(ClassSymbol.Flags, TSymbolFlag.ForwardClassDefinition);
+                break;
+              end;
+            ExternalClass := true;
+          end;
+        ctnProcedure:
+          begin
+            ProcHead := Tool.ExtractProcName(Node, []);
+            //if UsedIdentifiers.Find(ProcHead) = nil then
+              begin
+                Symbol := AddSymbol(Node.StartPos, ProcHead, SymbolKindMethod);
+                Symbol.containerName := TOptionalString.Create(ClassSymbol.Name);
+                //UsedIdentifiers.Add(ProcHead, Symbol);
+              end;
+            // stop searching so we don't get into parameter lists
+            Node := Node.NextBrother;
+            continue;
+          end;
+        ctnClassPublic,
+        ctnClassPublished:
+          begin
+            // if the class is external then search methods
+            if ExternalClass then
+              ExtractClassMethods(ClassSymbol, Node.FirstChild);
+          end;
+      end;
+
+      Node := Node.NextBrother;
+    end;
+  Dec(IndentLevel);
 end;
 
 procedure TSymbolExtractor.WalkTree(Node: TCodeTreeNode); 
 var
   ProcHead: String;
-  Symbol: TSymbolInformation;
+  Symbol: TSymbol;
 begin
+  IndentLevel += 1;
+
   while Node <> nil do
     begin
-      //writeln(Node.DescAsString, ' -> ', Node.ChildCount);
+      {$ifdef SYMBOL_EXTRACTOR_DEBUG}
+      writeln(IndentLevelString(IndentLevel - 1), Node.DescAsString, ' -> ', Node.ChildCount);
+      {$endif}
 
       case Node.Desc of
         
         // top-level procedures/functions
         ctnProcedure:
           begin
-            // todo: how do we know if this is a method or function?
             ProcHead := Tool.ExtractProcName(Node, []);
-            if UsedIdentifiers.Find(ProcHead) = nil then
+            //if UsedIdentifiers.Find(ProcHead) = nil then
               begin
                 // todo: for TDocumentSymbol there is a detail field 
                 // which we can fill with the signature
@@ -423,8 +609,9 @@ begin
                 //                             phpWithParameterNames
                 //                             ]);
                 Symbol := AddSymbol(Node.StartPos, ProcHead, SymbolKindFunction);
-                UsedIdentifiers.Add(ProcHead, Symbol);
+                //UsedIdentifiers.Add(ProcHead, Symbol);
               end;
+
             // stop searching so we don't get into parameter lists
             Node := Node.NextBrother;
             continue;
@@ -439,7 +626,7 @@ begin
         ctnTypeDefinition:
           begin
             // todo: how do we know if this is a class type?
-            AddSymbol(Node.StartPos, SymbolKindTypeParameter);
+            Symbol := AddSymbol(Node.StartPos, SymbolKindTypeParameter);
           end;
 
         // object members
@@ -447,9 +634,6 @@ begin
         ctnRecordType,
         ctnObject,
         ctnClassInterface,
-        ctnObjCClass,
-        ctnObjCCategory,
-        ctnObjCProtocol,
         ctnTypeHelper,
         ctnRecordHelper,
         ctnClassHelper:
@@ -459,13 +643,26 @@ begin
             Node := Node.NextBrother;
             continue;
           end;
+
+        // external objective-c classes need to extract methods
+        // because there is no implementation for them
+        ctnObjCClass,
+        ctnObjCCategory,
+        ctnObjCProtocol:
+          begin
+            ExtractClassMethods(Symbol, Node.FirstChild);
+            Node := Node.NextBrother;
+            continue;
+          end;
       end;              
 
       if Node.ChildCount > 0 then
-        WalkTree(Node.FirstChild);  
+        WalkTree(Node.FirstChild);
 
       Node := Node.NextBrother;
     end;
+
+  IndentLevel -= 1;
 end;
 
 constructor TSymbolExtractor.Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
@@ -499,18 +696,74 @@ var
   Item: TCollectionItem;
   Symbol: TSymbolInformation;
   Entry: TSymbolTableEntry;
+  UsedIdentifiers: TFPHashList;
 begin
   Result := TSymbolInformationItems.Create;
+  UsedIdentifiers := TFPHashList.Create;
   for i := 0 to SymbolTable.Count - 1 do
     begin
       Entry := TSymbolTableEntry(SymbolTable[i]);
       if Entry <> nil then
         for Item in Entry.Items do
-          begin
-            Symbol := TSymbolInformation.Create(Result);
-            Symbol.Assign(Item);
-          end;
+          if UsedIdentifiers.Find(TSymbolInformation(Item).name) = nil then
+            begin
+              Symbol := TSymbolInformation.Create(Result);
+              Symbol.Assign(Item);
+              UsedIdentifiers.Add(Symbol.name, Symbol);
+            end;
     end;
+  UsedIdentifiers.Free;
+end;
+
+function TSymbolManager.CollectSerializedSymbols(Duplicates: boolean = true): TJSONWrapper;
+var
+  i, j: integer;
+  Symbol: TSymbol;
+  Entry: TSymbolTableEntry;
+  UsedIdentifiers: TFPHashList = nil;
+  Count: integer;
+begin
+  if not Duplicates then
+    UsedIdentifiers := TFPHashList.Create;
+
+  Result := TJSONWrapper.Create;
+
+  Result.Contents.Add('[');
+
+  Count := 0;
+  for i := 0 to SymbolTable.Count - 1 do
+    begin
+      Entry := TSymbolTableEntry(SymbolTable[i]);
+      if Duplicates then
+        begin
+          if Entry.Count > 0 then
+            begin
+              Result.Contents.Add(Entry.RawJSON, 1, Length(Entry.RawJSON) - 2);
+              Result.Contents.Add(',');
+              Inc(Count, Entry.Count);
+            end;
+        end
+      else
+        begin
+          for j := 0 to Entry.Count - 1 do
+            begin
+              Symbol := Entry[j];
+              if Symbol.IsGlobal and (UsedIdentifiers.Find(Symbol.name) <> nil) then
+                continue;
+              Result.Contents.Add(Symbol.RawJSON);
+              Result.Contents.Add(',');
+              if Symbol.IsGlobal then
+                UsedIdentifiers.Add(Symbol.Name, Symbol);
+              Inc(Count);
+            end;
+        end;
+    end;
+  
+  Result.Contents.Rewind;
+  Result.Contents.Add(']');
+  Result.ItemCount := Count;
+
+  FreeAndNil(UsedIdentifiers);
 end;
 
 procedure TSymbolManager.ClearErrors; 
@@ -527,19 +780,18 @@ begin
   Flush(stderr);
 end;
 
-procedure TSymbolManager.Scan(Path: String);
+procedure TSymbolManager.Scan(Path: String; SearchSubDirs: Boolean);
 var
   Files: TStringList;
   FileName: String;
 begin
   Files := TStringList.Create;
   try
-    FindAllFiles(Files, Path, '*.pas;*.pp;*.p;*.inc', true);
+    // TODO: make this an initializationOption
+    FindAllFiles(Files, Path, '*.pas;*.pp;*.p;*.inc', SearchSubDirs);
     for FileName in Files do
-      begin
-        Reload(FileName);
-      end;
-    writeln('loaded ', SymbolTable.Count, ' entries.');
+      Reload(FileName);
+    writeln('loaded ', SymbolTable.Count, ' entries in /', ExtractFileName(Path));
   finally
     Files.Free;
   end;
@@ -577,17 +829,16 @@ end;
 
 function TSymbolManager.Load(Path: String): TCodeBuffer;
 begin
-  Result := CodeToolBoss.FindFile(Path);  
+  Result := CodeToolBoss.FindFile(Path);     
+  if Result <> nil then
+    exit;
 
-  // the file hasn't been loaded yet
-  if Result = nil then
-    Result := CodeToolBoss.LoadFile(Path, true, false);     
-   
+  Result := CodeToolBoss.LoadFile(Path, true, false);     
   if Result = nil then
     AddError('file '+Path+' can''t be loaded');
 end;
 
-function TSymbolManager.Find(Path: String): TSymbolInformationItems;
+function TSymbolManager.Find(Path: String): TSymbolItems;
 var
   Entry: TSymbolTableEntry;
   FileName: ShortString;
@@ -601,17 +852,30 @@ begin
     Result := nil;
 end;
 
-function TSymbolManager.Reload(Code: TCodeBuffer): TSymbolInformationItems;
+function TSymbolManager.Reload(Code: TCodeBuffer): TSymbolItems;
 var
   FileName: ShortString;
   Entry: TSymbolTableEntry;
   Tool: TCodeTool;
   Extractor: TSymbolExtractor;
+  MainCode: TCodeBuffer;
 begin
+  Tool := nil;
+
+  // if the main code is not the current code
+  // then we're dealing with an include file
+  MainCode := CodeToolBoss.GetMainCode(Code);
+  if CompareCodeBuffers(MainCode, Code) <> 0 then
+    exit(nil);
+
+
   if not CodeToolBoss.Explore(Code, Tool, false, false) then
     begin
+      {$ifdef SYMBOL_EXTRACTOR_DEBUG}
+      writeln(ExtractFileName(Code.FileName), ' -> ', CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
+      {$endif}
       // todo: these errors are overwhelming on startup so we probably need a better way
-      //AddError(CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
+      //AddError(ExtractFileName(Code.FileName)+' -> '+CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
       exit(nil);
     end;
 
@@ -634,10 +898,12 @@ begin
   Extractor.WalkTree(Tool.Tree.Root);
   Extractor.Free;
 
+  Entry.Serialize;
+
   result := Entry.Items;
 end;
 
-function TSymbolManager.Reload(Path: String): TSymbolInformationItems;
+function TSymbolManager.Reload(Path: String): TSymbolItems;
 var
   Code: TCodeBuffer;
 begin
@@ -645,13 +911,6 @@ begin
   if Code = nil then
     exit(nil);
   Result := Reload(Code);
-end;
-
-class function TSymbolManager.SharedManager: TSymbolManager;
-begin
-  if _Manager = nil then
-    _Manager := TSymbolManager.Create;
-  result := _Manager;
 end;
 
 constructor TSymbolManager.Create;
@@ -677,11 +936,12 @@ begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Path := URI.Path + URI.Document;
-    result := TSymbolManager.SharedManager.Find(Path);
+    result := SymbolManager.Find(Path);
   end;
 end;
 
 initialization
+  SymbolManager := TSymbolManager.Create;
   //TSymbolExtractorThread.Pending := TStringList.Create;
   //TSymbolExtractorThread.QueueLock := TCriticalSection.Create;
 

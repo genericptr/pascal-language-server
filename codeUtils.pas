@@ -20,45 +20,108 @@
 unit codeUtils;
 
 {$mode objfpc}{$H+}
+{$modeswitch advancedrecords}
 
 interface
 
 uses
-  SysUtils, Classes, 
+  SysUtils, Classes, fpjson,
   IdentCompletionTool;
 
+
 type
+  
+  { TIdentifierListItemHelper }
+
   TIdentifierListItemHelper = class helper for TIdentifierListItem
     function ParamPairList: string;
     function ParamNameList: string;
     function ParamTypeList: string;
   end;
 
+  { TLongString }
+
+      
+  TLongString = record
+  private
+    LastPos: LongInt;
+  public
+    S: AnsiString;
+    procedure Clear;
+    procedure Rewind;
+    procedure Add(part: AnsiString); overload;
+    procedure Add(Part: AnsiString; Offset, Len: Integer); overload;
+  private
+    class operator Initialize(var self: TLongString);
+  end;
+
+  type
+    TJSONWrapper = class (TJSONString)
+    protected
+      function GetAsJSON: TJSONStringType; override;
+    public
+      Contents: TLongString;
+      ItemCount: Integer;
+      constructor Create; override;
+    end;
+
+{ Functions }
+
 function FindIdentifierParent(Identifier: TIdentifierListItem): ShortString;
 
 function ParseParamList(RawList: String): TStringList; overload;
 function ParseParamList(RawList: String; AsSnippet: boolean): String; overload;
 
+function ConvertBytesToHumanReadable(bytes: cardinal): ShortString;
+
 implementation
 uses
   CodeTree, PascalParserTool;
 
-function FindIdentifierParent(Identifier: TIdentifierListItem): ShortString;
-var
-  Node: TCodeTreeNode;
+function TJSONWrapper.GetAsJSON: TJSONStringType;
 begin
-  result := '';
-  Node := Identifier.Node;
-  while Node <> nil do
-    begin
-      if Node.Desc = ctnClass then
-        begin
-          result := Identifier.Tool.ExtractClassName(Node, false);
-          exit;
-        end;
-      Node := Node.Parent;
-    end;
+  result := Contents.S;
 end;
+
+constructor TJSONWrapper.Create;
+begin
+end;
+
+{ LongString }
+
+procedure TLongString.Clear;
+begin
+  S := '';
+end;
+
+procedure TLongString.Rewind;
+begin
+  SetLength(S, LastPos);
+  LastPos := Length(S);
+end;
+
+procedure TLongString.Add(Part: AnsiString; Offset, Len: Integer); 
+begin
+  Assert(Offset + Len <= Length(Part), IntToStr(Offset)+'-'+IntToStr(Len)+' is > '+IntToStr(Length(Part)));
+  if (Len - Offset) = 0 then
+    exit;
+  LastPos := Length(S);
+  SetLength(S, LastPos + Len);
+  Move(Part[Offset + 1], S[LastPos + 1], Len);
+end;
+
+procedure TLongString.Add(Part: AnsiString); 
+begin
+  LastPos := Length(S);
+  S += Part;
+end;
+
+class operator TLongString.Initialize(var self: TLongString);
+begin
+  self.Clear;
+end;
+
+{ TIdentifierListItemHelper }
 
 function TIdentifierListItemHelper.ParamPairList: string;
 var
@@ -116,6 +179,41 @@ begin
        phpWithParameterNames
        ]);
   end;
+end;
+
+{ Functions }
+
+function ConvertBytesToHumanReadable(bytes: cardinal): ShortString;
+const
+  kMaxUnits = 9;
+var
+  units: array[0..kMaxUnits - 1] of char = ('b', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y');
+  multiplier: integer = 1000; // 1024 is 10.5 and lower
+  exponent: integer = 0;
+begin
+  while (bytes >= multiplier) and (exponent < kMaxUnits) do
+    begin
+      bytes := trunc(bytes / multiplier);
+      exponent += 1;
+    end;
+  result := IntToStr(bytes)+units[exponent];
+end;
+
+function FindIdentifierParent(Identifier: TIdentifierListItem): ShortString;
+var
+  Node: TCodeTreeNode;
+begin
+  result := '';
+  Node := Identifier.Node;
+  while Node <> nil do
+    begin
+      if Node.Desc = ctnClass then
+        begin
+          result := Identifier.Tool.ExtractClassName(Node, false);
+          exit;
+        end;
+      Node := Node.Parent;
+    end;
 end;
 
 function SplitString (s: string; delimiter: char): TStringArray;

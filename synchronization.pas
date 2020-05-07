@@ -131,7 +131,7 @@ type
 
 implementation
 uses
-  SysUtils, codeUtils, diagnostics, documentSymbol;
+  SysUtils, codeUtils, settings, diagnostics, documentSymbol;
 
 { TDidChangeTextDocumentParams }
 
@@ -151,10 +151,18 @@ begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Path := URI.Path + URI.Document;
+
     Code := CodeToolBoss.FindFile(Path);
-    Code.Source := textDocument.text;
+    if Code <> nil then
+      Code.Source := textDocument.text;
+
+    // the file was not found in search paths so
+    // it need to be loaded from disk
+    if Code = nil then
+      Code := CodeToolBoss.LoadFile(Path, False, False);
+      
     CheckSyntax(Code);
-    TSymbolManager.SharedManager.Reload(Code);
+    SymbolManager.Reload(Code);
   end;
 end;
 
@@ -169,7 +177,7 @@ begin with Params do
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     CheckSyntax(Code);
-    TSymbolManager.SharedManager.Reload(Code);
+    SymbolManager.Reload(Code);
   end;
 end;
 
@@ -183,6 +191,8 @@ begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
     // TODO: clear errors
+    // TODO: if the file was manually loaded (i.e. not in search paths)
+    // then we may want to remove it from the symbol table so it doesn't cause clutter
   end;
 end;
 

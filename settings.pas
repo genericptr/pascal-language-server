@@ -28,24 +28,21 @@ uses
 type
   TServerOptions = class(TPersistent)
   private
-    fInsertCompletionsAsSnippets: boolean;
-    fInsertCompletionProcedureBrackets: boolean;
-    fIncludeWorkspaceFoldersAsUnitPaths: boolean;
-    fIncludeWorkspaceFoldersAsIncludePaths: boolean;
-    fCheckSyntax: boolean;
-    fPublishDiagnostics: boolean;
+    fBooleans: array[0..32] of boolean;
   published
     // procedure completions with parameters are inserted as snippets
-    property insertCompletionsAsSnippets: boolean read fInsertCompletionsAsSnippets write fInsertCompletionsAsSnippets;
+    property insertCompletionsAsSnippets: boolean read fBooleans[0] write fBooleans[0];
     // procedure completions with parameters (non-snippet) insert
     // empty brackets (and insert as snippet)
-    property insertCompletionProcedureBrackets: boolean read fInsertCompletionProcedureBrackets write fInsertCompletionProcedureBrackets;
-    property includeWorkspaceFoldersAsUnitPaths: boolean read fIncludeWorkspaceFoldersAsUnitPaths write fIncludeWorkspaceFoldersAsUnitPaths;
-    property includeWorkspaceFoldersAsIncludePaths: boolean read fIncludeWorkspaceFoldersAsIncludePaths write fIncludeWorkspaceFoldersAsIncludePaths;
+    property insertCompletionProcedureBrackets: boolean read fBooleans[1] write fBooleans[1];
+    property includeWorkspaceFoldersAsUnitPaths: boolean read fBooleans[2] write fBooleans[2];
+    property includeWorkspaceFoldersAsIncludePaths: boolean read fBooleans[3] write fBooleans[3];
     // syntax will be checked when file opens or saves
-    property checkSyntax: boolean read fCheckSyntax write fCheckSyntax;
+    property checkSyntax: boolean read fBooleans[4] write fBooleans[4];
     // syntax errors will be published as diagnostics
-    property publishDiagnostics: boolean read fPublishDiagnostics write fPublishDiagnostics;
+    property publishDiagnostics: boolean read fBooleans[5] write fBooleans[5];
+  public
+    procedure AfterConstruction; override;
   end;
 
   TServerSettings = class(TPersistent)
@@ -66,13 +63,21 @@ var
 
 implementation
 
+procedure TServerOptions.AfterConstruction;
+begin
+  includeWorkspaceFoldersAsUnitPaths := true;
+  includeWorkspaceFoldersAsIncludePaths := true;
+
+  inherited;
+end;
+
 procedure TServerSettings.AfterConstruction;
 begin
   inherited;
 
-  ServerSettings := self;
+  if options = nil then
+    options := TServerOptions.Create;
 
-  Options := TServerOptions.Create;
   FPCOptions := TStringList.Create;
 end;
 

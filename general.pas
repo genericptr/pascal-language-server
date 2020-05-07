@@ -130,6 +130,9 @@ procedure TInitializeParams.AfterConstruction;
 begin
   inherited;
 
+  if initializationOptions = nil then
+    initializationOptions := TInitializationOptions.Create;
+
   workspaceFolders := TWorkspaceFolderItems.Create;
 end;
 
@@ -150,6 +153,11 @@ begin with Params do
     begin
       InitWithEnvironmentVariables;
 
+      // TODO: we need to copy this or implement ref counting
+      // once we figure out how memory is going to work with
+      // the JSON-RPC streaming model
+      ServerSettings := initializationOptions;
+
       // include workspace paths as search paths
       if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths or
         ServerSettings.options.includeWorkspaceFoldersAsIncludePaths then
@@ -163,7 +171,7 @@ begin with Params do
               FPCOptions := FPCOptions + '-Fi' + Path + ' ';
 
             // TODO: check in WorkspaceClientCapabilities if we have workspace symbols
-            TSymbolManager.SharedManager.Scan(Path);
+            SymbolManager.Scan(Path, true);
           end;
 
       for Option in initializationOptions.FPCOptions do
@@ -175,8 +183,8 @@ begin with Params do
             FPCOptions := FPCOptions + Option + ' ';
         end;
 
-      //writeln(StdErr, FPCOptions);
-      //flush(stderr);
+      writeln(StdErr, 'FPCOptions: ', FPCOptions);
+      flush(stderr);
       ProjectDir := ParseURI(rootUri).Path;
     end;
     re.Free;

@@ -303,12 +303,7 @@ begin with Params do
                   Completion := TCompletionItem(Completions.Add);
                   Completion.&label := Identifier.Identifier;
                   Completion.detail := Identifier.Node.DescAsString;
-
-                  // todo: find parent
-                  //Parent := FindIdentifierParent(Identifier);
-                  //if Parent <> '' then
-                  //  Completion.detail := Identifier.Node.DescAsString+' ('+Parent+')';
-
+              
                   if ServerSettings.options.insertCompletionProcedureBrackets and 
                     Identifier.IsProcNodeWithParams then
                     begin

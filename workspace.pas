@@ -24,11 +24,48 @@ unit workspace;
 interface
 
 uses
-  Classes,
-  lsp, basic, documentSymbol;
+  Classes, fpjson, fpjsonrpc,
+  lsp, basic, general, documentSymbol, codeUtils;
 
 type
   
+  { TWorkspaceFoldersChangeEvent }
+
+  TWorkspaceFoldersChangeEvent = class(TPersistent)
+  private
+    fAdded: TWorkspaceFolderItems;
+    fRemoved: TWorkspaceFolderItems;
+  published
+    // The array of added workspace folders
+    property added: TWorkspaceFolderItems read fAdded write fAdded;
+    // The array of the removed workspace folders
+    property removed: TWorkspaceFolderItems read fRemoved write fRemoved;
+  end;
+
+  { TDidChangeWorkspaceFoldersParams }
+
+  TDidChangeWorkspaceFoldersParams = class(TPersistent)
+  private
+    fEvent: TWorkspaceFoldersChangeEvent;
+  published
+    property event: TWorkspaceFoldersChangeEvent read fEvent write fEvent;
+  end;
+
+  { TDidChangeWorkspaceFolders }
+
+  { The workspace/didChangeWorkspaceFolders notification is sent from the client to the server 
+    to inform the server about workspace folder configuration changes. The notification is sent 
+    by default if both client capability workspace.workspaceFolders and the server capability 
+    workspace.workspaceFolders.supported are true; or if the server has registered itself to 
+    receive this notification. To register for the workspace/didChangeWorkspaceFolders send 
+    a client/registerCapability request from the server to the client. The registration parameter 
+    must have a registrations item of the following form, where id is a unique id used to 
+    unregister the capability (the example uses a UUID): } 
+
+  TDidChangeWorkspaceFolders = class(specialize TLSPNotification<TDidChangeWorkspaceFoldersParams>)
+    procedure Process(var Params : TDidChangeWorkspaceFoldersParams); override;
+  end;
+
   { The parameters of a Workspace Symbol Request. }
 
   TWorkspaceSymbolParams = class(TPersistent)
@@ -46,21 +83,34 @@ type
     list project-wide symbols matching the query string. }
 
   TWorkspaceSymbolRequest = class(specialize TLSPRequest<TWorkspaceSymbolParams, TSymbolInformationItems>)
-    function Process(var Params: TWorkspaceSymbolParams): TSymbolInformationItems; override;
+    function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
   end;
 
 implementation
-uses
-  SysUtils;
 
-function TWorkspaceSymbolRequest.Process(var Params: TWorkspaceSymbolParams): TSymbolInformationItems;
+procedure TDidChangeWorkspaceFolders.Process(var Params : TDidChangeWorkspaceFoldersParams);
 begin with Params do
   begin
-    // todo: use query string
-    Result := TSymbolManager.SharedManager.CollectSymbols;
+    // TODO: ST3 is not sending this message reliably but it will be ready in ST4
   end;
 end;
 
+{ TWorkspaceSymbolRequest }
+
+function TWorkspaceSymbolRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
+var
+  Input: TWorkspaceSymbolParams;
+begin
+  Input := specialize TLSPStreaming<TWorkspaceSymbolParams>.ToObject(Params);
+  Result := SymbolManager.CollectSerializedSymbols;
+  writeln(stderr,'TWorkspaceSymbolRequest.DoExecute:', ConvertBytesToHumanReadable(Length(Result.AsJson)));
+  //writeln(stderr, Result.AsJson);
+  flush(stderr);
+  if not Assigned(Result) then
+    Result := TJSONNull.Create;
+end;
+
 initialization
+  LSPHandlerManager.RegisterHandler('workspace/didChangeWorkspaceFolders', TDidChangeWorkspaceFolders);
   LSPHandlerManager.RegisterHandler('workspace/symbol', TWorkspaceSymbolRequest);
 end.

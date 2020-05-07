@@ -138,7 +138,9 @@ var
 begin
   if not Assigned(AObject) then
   begin
-    Result := inherited StreamClassProperty(AObject);
+    // TODO: why are we doing this? this streams the optional with value "null"
+    //Result := inherited StreamClassProperty(AObject);
+    result := nil;
     Exit;
   end;
   C := AObject.ClassType;

@@ -53,7 +53,7 @@ type
   TWorkspaceFoldersServerCapabilities = class(TPersistent)
   private
     fSupported: boolean;
-    fChangeNotifications: string;
+    fChangeNotifications: boolean;
   published
     // The server has support for workspace folders
     property supported: Boolean read fSupported write fSupported;
@@ -64,7 +64,7 @@ type
     // under which the notification is registered on the client
     // side. The ID can be used to unregister for these events
     // using the `client/unregisterCapability` request.
-    property changeNotifications: string read fChangeNotifications write fChangeNotifications;
+    property changeNotifications: boolean read fChangeNotifications write fChangeNotifications;
   end;
 
   TWorkspaceServerCapabilities = class(TPersistent)
@@ -149,6 +149,7 @@ begin
 
   workspace := TWorkspaceServerCapabilities.Create;
   workspace.workspaceFolders.supported := true;
+  workspace.workspaceFolders.changeNotifications := true;
 
   hoverProvider := true;
   declarationProvider := true;

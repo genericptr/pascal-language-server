@@ -80,6 +80,12 @@ type
     property Value: T read GetValue write SetValue;
   end;
 
+
+  TOptionalBoolean = specialize TOptionalVariant<Boolean>;
+  TOptionalString = specialize TOptionalVariant<String>;
+  TOptionalInteger = specialize TOptionalVariant<Integer>;
+  TOptionalNumber = TOptionalInteger;
+
   { TGenericCollection }
 
   generic TGenericCollection<T> = class(TCollection)
