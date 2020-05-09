@@ -36,7 +36,9 @@ type
   end;
 
 implementation
-
+uses
+  diagnostics;
+  
 function TGotoDeclaraction.Process(var Params: TTextDocumentPositionParams): TLocation;
 var
   URI: TURI;
@@ -60,11 +62,7 @@ begin with Params do
       end
     else
       begin
-        if CodeToolBoss.ErrorMessage <> '' then
-          begin
-            writeln(StdErr, 'Parse error: ', CodeToolBoss.ErrorMessage);
-            Flush(StdErr);
-          end;
+        PublishCodeToolsError;
       end;
   end;
 end;
