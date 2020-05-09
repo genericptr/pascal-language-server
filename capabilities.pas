@@ -24,7 +24,7 @@ unit capabilities;
 interface
 
 uses
-  Classes, options;
+  Classes, options, documentSymbol;
 
 type
 
@@ -147,6 +147,9 @@ var
 begin
   textDocumentSync := TTextDocumentSyncOptions.Create;
 
+  textDocumentSync.save := TSaveOptions.Create;
+  textDocumentSync.save.includeText := false;
+
   workspace := TWorkspaceServerCapabilities.Create;
   workspace.workspaceFolders.supported := true;
   workspace.workspaceFolders.changeNotifications := true;
@@ -156,8 +159,9 @@ begin
   implementationProvider := true;
   referencesProvider := true;
   documentHighlightProvider := true;
-  documentSymbolProvider := true;
-  workspaceSymbolProvider := true;
+
+  documentSymbolProvider := Assigned(SymbolManager);
+  workspaceSymbolProvider := Assigned(SymbolManager);
   
   completionProvider := TCompletionOptions.Create;
   triggerCharacters := TStringList.Create;
