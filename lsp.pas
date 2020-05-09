@@ -243,6 +243,7 @@ var
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   Result := specialize TLSPStreaming<U>.ToJSON(AProcess(Input));
+  Input.Free;
 end;
 
 { TLSPRequest }
@@ -254,6 +255,7 @@ begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   Result := specialize TLSPStreaming<U>.ToJSON(Process(Input));
   if not Assigned(Result) then Result := TJSONNull.Create;
+  Input.Free;
 end;
 
 { TLSPNotification }
@@ -264,6 +266,7 @@ var
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   Process(Input);
+  Input.Free;
 end;
 
 { TLSPDispatcher }
