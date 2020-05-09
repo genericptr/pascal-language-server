@@ -41,12 +41,25 @@ type
     // After that only incremental updates to the document are send.
     Incremental = 2);
 
+  { TSaveOptions }
+
+  TSaveOptions = class(TPersistent)
+  private
+    fIncludeText: Boolean;
+  published
+    // The client is supposed to include the content on save.
+    property includeText: Boolean read fIncludeText write fIncludeText;
+  end;
+
   { TTextDocumentSyncOptions }
 
   TTextDocumentSyncOptions = class(TPersistent)
   private
     fOpenClose: Boolean;
     fChange: TTextDocumentSyncKind;
+    fWillSave: Boolean;
+    fWillSaveWaitUntil: Boolean;
+    fSave: TSaveOptions;
   public
     constructor Create;
   published
@@ -58,6 +71,15 @@ type
     // TextDocumentSyncKind.Incremental. If omitted it defaults to
     // TextDocumentSyncKind.None.
     property change: TTextDocumentSyncKind read fChange write fChange;
+    // If present will save wait until requests are sent to the server. If omitted the request should not be
+    // sent.
+    property willSave: Boolean read fWillSave write fWillSave;
+    // If present will save wait until requests are sent to the server. If omitted the request should not be
+    // sent.
+    property willSaveWaitUntil: Boolean read fWillSaveWaitUntil write fWillSaveWaitUntil;
+    // If present save notifications are sent to the server. If omitted the notification should not be
+    // sent.
+    property save: TSaveOptions read fSave write fSave;
   end;
 
   { TSignatureHelpOptions }
