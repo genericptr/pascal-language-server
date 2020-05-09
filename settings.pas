@@ -28,19 +28,23 @@ uses
 type
   TServerOptions = class(TPersistent)
   private
-    fBooleans: array[0..32] of boolean;
+    fBooleans: array[0..32] of Boolean;
   published
     // procedure completions with parameters are inserted as snippets
-    property insertCompletionsAsSnippets: boolean read fBooleans[0] write fBooleans[0];
+    property insertCompletionsAsSnippets: Boolean read fBooleans[0] write fBooleans[0];
+
     // procedure completions with parameters (non-snippet) insert
     // empty brackets (and insert as snippet)
-    property insertCompletionProcedureBrackets: boolean read fBooleans[1] write fBooleans[1];
-    property includeWorkspaceFoldersAsUnitPaths: boolean read fBooleans[2] write fBooleans[2];
-    property includeWorkspaceFoldersAsIncludePaths: boolean read fBooleans[3] write fBooleans[3];
+    property insertCompletionProcedureBrackets: Boolean read fBooleans[1] write fBooleans[1];
+    property includeWorkspaceFoldersAsUnitPaths: Boolean read fBooleans[2] write fBooleans[2];
+    property includeWorkspaceFoldersAsIncludePaths: Boolean read fBooleans[3] write fBooleans[3];
+
     // syntax will be checked when file opens or saves
-    property checkSyntax: boolean read fBooleans[4] write fBooleans[4];
+    property checkSyntax: Boolean read fBooleans[4] write fBooleans[4];
+
     // syntax errors will be published as diagnostics
-    property publishDiagnostics: boolean read fBooleans[5] write fBooleans[5];
+    property publishDiagnostics: Boolean read fBooleans[5] write fBooleans[5];
+
   public
     procedure AfterConstruction; override;
   end;
@@ -49,11 +53,28 @@ type
   private
     fOptions: TServerOptions;
     fProgram: String;
+    fSymbolDatabase: String;
     fFPCOptions: TStrings;
   published
     property options: TServerOptions read fOptions write fOptions;
+
+    // path to the main program file for resolving references
+    // if not available the path of the current document will be used
     property &program: String read fProgram write fProgram;
+
+    // path to SQLite3 database for symbols
+    property symbolDatabase: String read fSymbolDatabase write fSymbolDatabase;
+
+    // FPC compiler options (passed to Code Tools)
+    // common options required for the parser:
+    //   -Fu<x>     Add <x> to unit path
+    //   -Fi<x>     Add <x> to include path
+    //   -d<x>      Defines the symbol <x>
+    //   -Mfpc      Free Pascal dialect (default)
+    //   -Mobjfpc   FPC mode with Object Pascal support
+    //   -Mdelphi   Delphi 7 compatibility mode
     property FPCOptions: TStrings read fFPCOptions write fFPCOptions;
+
   public
     procedure AfterConstruction; override;
   end;

@@ -158,6 +158,8 @@ begin with Params do
       // the JSON-RPC streaming model
       ServerSettings := initializationOptions;
 
+      SymbolManager := TSymbolManager.Create;
+
       // include workspace paths as search paths
       if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths or
         ServerSettings.options.includeWorkspaceFoldersAsIncludePaths then
@@ -171,7 +173,8 @@ begin with Params do
               FPCOptions := FPCOptions + '-Fi' + Path + ' ';
 
             // TODO: check in WorkspaceClientCapabilities if we have workspace symbols
-            SymbolManager.Scan(Path, true);
+            if SymbolManager <> nil then
+              SymbolManager.Scan(Path, true);
           end;
 
       for Option in initializationOptions.FPCOptions do
@@ -183,8 +186,8 @@ begin with Params do
             FPCOptions := FPCOptions + Option + ' ';
         end;
 
-      writeln(StdErr, 'FPCOptions: ', FPCOptions);
-      flush(stderr);
+      //writeln(StdErr, 'FPCOptions: ', FPCOptions);
+      //flush(stderr);
       ProjectDir := ParseURI(rootUri).Path;
     end;
     re.Free;

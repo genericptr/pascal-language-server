@@ -102,10 +102,11 @@ var
   Input: TWorkspaceSymbolParams;
 begin
   Input := specialize TLSPStreaming<TWorkspaceSymbolParams>.ToObject(Params);
-  Result := SymbolManager.CollectSerializedSymbols;
-  writeln(stderr,'TWorkspaceSymbolRequest.DoExecute:', ConvertBytesToHumanReadable(Length(Result.AsJson)));
-  //writeln(stderr, Result.AsJson);
-  flush(stderr);
+
+  Result := SymbolManager.FindWorkspaceSymbols(Input.query);
+  writeln(stderr,'workspace/symbol payload=', ConvertBytesToHumanReadable(Length(Result.AsJson)));
+  Flush(stderr);
+
   if not Assigned(Result) then
     Result := TJSONNull.Create;
 end;

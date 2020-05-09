@@ -41,7 +41,6 @@ type
 
   { TLongString }
 
-      
   TLongString = record
   private
     LastPos: LongInt;
@@ -51,18 +50,15 @@ type
     procedure Rewind;
     procedure Add(part: AnsiString); overload;
     procedure Add(Part: AnsiString; Offset, Len: Integer); overload;
-  private
-    class operator Initialize(var self: TLongString);
+    function Last: Char; inline;
   end;
 
+  { TJSONSerializedArray }
+
   type
-    TJSONWrapper = class (TJSONString)
+    TJSONSerializedArray = class (TJSONString)
     protected
       function GetAsJSON: TJSONStringType; override;
-    public
-      Contents: TLongString;
-      ItemCount: Integer;
-      constructor Create; override;
     end;
 
 { Functions }
@@ -78,20 +74,24 @@ implementation
 uses
   CodeTree, PascalParserTool;
 
-function TJSONWrapper.GetAsJSON: TJSONStringType;
+{ TJSONSerializedArray }
+
+function TJSONSerializedArray.GetAsJSON: TJSONStringType;
 begin
-  result := Contents.S;
+  // already serialized so return the raw string
+  result := GetAsString;
 end;
 
-constructor TJSONWrapper.Create;
-begin
-end;
-
-{ LongString }
+{ TLongString }
 
 procedure TLongString.Clear;
 begin
   S := '';
+end;
+
+function TLongString.Last: Char;
+begin
+  result := S[High(S)];
 end;
 
 procedure TLongString.Rewind;
@@ -103,7 +103,8 @@ end;
 procedure TLongString.Add(Part: AnsiString; Offset, Len: Integer); 
 begin
   Assert(Offset + Len <= Length(Part), IntToStr(Offset)+'-'+IntToStr(Len)+' is > '+IntToStr(Length(Part)));
-  if (Len - Offset) = 0 then
+  // zero length inserts do nothing
+  if (Len = 0) or ((Len - Offset) = 0) then
     exit;
   LastPos := Length(S);
   SetLength(S, LastPos + Len);
@@ -114,11 +115,6 @@ procedure TLongString.Add(Part: AnsiString);
 begin
   LastPos := Length(S);
   S += Part;
-end;
-
-class operator TLongString.Initialize(var self: TLongString);
-begin
-  self.Clear;
 end;
 
 { TIdentifierListItemHelper }

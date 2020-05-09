@@ -162,7 +162,9 @@ begin with Params do
       Code := CodeToolBoss.LoadFile(Path, False, False);
       
     CheckSyntax(Code);
-    SymbolManager.Reload(Code);
+
+    if SymbolManager <> nil then
+      SymbolManager.Reload(Code);
   end;
 end;
 
@@ -177,7 +179,6 @@ begin with Params do
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     CheckSyntax(Code);
-    SymbolManager.Reload(Code);
   end;
 end;
 
@@ -211,6 +212,7 @@ begin with Params do
     for Change in contentChanges do
     begin
       Code.Source := TTextDocumentContentChangeEvent(Change).text;
+      SymbolManager.Reload(Code, True);
     end;
   end;
 end;

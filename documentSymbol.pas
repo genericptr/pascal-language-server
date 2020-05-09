@@ -20,12 +20,12 @@
 unit documentSymbol;
 
 {$mode objfpc}{$H+}
-{define SYMBOL_EXTRACTOR_DEBUG}
+{define SYMBOL_DEBUG}
 
 interface
 
 uses
-  Classes, Contnrs, URIParser, FPJSON,
+  Classes, Contnrs, URIParser, fpjson, fpjsonrpc, SQLite3,
   CodeToolManager, CodeCache, CodeTree,
   lsp, basic, codeUtils;
 
@@ -156,7 +156,7 @@ type
     * DocumentSymbol[] which is a hierarchy of symbols found in a given text document. }
 
   TDocumentSymbolRequest = class(specialize TLSPRequest<TDocumentSymbolParams, TPersistent>)
-    function Process(var Params: TDocumentSymbolParams): TPersistent; override;
+    function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
   end;
 
   { TSymbol }
@@ -168,83 +168,121 @@ type
   { Extra symbol container for storage }
 
   TSymbol = class(TSymbolInformation)
-    private
-      function GetFullName: String;
-    public
-      RawJSON: String;
-      Flags: TSymbolFlags;
-      function IsGlobal: boolean;
-      property FullName: String read GetFullName;
+  private
+    function GetFullName: String;
+  public
+    RawJSON: String;
+    Flags: TSymbolFlags;
+    function Path: String;
+    function IsGlobal: boolean;
+    property FullName: String read GetFullName;
+    constructor Create; overload;
   end;
   TSymbolItems = specialize TGenericCollection<TSymbol>;
 
   { TSymbolTableEntry }
 
   TSymbolTableEntry = class
-    private
-      Key: ShortString;
-      Items: TSymbolItems;
-      Code: TCodeBuffer;
-      SerializedItems: TJSONArray;
-      fRawJSON: String;
-      function GetSerializedSymbol(index: integer): TSymbol; inline;
-      function GetRawJSON: String;
-    public
-      constructor Create(_Code: TCodeBuffer);
-      destructor Destroy; override;
-      procedure Clear;
-      procedure Serialize;
-      procedure WriteToFile(Directory: String);
-      function AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column: Integer): TSymbol;
-      function Count: integer; inline;
-      property Symbols[Index: integer]: TSymbol read GetSerializedSymbol; default;
-      property RawJSON: String read GetRawJSON;
+  private
+    Key: ShortString;
+    Symbols: TSymbolItems;
+    Code: TCodeBuffer;
+    fRawJSON: String;
+    function GetRawJSON: String; inline;
+  public
+    constructor Create(_Code: TCodeBuffer);
+    destructor Destroy; override;
+    procedure Clear;
+    procedure SerializeSymbols;
+    function AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column: Integer): TSymbol;
+    function RequestReload: boolean;
+    function Count: integer; inline;
+    property RawJSON: String read GetRawJSON;
   end;
 
   { TSymbolExtractor }
 
   TSymbolExtractor = class
-    private
-      Code: TCodeBuffer;
-      Tool: TCodeTool;
-      Entry: TSymbolTableEntry;
-      UsedIdentifiers: TFPHashList;
-      IndentLevel: integer;
-    private
-      procedure WalkTree(node: TCodeTreeNode); 
-      procedure ExtractClassMethods(ClassSymbol: TSymbol; Node: TCodeTreeNode);
-      function FindProcHead(Node: TCodeTreeNode): TCodeTreeNode;
-      function AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbol; overload;
-      function AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbol; overload;
-      function GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
-      function GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false): String; inline;
-    public
-      constructor Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
-      destructor Destroy; override;
+  private
+    Code: TCodeBuffer;
+    Tool: TCodeTool;
+    Entry: TSymbolTableEntry;
+    UsedIdentifiers: TFPHashList;
+    IndentLevel: integer;
+  private
+    procedure WalkTree(node: TCodeTreeNode); 
+    procedure ExtractClassMethods(ClassSymbol: TSymbol; Node: TCodeTreeNode);
+    function FindProcHead(Node: TCodeTreeNode): TCodeTreeNode;
+    function AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbol; overload;
+    function AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbol; overload;
+    function GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
+    function GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false): String; inline;
+  public
+    constructor Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
+    destructor Destroy; override;
+  end;
+
+  { TSQLiteDatabase }
+
+  TSQLiteDatabase = class
+  protected
+    Database: psqlite3;
+    function SingleQuery(Stat: String): boolean;
+    function Exec(Stat: String): boolean;
+    procedure LogError(errmsg: pansichar); virtual;
+  end;
+
+  { TSymbolDatabase }
+
+  TSymbolDatabase = class(TSQLiteDatabase)
+  private
+    procedure LogError(errmsg: pansichar); override;
+  public
+    constructor Create(Path: String);
+
+    { Symbols }
+    function FindAllSymbols(Path: String): TJSONSerializedArray;
+    function FindSymbols(Query: String): TJSONSerializedArray;
+    procedure ClearSymbols(Path: String); 
+    procedure InsertSymbol(Symbol: TSymbol); 
+    procedure InsertSymbols(Collection: TSymbolItems; StartIndex, EndIndex: Integer); 
+
+    { Files }
+    procedure TouchFile(Path: String);
+    function FileModified(Path: String): boolean;
+    procedure InsertFile(Path: String);
   end;
 
   { TSymbolManager }
 
   TSymbolManager = class
-    private
-      SymbolTable: TFPHashObjectList;
-      ErrorList: TStringList;
+  private
+    SymbolTable: TFPHashObjectList;
+    ErrorList: TStringList;
+    fDatabase: TSymbolDatabase;
 
-      function Load(Path: String): TCodeBuffer;
-      procedure RemoveFile(FileName: String);
-      procedure AddError(Message: String); 
-    public
-      constructor Create;
-      destructor Destroy; override;
+    function Load(Path: String): TCodeBuffer;
+    procedure RemoveFile(FileName: String);
+    procedure AddError(Message: String); 
+    function GetEntry(Code: TCodeBuffer): TSymbolTableEntry;
+    function GetDatabase: TSymbolDatabase; inline;
+    property Database: TSymbolDatabase read GetDatabase;
+  public
+    constructor Create;
+    destructor Destroy; override;
 
-      function CollectSymbols: TSymbolInformationItems;
-      function CollectSerializedSymbols(Duplicates: boolean = true): TJSONWrapper;
-      procedure ClearErrors;
+    { Searching }
+    function FindDocumentSymbols(Path: String): TJSONSerializedArray;
+    function FindWorkspaceSymbols(Query: String): TJSONSerializedArray;
+    function CollectSerializedSymbols: TJSONSerializedArray;
 
-      function Find(Path: String): TSymbolItems;
-      function Reload(Code: TCodeBuffer): TSymbolItems; overload;
-      function Reload(Path: String): TSymbolItems; overload;
-      procedure Scan(Path: String; SearchSubDirs: Boolean);
+    { Errors }
+    procedure ClearErrors;
+
+    { Loading }
+    procedure Reload(Code: TCodeBuffer; Always: Boolean = false); overload;
+    procedure Reload(Path: String); overload;
+    procedure Scan(Path: String; SearchSubDirs: Boolean);
   end;
 
 var
@@ -257,8 +295,8 @@ implementation
 uses
   SysUtils, FileUtil, fpjsonrtti,
   CodeToolsConfig, IdentCompletionTool, CodeAtom,
-  BasicCodeTools, FindDeclarationTool, PascalParserTool,
-  KeywordFuncLists;
+  BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
+  settings;
 
 function SymbolKindToString(kind: TSymbolKind): ShortString;
 begin
@@ -322,6 +360,11 @@ begin
   else if (kind = 'TypeParameter') then result := SymbolKindTypeParameter
 end;
 
+function GetFileKey(Path: String): ShortString;
+begin
+  result := ExtractFileName(Path);
+end;
+
 { TSymbolInformation }
 
 procedure TSymbolInformation.Assign(Source: TPersistent);
@@ -334,6 +377,14 @@ begin
 end;
 
 { TSymbol }
+
+function TSymbol.Path: String;
+var
+  URI: TURI;
+begin
+  URI := ParseURI(location.uri);
+  Result := URI.Path + URI.Document;
+end;
 
 function TSymbol.IsGlobal: boolean;
 begin
@@ -348,90 +399,121 @@ begin
     Result := Name;
 end;
 
-{ TSymbolTableEntry }
-
-function TSymbolTableEntry.GetSerializedSymbol(index: integer): TSymbol;
-var
-  Symbol: TSymbol;
+constructor TSymbol.Create;
 begin
-  Assert(SerializedItems <> nil, 'symbol table must be serialized first.');
-
-  Symbol := TSymbol(Items.Items[index]);
-  if Symbol.RawJSON = '' then
-    Symbol.RawJSON := SerializedItems[index].AsJson;
-  result := Symbol;
+  // we need this dummy constructor for serializing
+  Create(nil);
 end;
 
-function TSymbolTableEntry.GetRawJSON: String;
-begin
-  Assert(SerializedItems <> nil, 'symbol table must be serialized first.');
+{ TSymbolTableEntry }
 
-  if fRawJSON = '' then
+function TSymbolTableEntry.GetRawJSON: String;
+var
+  JSON: TJSONSerializedArray;
+begin
+  if (fRawJSON = '') and (SymbolManager.Database <> nil) then
     begin
-      fRawJSON := SerializedItems.AsJson;
-      // TODO: trim [] from string. how?
-      //fRawJSON := Trim(fRawJSON, '[]');
+      JSON := SymbolManager.Database.FindAllSymbols(Code.FileName);
+      fRawJSON := JSON.AsJson;
+      JSON.Free;
     end;
-  result := fRawJSON;
+  Result := fRawJSON;
 end;
 
 function TSymbolTableEntry.Count: integer;
 begin
-  if SerializedItems <> nil then
-    result := SerializedItems.Count
+  result := Symbols.Count;
+end;
+
+function TSymbolTableEntry.RequestReload: boolean;
+var
+  Database: TSymbolDatabase;
+  Path: String;
+  JSON: TJSONSerializedArray;
+begin
+  Database := SymbolManager.Database;
+  Path := Code.FileName;
+  Result := false;
+
+  if Database <> nil then
+    begin
+      Database.InsertFile(Path);
+      if Database.FileModified(Path) then
+        begin
+          Database.TouchFile(Path);
+          Result := true;
+        end
+      else
+        begin
+          Result := False;
+        end;
+    end
   else
-    result := 0;
+    Result := true;
 end;
 
 function TSymbolTableEntry.AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column: Integer): TSymbol;
 var
   Symbol: TSymbol;
 begin
-  Symbol := TSymbol(Items.Add);
+  Symbol := TSymbol(Symbols.Add);
   Symbol.name := Name;
   Symbol.kind := Kind;
   Symbol.location := TLocation.Create(FileName, Line - 1, Column - 1, Length(Name));
-
   result := Symbol;
 end;
 
-procedure TSymbolTableEntry.Serialize;
-begin
-  //writeln('Serialize ', Key, ' ', Items.Count, ' items...');
-  SerializedItems := specialize TLSPStreaming<TSymbolInformationItems>.ToJSON(Items) as TJSONArray;
-end;
-
-procedure _WriteToFile (contents: AnsiString; path: string);
+procedure TSymbolTableEntry.SerializeSymbols;
+const
+  BATCH_COUNT = 1000;
 var
-  f: TextFile;
+  SerializedItems: TJSONArray;
+  i, Start, Next, Total: Integer;
+  Symbol: TSymbol;
 begin
-  try
-    AssignFile(f, path);
-    Rewrite(f);
-    Write(f, contents);
-    CloseFile(f);
-  except
-    on E:Exception do
-      writeln(path, ': ', E.Message);
-  end;
-end;
+  SerializedItems := specialize TLSPStreaming<TSymbolInformationItems>.ToJSON(Symbols) as TJSONArray;
+  
+  //writeln('serialize ', key, ': ', SerializedItems.count);
 
-procedure TSymbolTableEntry.WriteToFile(Directory: String);
-begin
-  _WriteToFile(SerializedItems.FormatJSON, Directory+'/'+Key+'.json');
-  halt;
+  for i := 0 to SerializedItems.Count - 1 do
+    begin
+      Symbol := TSymbol(Symbols.Items[i]);
+      Symbol.RawJSON := SerializedItems[i].AsJson;
+    end;
+
+  // if a database is available then insert serialized symbols in batches
+  if SymbolManager.Database <> nil then
+    begin
+      Next := 0;
+      Start := 0;
+      Total := SerializedItems.Count;
+      while Start < Total do
+        begin
+          Next := Start + BATCH_COUNT;
+          if Next >= Total then
+            Next := Total - 1;
+          SymbolManager.Database.InsertSymbols(Symbols, Start, Next);
+          Start := Next + 1;
+        end;
+    end;
+
+  // todo: insert entry json into database
+  // if we are going to support empty query strings
+  fRawJSON := SerializedItems.AsJSON;
+
+  SerializedItems.Free;
 end;
 
 procedure TSymbolTableEntry.Clear;
 begin
-  Items.Clear;
-  FreeAndNil(SerializedItems);
+  Symbols.Clear;
+  if SymbolManager.Database <> nil then
+    SymbolManager.Database.ClearSymbols(Code.FileName);
 end;
 
 destructor TSymbolTableEntry.Destroy; 
 begin
-  Items.Free;
-  FreeAndNil(SerializedItems);
+  Symbols.Free;
   inherited;
 end;
 
@@ -439,7 +521,7 @@ constructor TSymbolTableEntry.Create(_Code: TCodeBuffer);
 begin
   Code := _Code;
   Key := ExtractFileName(Code.FileName);
-  Items := TSymbolItems.Create;
+  Symbols := TSymbolItems.Create;
 end;
 
 { TSymbolExtractor }
@@ -531,7 +613,7 @@ begin
 
   while Node <> nil do
     begin
-      {$ifdef SYMBOL_EXTRACTOR_DEBUG}
+      {$ifdef SYMBOL_DEBUG}
       writeln(IndentLevelString(IndentLevel - 1), Node.DescAsString, ' -> ', Node.ChildCount);
       {$endif}
 
@@ -586,7 +668,7 @@ begin
 
   while Node <> nil do
     begin
-      {$ifdef SYMBOL_EXTRACTOR_DEBUG}
+      {$ifdef SYMBOL_DEBUG}
       writeln(IndentLevelString(IndentLevel - 1), Node.DescAsString, ' -> ', Node.ChildCount);
       {$endif}
 
@@ -679,7 +761,282 @@ begin
   inherited;
 end;
 
+{ TSQLiteDatabase }
+
+procedure TSQLiteDatabase.LogError(errmsg: pansichar); 
+begin
+end;
+
+function TSQLiteDatabase.SingleQuery(Stat: String): boolean;
+var
+  statement: psqlite3_stmt;
+  errmsg: pansichar;
+begin
+  Result := false;
+  if sqlite3_prepare_v2(database, @Stat[1], -1, @statement, @errmsg) = SQLITE_OK then
+    begin
+      Result := sqlite3_step(statement) = SQLITE_ROW;
+      sqlite3_finalize(statement);
+    end
+  else
+    LogError(errmsg);
+end;
+
+function TSQLiteDatabase.Exec(Stat: String): boolean;
+var
+  errmsg: pansichar;
+begin
+  result := sqlite3_exec(database, @Stat[1], nil, nil, @errmsg) = SQLITE_OK;
+  if not result then
+    LogError(errmsg);
+end;
+
+{ TSymbolDatabase }
+
+procedure AddField(var Source: String; Value: String; Terminate: Boolean = true); 
+begin
+  Source += ''''+Value+'''';
+  if Terminate then
+    Source += ',';
+end;
+
+procedure AddField(var Source: String; Value: Integer; Terminate: Boolean = true); 
+begin
+  Source += IntToStr(Value);
+  if Terminate then
+    Source += ',';
+end;
+
+const
+  SYMBOL_ENTRY_NAME = 0;
+  SYMBOL_ENTRY_CONTAINER = 1;
+  SYMBOL_ENTRY_PATH = 2;
+  SYMBOL_ENTRY_START_LINE = 3;
+  SYMBOL_ENTRY_START_CHARACTER = 4;
+  SYMBOL_ENTRY_END_LINE = 5;
+  SYMBOL_ENTRY_END_CHARACTER = 6;
+  SYMBOL_ENTRY_KIND = 7;
+  SYMBOL_ENTRY_JSON = 8;
+
+function TSymbolDatabase.FindAllSymbols(Path: String): TJSONSerializedArray;
+var
+  Stat: String;
+  statement: psqlite3_stmt;
+  Symbol: TSymbol;
+  errmsg: pansichar;
+  Contents: TLongString;
+begin
+  Result := nil;
+  Stat := 'SELECT * FROM symbols WHERE path LIKE ''%'+Path+'%'''#0;
+  if sqlite3_prepare_v2(database, @Stat[1], -1, @statement, @errmsg) = SQLITE_OK then
+    begin
+      Contents.Clear;
+      Contents.Add('[');
+
+      while sqlite3_step(statement) = SQLITE_ROW do
+        begin
+          Contents.Add(sqlite3_column_text(statement, SYMBOL_ENTRY_JSON));
+          Contents.Add(',');
+        end;
+
+      if Contents.Last = ',' then
+        Contents.Rewind;
+      Contents.Add(']');
+
+      Result := TJSONSerializedArray.Create(Contents.S);
+      sqlite3_finalize(statement);
+    end
+  else
+    LogError(errmsg);
+end;
+
+function TSymbolDatabase.FindSymbols(Query: String): TJSONSerializedArray;
+var
+  Stat: String;
+  statement: psqlite3_stmt;
+  Symbol: TSymbol;
+  errmsg: pansichar;
+  Contents: TLongString;
+begin
+  Result := nil;
+  Stat := 'SELECT * FROM symbols WHERE name LIKE ''%'+Query+'%'''#0;
+  if sqlite3_prepare_v2(database, @Stat[1], -1, @statement, @errmsg) = SQLITE_OK then
+    begin
+      Contents.Clear;
+      Contents.Add('[');
+
+      while sqlite3_step(statement) = SQLITE_ROW do
+        begin
+          Contents.Add(sqlite3_column_text(statement, SYMBOL_ENTRY_JSON));
+          Contents.Add(',');
+        end;
+
+      if Contents.Last = ',' then
+        Contents.Rewind;
+      Contents.Add(']');
+
+      Result := TJSONSerializedArray.Create(Contents.S);
+      sqlite3_finalize(statement);
+    end
+  else
+    LogError(errmsg);
+end;
+
+procedure TSymbolDatabase.LogError(errmsg: pansichar); 
+begin
+  Assert(false, errmsg);
+end;
+
+function TSymbolDatabase.FileModified(Path: String): boolean;
+var
+  Stat: String;
+begin
+  Stat := 'SELECT * FROM entries WHERE path = '''+Path+''' AND date != '+IntToStr(FileAge(Path));
+  Result := SingleQuery(Stat);
+end;
+
+procedure TSymbolDatabase.InsertFile(Path: String);
+var
+  Stat: String;
+  errmsg: pansichar;
+begin
+  Stat := 'INSERT OR IGNORE INTO entries VALUES (';
+    AddField(Stat, Path);
+    AddField(Stat, 0);
+    AddField(Stat, '', false);
+  Stat += ')'#0;
+  Exec(Stat);
+end;
+
+procedure TSymbolDatabase.TouchFile(Path: String);
+var
+  Stat: String;
+  errmsg: pansichar;
+begin
+  Stat := 'UPDATE entries SET date = '+IntToStr(FileAge(Path))+' WHERE path = '''+Path+''''#0;
+  Exec(Stat);
+end;
+
+procedure TSymbolDatabase.ClearSymbols(Path: String);
+var
+  Stat: String;
+begin
+  Stat := 'DELETE FROM symbols WHERE path = '''+Path+'''';
+  Exec(Stat);
+end;
+
+procedure TSymbolDatabase.InsertSymbols(Collection: TSymbolItems; StartIndex, EndIndex: Integer);
+var
+  Stat: String;
+  errmsg: pansichar;
+  Symbol: TSymbol;
+  i: integer;
+begin
+  Stat := 'INSERT INTO symbols VALUES ';
+
+  for i := StartIndex to EndIndex do
+    begin
+      Symbol := TSymbol(Collection.Items[i]);
+      Stat += '(';
+
+      AddField(Stat, Symbol.name);
+      if Symbol.containerName <> nil then
+        AddField(Stat, Symbol.containerName.value)
+      else
+        AddField(Stat, '');
+      AddField(Stat, Symbol.Path);
+      // todo: make some proeprties to clean this up.
+      AddField(Stat, Symbol.location.range.start.line);
+      AddField(Stat, Symbol.location.range.start.character);
+      AddField(Stat, Symbol.location.range.&end.line);
+      AddField(Stat, Symbol.location.range.&end.character);
+      AddField(Stat, Integer(Symbol.kind));
+      AddField(Stat, Symbol.RawJSON, false);
+
+      Stat += ')';
+      if i < EndIndex then
+        Stat += ',';
+    end;
+
+  Stat += #0;
+
+  Exec(Stat);
+end;
+
+procedure TSymbolDatabase.InsertSymbol(Symbol: TSymbol);
+var
+  Stat: String;
+  errmsg: pansichar;
+begin
+  Stat := 'INSERT INTO symbols VALUES (';
+
+  AddField(Stat, Symbol.name);
+  if Symbol.containerName <> nil then
+    AddField(Stat, Symbol.containerName.value)
+  else
+    AddField(Stat, '');
+  AddField(Stat, Symbol.Path);
+  // todo: make some proeprties to clean this up.
+  AddField(Stat, Symbol.location.range.start.line);
+  AddField(Stat, Symbol.location.range.start.character);
+  AddField(Stat, Symbol.location.range.&end.line);
+  AddField(Stat, Symbol.location.range.&end.character);
+  AddField(Stat, Integer(Symbol.kind));
+  AddField(Stat, Symbol.RawJSON, false);
+
+  Stat += ')'#0;
+
+  if sqlite3_exec(database, @Stat[1], nil, nil, @errmsg) <> SQLITE_OK then
+    LogError(errmsg);
+end;
+
+constructor TSymbolDatabase.Create(Path: String);
+const
+  CREATE_ENTRY_TABLE = 'CREATE TABLE IF NOT EXISTS entries ('+
+                       'path varchar(1023),'+
+                       'date integer,'+
+                       'json text,'+
+                       'UNIQUE(path)'+
+                       ')'#0;
+  CREATE_SYMBOL_TABLE = 'CREATE TABLE IF NOT EXISTS symbols ('+
+                       'name varchar(255),'+
+                       'container_name varchar(255),'+
+                       'path varchar(1023),'+
+                       'start_line integer,'+
+                       'start_character integer,'+
+                       'end_line integer,'+
+                       'end_character integer,'+
+                       'kind integer,'+
+                       'json text'+
+                       ')'#0;
+begin
+  // give the user some feedback on where it's loading from
+  writeln(Stderr, 'Loading symbol database at ', Path);
+  Flush(Stderr);
+
+  Path += #0;
+  if sqlite3_open(@Path[1], @Database) <> SQLITE_OK then
+    begin
+      writeln(stderr, 'Failed to load database ',Path);
+      Flush(stderr);
+      Assert(False, 'Failed to load database '+Path);
+      halt(-1);
+    end;
+
+  Exec(CREATE_SYMBOL_TABLE);
+  Exec(CREATE_ENTRY_TABLE);
+end;
+
 { TSymbolManager }
+
+function TSymbolManager.GetDatabase: TSymbolDatabase;
+begin
+  if (fDatabase = nil) and 
+    (ServerSettings.symbolDatabase <> '') then 
+    fDatabase := TSymbolDatabase.Create(ExpandFileName(ServerSettings.symbolDatabase));
+  Result := fDatabase;
+end;
+
 
 procedure TSymbolManager.RemoveFile(FileName: String);
 var
@@ -690,80 +1047,41 @@ begin
     SymbolTable.Delete(Index);
 end;
 
-function TSymbolManager.CollectSymbols: TSymbolInformationItems;
-var
-  i: integer;
-  Item: TCollectionItem;
-  Symbol: TSymbolInformation;
-  Entry: TSymbolTableEntry;
-  UsedIdentifiers: TFPHashList;
+function TSymbolManager.FindWorkspaceSymbols(Query: String): TJSONSerializedArray;
 begin
-  Result := TSymbolInformationItems.Create;
-  UsedIdentifiers := TFPHashList.Create;
-  for i := 0 to SymbolTable.Count - 1 do
+  if (Database <> nil) and (Query <> '') then
+    result := Database.FindSymbols(Query)
+  else
     begin
-      Entry := TSymbolTableEntry(SymbolTable[i]);
-      if Entry <> nil then
-        for Item in Entry.Items do
-          if UsedIdentifiers.Find(TSymbolInformation(Item).name) = nil then
-            begin
-              Symbol := TSymbolInformation.Create(Result);
-              Symbol.Assign(Item);
-              UsedIdentifiers.Add(Symbol.name, Symbol);
-            end;
+      // todo: search workspace symbols without database
+      result := CollectSerializedSymbols;
     end;
-  UsedIdentifiers.Free;
 end;
 
-function TSymbolManager.CollectSerializedSymbols(Duplicates: boolean = true): TJSONWrapper;
+
+function TSymbolManager.CollectSerializedSymbols: TJSONSerializedArray;
 var
   i, j: integer;
-  Symbol: TSymbol;
   Entry: TSymbolTableEntry;
-  UsedIdentifiers: TFPHashList = nil;
-  Count: integer;
+  Contents: TLongString;
 begin
-  if not Duplicates then
-    UsedIdentifiers := TFPHashList.Create;
+  Contents.Clear;
+  Contents.Add('[');
 
-  Result := TJSONWrapper.Create;
-
-  Result.Contents.Add('[');
-
-  Count := 0;
   for i := 0 to SymbolTable.Count - 1 do
     begin
       Entry := TSymbolTableEntry(SymbolTable[i]);
-      if Duplicates then
+      if Entry.RawJSON <> '' then
         begin
-          if Entry.Count > 0 then
-            begin
-              Result.Contents.Add(Entry.RawJSON, 1, Length(Entry.RawJSON) - 2);
-              Result.Contents.Add(',');
-              Inc(Count, Entry.Count);
-            end;
-        end
-      else
-        begin
-          for j := 0 to Entry.Count - 1 do
-            begin
-              Symbol := Entry[j];
-              if Symbol.IsGlobal and (UsedIdentifiers.Find(Symbol.name) <> nil) then
-                continue;
-              Result.Contents.Add(Symbol.RawJSON);
-              Result.Contents.Add(',');
-              if Symbol.IsGlobal then
-                UsedIdentifiers.Add(Symbol.Name, Symbol);
-              Inc(Count);
-            end;
+          Contents.Add(Entry.RawJSON, 1, Length(Entry.RawJSON) - 2);
+          Contents.Add(',');
         end;
     end;
   
-  Result.Contents.Rewind;
-  Result.Contents.Add(']');
-  Result.ItemCount := Count;
+  Contents.Rewind;
+  Contents.Add(']');
 
-  FreeAndNil(UsedIdentifiers);
+  Result := TJSONSerializedArray.Create(Contents.S);
 end;
 
 procedure TSymbolManager.ClearErrors; 
@@ -788,10 +1106,9 @@ begin
   Files := TStringList.Create;
   try
     // TODO: make this an initializationOption
-    FindAllFiles(Files, Path, '*.pas;*.pp;*.p;*.inc', SearchSubDirs);
+    FindAllFiles(Files, Path, '*.pas;*.pp;*.p', SearchSubDirs);
     for FileName in Files do
       Reload(FileName);
-    writeln('loaded ', SymbolTable.Count, ' entries in /', ExtractFileName(Path));
   finally
     Files.Free;
   end;
@@ -838,23 +1155,45 @@ begin
     AddError('file '+Path+' can''t be loaded');
 end;
 
-function TSymbolManager.Find(Path: String): TSymbolItems;
+function TSymbolManager.FindDocumentSymbols(Path: String): TJSONSerializedArray;
 var
   Entry: TSymbolTableEntry;
   FileName: ShortString;
+  Code, MainCode: TCodeBuffer;
 begin
-  // TODO: make a TSymbolTableEntry.FileKey to standardize this
-  FileName := ExtractFileName(Path);
+
+  // get the main code in case we're dealing with includes
+  Code := CodeToolBoss.FindFile(Path);
+  MainCode := CodeToolBoss.GetMainCode(Code);
+  if MainCode = nil then
+    exit(nil);
+
+  FileName := GetFileKey(MainCode.FileName);
   Entry := TSymbolTableEntry(SymbolTable.Find(FileName));
+
   if Entry <> nil then
-    Result := Entry.Items
+    Result := TJSONSerializedArray.Create(Entry.RawJSON)
   else
     Result := nil;
 end;
 
-function TSymbolManager.Reload(Code: TCodeBuffer): TSymbolItems;
+function TSymbolManager.GetEntry(Code: TCodeBuffer): TSymbolTableEntry;
 var
-  FileName: ShortString;
+  Entry: TSymbolTableEntry;
+  Key: ShortString;
+begin
+  Key := GetFileKey(Code.FileName);
+  Entry := TSymbolTableEntry(SymbolTable.Find(Key));
+  if Entry = nil then
+    begin
+      Entry := TSymbolTableEntry.Create(Code);
+      SymbolTable.Add(Key, Entry);
+    end;
+  result := Entry;
+end;
+
+procedure TSymbolManager.Reload(Code: TCodeBuffer; Always: Boolean = false);
+var
   Entry: TSymbolTableEntry;
   Tool: TCodeTool;
   Extractor: TSymbolExtractor;
@@ -866,27 +1205,21 @@ begin
   // then we're dealing with an include file
   MainCode := CodeToolBoss.GetMainCode(Code);
   if CompareCodeBuffers(MainCode, Code) <> 0 then
-    exit(nil);
-
+    exit;
+  
+  // check if the file mod dates have changed
+  Entry := GetEntry(Code);
+  if not Always and not Entry.RequestReload then
+    exit;
 
   if not CodeToolBoss.Explore(Code, Tool, false, false) then
     begin
-      {$ifdef SYMBOL_EXTRACTOR_DEBUG}
+      {$ifdef SYMBOL_DEBUG}
       writeln(ExtractFileName(Code.FileName), ' -> ', CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
       {$endif}
       // todo: these errors are overwhelming on startup so we probably need a better way
       //AddError(ExtractFileName(Code.FileName)+' -> '+CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
-      exit(nil);
-    end;
-
-  FileName := ExtractFileName(Code.FileName);
-
-  // find a symbol table entry for the file
-  Entry := TSymbolTableEntry(SymbolTable.Find(FileName));
-  if Entry = nil then
-    begin
-      Entry := TSymbolTableEntry.Create(Code);
-      SymbolTable.Add(FileName, Entry);
+      exit;
     end;
 
   // clear existing items before reloading
@@ -898,19 +1231,20 @@ begin
   Extractor.WalkTree(Tool.Tree.Root);
   Extractor.Free;
 
-  Entry.Serialize;
+  Entry.SerializeSymbols;
 
-  result := Entry.Items;
+  //writeln(stderr, 'reloaded ', Code.FileName);
+  //flush(stderr);
 end;
 
-function TSymbolManager.Reload(Path: String): TSymbolItems;
+procedure TSymbolManager.Reload(Path: String);
 var
   Code: TCodeBuffer;
 begin
   Code := Load(Path);
   if Code = nil then
-    exit(nil);
-  Result := Reload(Code);
+    exit;
+  Reload(Code);
 end;
 
 constructor TSymbolManager.Create;
@@ -928,22 +1262,23 @@ end;
 
 { TDocumentSymbolRequest }
 
-function TDocumentSymbolRequest.Process(var Params: TDocumentSymbolParams): TPersistent;
+function TDocumentSymbolRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
 var
+  Input: TDocumentSymbolParams;
   URI: TURI;
   Path: String;
-begin with Params do
-  begin
-    URI := ParseURI(textDocument.uri);
-    Path := URI.Path + URI.Document;
-    result := SymbolManager.Find(Path);
-  end;
+begin
+  Input := specialize TLSPStreaming<TDocumentSymbolParams>.ToObject(Params);
+  URI := ParseURI(Input.textDocument.uri);
+  Path := URI.Path + URI.Document;
+  Result := SymbolManager.FindDocumentSymbols(Path);
+  if not Assigned(Result) then
+    Result := TJSONNull.Create;
+  Input.Free;
 end;
 
 initialization
-  SymbolManager := TSymbolManager.Create;
   //TSymbolExtractorThread.Pending := TStringList.Create;
   //TSymbolExtractorThread.QueueLock := TCriticalSection.Create;
-
   LSPHandlerManager.RegisterHandler('textDocument/documentSymbol', TDocumentSymbolRequest);
 end.
