@@ -73,7 +73,7 @@ begin with Params do
       Hint := CodeToolBoss.FindSmartHint(Code, X + 1, Y + 1);
       if Hint = '' then
         begin
-          PublishCodeToolsError;
+          PublishDiagnostic;
           exit;
         end;
     except

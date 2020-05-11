@@ -122,7 +122,7 @@ type
 
 implementation
 uses
-  SysUtils, RegExpr;
+  SysUtils, RegExpr, DefineTemplates;
 
 { TInitializeParams }
 
@@ -145,6 +145,7 @@ var
   URI: TURI;
   Item: TCollectionItem;
   re: TRegExpr;
+  DirectoryTemplate: TDefineTemplate;
 begin with Params do
   begin
     CodeToolsOptions := TCodeToolsOptions.Create;
@@ -152,6 +153,14 @@ begin with Params do
     with CodeToolsOptions do
     begin
       InitWithEnvironmentVariables;
+
+      // attempt to load optional config file
+      Path := ExpandFileName(initializationOptions.CodeToolsConfig);
+      if FileExists(Path) then
+        begin
+          writeln(StdErr, 'Loading config file: ', Path);
+          LoadFromFile(Path);
+        end;
 
       // TODO: we need to copy this or implement ref counting
       // once we figure out how memory is going to work with
@@ -167,12 +176,11 @@ begin with Params do
           begin
             URI := ParseURI(TWorkspaceFolder(Item).uri);
             Path := URI.Path + URI.Document;
+            
+            // todo: there is no include paths now!
             if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths then
-              FPCOptions := FPCOptions + '-Fu' + Path + ' ';
-            if ServerSettings.options.includeWorkspaceFoldersAsIncludePaths then
-              FPCOptions := FPCOptions + '-Fi' + Path + ' ';
+              initializationOptions.UnitPaths.Add(Path);
 
-            // TODO: check in WorkspaceClientCapabilities if we have workspace symbols
             if SymbolManager <> nil then
               SymbolManager.Scan(Path, true);
           end;
@@ -186,8 +194,27 @@ begin with Params do
             FPCOptions := FPCOptions + Option + ' ';
         end;
 
-      //writeln(StdErr, 'FPCOptions: ', FPCOptions);
-      //flush(stderr);
+
+      for Path in initializationOptions.UnitPaths do
+        begin
+          writeln(StdErr, 'Added unit path: ', ExpandFileName(Path));
+          DirectoryTemplate := TDefineTemplate.Create('Directory','','',ExpandFileName(Path),da_Directory);
+          CodeToolBoss.DefineTree.Add(DirectoryTemplate);
+        end;
+
+      if FPCOptions <> '' then
+        writeln(StdErr, 'FPC Options: ', FPCOptions);
+
+      if ServerSettings.&program <> '' then
+        begin
+          Path := ExpandFileName(ServerSettings.&program);
+          if FileExists(Path) then
+            writeln(StdErr, 'Main program file: ', Path)
+          else
+            writeln(StdErr, 'Error: Main program file ', Path, ' can''t be found.');
+        end;
+
+      Flush(stderr);
       ProjectDir := ParseURI(rootUri).Path;
     end;
     re.Free;
@@ -216,6 +243,7 @@ end;
 function TShutdown.Process(var Params : TVoidParams): TPersistent;
 begin
   // do nothing
+  result := nil;
 end;
 
 { TExit }

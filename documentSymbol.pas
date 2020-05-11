@@ -108,8 +108,6 @@ type
     fDeprecated: TOptionalBoolean;
     fLocation: TLocation;
     fContainerName: TOptionalString;
-  protected
-    procedure Assign(source: TPersistent); override;
   published
     // The name of this symbol.
     property name: string read fName write fName;
@@ -135,7 +133,6 @@ type
   end;
 
   TSymbolInformationItems = specialize TGenericCollection<TSymbolInformation>;
-
 
   { TDocumentSymbolParams }
 
@@ -194,7 +191,7 @@ type
     destructor Destroy; override;
     procedure Clear;
     procedure SerializeSymbols;
-    function AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column: Integer): TSymbol;
+    function AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column, RangeLen: Integer): TSymbol;
     function RequestReload: boolean;
     function Count: integer; inline;
     property RawJSON: String read GetRawJSON;
@@ -213,8 +210,8 @@ type
     procedure WalkTree(node: TCodeTreeNode); 
     procedure ExtractClassMethods(ClassSymbol: TSymbol; Node: TCodeTreeNode);
     function FindProcHead(Node: TCodeTreeNode): TCodeTreeNode;
-    function AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbol; overload;
-    function AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbol; overload;
+    function AddSymbol(StartPos, EndPos: LongInt; Kind: TSymbolKind): TSymbol; overload;
+    function AddSymbol(StartPos, EndPos: LongInt; Name: String; Kind: TSymbolKind): TSymbol; overload;
     function GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
     function GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false): String; inline;
   public
@@ -365,17 +362,6 @@ begin
   result := ExtractFileName(Path);
 end;
 
-{ TSymbolInformation }
-
-procedure TSymbolInformation.Assign(Source: TPersistent);
-begin
-  Name := TSymbolInformation(Source).Name;
-  Kind := TSymbolInformation(Source).Kind;
-  Deprecated := TSymbolInformation(Source).Deprecated;
-  Location := TSymbolInformation(Source).Location;
-  ContainerName := TSymbolInformation(Source).ContainerName;
-end;
-
 { TSymbol }
 
 function TSymbol.Path: String;
@@ -452,14 +438,14 @@ begin
     Result := true;
 end;
 
-function TSymbolTableEntry.AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column: Integer): TSymbol;
+function TSymbolTableEntry.AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column, RangeLen: Integer): TSymbol;
 var
   Symbol: TSymbol;
 begin
   Symbol := TSymbol(Symbols.Add);
   Symbol.name := Name;
   Symbol.kind := Kind;
-  Symbol.location := TLocation.Create(FileName, Line - 1, Column - 1, Length(Name));
+  Symbol.location := TLocation.Create(FileName, Line - 1, Column - 1, RangeLen);
   result := Symbol;
 end;
 
@@ -502,18 +488,22 @@ begin
   fRawJSON := SerializedItems.AsJSON;
 
   SerializedItems.Free;
+
+  // free the symbols also once they're serialized
+  FreeAndNil(Symbols);
 end;
 
 procedure TSymbolTableEntry.Clear;
 begin
-  Symbols.Clear;
+  if Symbols <> nil then
+    Symbols.Clear;
   if SymbolManager.Database <> nil then
     SymbolManager.Database.ClearSymbols(Code.FileName);
 end;
 
 destructor TSymbolTableEntry.Destroy; 
 begin
-  Symbols.Free;
+  FreeAndNil(Symbols);
   inherited;
 end;
 
@@ -575,22 +565,20 @@ begin
     end;
 end;
 
-function TSymbolExtractor.AddSymbol(Pos: LongInt; Kind: TSymbolKind): TSymbol;
+function TSymbolExtractor.AddSymbol(StartPos, EndPos: LongInt; Kind: TSymbolKind): TSymbol;
 var
   Identifier: string;
 begin
-  Identifier := GetIdentifierAtPos(Pos, true, true);
-  Result := AddSymbol(Pos, Identifier, Kind);
+  Identifier := GetIdentifierAtPos(StartPos, true, true);
+  Result := AddSymbol(StartPos, EndPos, Identifier, Kind);
 end;
 
-function TSymbolExtractor.AddSymbol(Pos: LongInt; Name: String; Kind: TSymbolKind): TSymbol;
+function TSymbolExtractor.AddSymbol(StartPos, EndPos: LongInt; Name: String; Kind: TSymbolKind): TSymbol;
 var
-  CodePos: TCodePosition;
-  Line, Column: Integer;
+  CodePos: TCodeXYPosition;
 begin
-  Tool.CleanPosToCodePos(Pos, CodePos);
-  Code.AbsoluteToLineCol(CodePos.P, Line, Column);
-  Result := Entry.AddSymbol(Name, Kind, Code.FileName, Line, Column);
+  Tool.CleanPosToCaret(StartPos, CodePos);
+  Result := Entry.AddSymbol(Name, Kind, CodePos.Code.FileName, CodePos.Y, CodePos.X, EndPos - StartPos);
 end;
 
 function IndentLevelString(level: integer): ShortString;
@@ -637,9 +625,8 @@ begin
             ProcHead := Tool.ExtractProcName(Node, []);
             //if UsedIdentifiers.Find(ProcHead) = nil then
               begin
-                Symbol := AddSymbol(Node.StartPos, ProcHead, SymbolKindMethod);
+                Symbol := AddSymbol(Node.StartPos, Node.EndPos + Length(ClassSymbol.Name), ProcHead, SymbolKindMethod);
                 Symbol.containerName := TOptionalString.Create(ClassSymbol.Name);
-                //UsedIdentifiers.Add(ProcHead, Symbol);
               end;
             // stop searching so we don't get into parameter lists
             Node := Node.NextBrother;
@@ -690,7 +677,7 @@ begin
                 //                             phpDoNotAddSemicolon,
                 //                             phpWithParameterNames
                 //                             ]);
-                Symbol := AddSymbol(Node.StartPos, ProcHead, SymbolKindFunction);
+                Symbol := AddSymbol(Node.StartPos, Node.EndPos, ProcHead, SymbolKindFunction);
                 //UsedIdentifiers.Add(ProcHead, Symbol);
               end;
 
@@ -700,15 +687,15 @@ begin
           end;
 
         ctnVarDefinition:
-          AddSymbol(Node.StartPos, SymbolKindVariable);
+          AddSymbol(Node.StartPos, Node.EndPos, SymbolKindVariable);
         ctnConstDefinition:
-          AddSymbol(Node.StartPos, SymbolKindConstant);
+          AddSymbol(Node.StartPos, Node.EndPos, SymbolKindConstant);
         ctnEnumIdentifier:
-          AddSymbol(Node.StartPos, SymbolKindEnum);
+          AddSymbol(Node.StartPos, Node.EndPos, SymbolKindEnum);
         ctnTypeDefinition:
           begin
             // todo: how do we know if this is a class type?
-            Symbol := AddSymbol(Node.StartPos, SymbolKindTypeParameter);
+            Symbol := AddSymbol(Node.StartPos, Node.EndPos, SymbolKindTypeParameter);
           end;
 
         // object members
@@ -809,14 +796,8 @@ end;
 
 const
   SYMBOL_ENTRY_NAME = 0;
-  SYMBOL_ENTRY_CONTAINER = 1;
-  SYMBOL_ENTRY_PATH = 2;
-  SYMBOL_ENTRY_START_LINE = 3;
-  SYMBOL_ENTRY_START_CHARACTER = 4;
-  SYMBOL_ENTRY_END_LINE = 5;
-  SYMBOL_ENTRY_END_CHARACTER = 6;
-  SYMBOL_ENTRY_KIND = 7;
-  SYMBOL_ENTRY_JSON = 8;
+  SYMBOL_ENTRY_PATH = 1;
+  SYMBOL_ENTRY_JSON = 2;
 
 function TSymbolDatabase.FindAllSymbols(Path: String): TJSONSerializedArray;
 var
@@ -884,7 +865,10 @@ end;
 
 procedure TSymbolDatabase.LogError(errmsg: pansichar); 
 begin
-  Assert(false, errmsg);
+  // sql errors are fatal right now
+  writeln(stderr, errmsg);
+  flush(stderr);
+  halt(-1);
 end;
 
 function TSymbolDatabase.FileModified(Path: String): boolean;
@@ -902,8 +886,7 @@ var
 begin
   Stat := 'INSERT OR IGNORE INTO entries VALUES (';
     AddField(Stat, Path);
-    AddField(Stat, 0);
-    AddField(Stat, '', false);
+    AddField(Stat, 0, false);
   Stat += ')'#0;
   Exec(Stat);
 end;
@@ -940,17 +923,16 @@ begin
       Stat += '(';
 
       AddField(Stat, Symbol.name);
-      if Symbol.containerName <> nil then
-        AddField(Stat, Symbol.containerName.value)
-      else
-        AddField(Stat, '');
+      //if Symbol.containerName <> nil then
+      //  AddField(Stat, Symbol.containerName.value)
+      //else
+      //  AddField(Stat, '');
       AddField(Stat, Symbol.Path);
-      // todo: make some proeprties to clean this up.
-      AddField(Stat, Symbol.location.range.start.line);
-      AddField(Stat, Symbol.location.range.start.character);
-      AddField(Stat, Symbol.location.range.&end.line);
-      AddField(Stat, Symbol.location.range.&end.character);
-      AddField(Stat, Integer(Symbol.kind));
+      //AddField(Stat, Symbol.location.range.start.line);
+      //AddField(Stat, Symbol.location.range.start.character);
+      //AddField(Stat, Symbol.location.range.&end.line);
+      //AddField(Stat, Symbol.location.range.&end.character);
+      //AddField(Stat, Integer(Symbol.kind));
       AddField(Stat, Symbol.RawJSON, false);
 
       Stat += ')';
@@ -971,17 +953,16 @@ begin
   Stat := 'INSERT INTO symbols VALUES (';
 
   AddField(Stat, Symbol.name);
-  if Symbol.containerName <> nil then
-    AddField(Stat, Symbol.containerName.value)
-  else
-    AddField(Stat, '');
+  //if Symbol.containerName <> nil then
+  //  AddField(Stat, Symbol.containerName.value)
+  //else
+  //  AddField(Stat, '');
   AddField(Stat, Symbol.Path);
-  // todo: make some proeprties to clean this up.
-  AddField(Stat, Symbol.location.range.start.line);
-  AddField(Stat, Symbol.location.range.start.character);
-  AddField(Stat, Symbol.location.range.&end.line);
-  AddField(Stat, Symbol.location.range.&end.character);
-  AddField(Stat, Integer(Symbol.kind));
+  //AddField(Stat, Symbol.location.range.start.line);
+  //AddField(Stat, Symbol.location.range.start.character);
+  //AddField(Stat, Symbol.location.range.&end.line);
+  //AddField(Stat, Symbol.location.range.&end.character);
+  //AddField(Stat, Integer(Symbol.kind));
   AddField(Stat, Symbol.RawJSON, false);
 
   Stat += ')'#0;
@@ -995,18 +976,18 @@ const
   CREATE_ENTRY_TABLE = 'CREATE TABLE IF NOT EXISTS entries ('+
                        'path varchar(1023),'+
                        'date integer,'+
-                       'json text,'+
+                       //'json text,'+
                        'UNIQUE(path)'+
                        ')'#0;
   CREATE_SYMBOL_TABLE = 'CREATE TABLE IF NOT EXISTS symbols ('+
                        'name varchar(255),'+
-                       'container_name varchar(255),'+
+                       //'container_name varchar(255),'+
                        'path varchar(1023),'+
-                       'start_line integer,'+
-                       'start_character integer,'+
-                       'end_line integer,'+
-                       'end_character integer,'+
-                       'kind integer,'+
+                       //'start_line integer,'+
+                       //'start_character integer,'+
+                       //'end_line integer,'+
+                       //'end_character integer,'+
+                       //'kind integer,'+
                        'json text'+
                        ')'#0;
 begin

@@ -321,7 +321,7 @@ begin with Params do
                 end;
             end;
         end else begin
-          PublishCodeToolsError;
+          PublishDiagnostic;
           Result.isIncomplete := true;
         end;
     except

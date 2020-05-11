@@ -55,6 +55,8 @@ type
     fProgram: String;
     fSymbolDatabase: String;
     fFPCOptions: TStrings;
+    fUnitPaths: TStrings;
+    fCodeToolsConfig: String;
   published
     property options: TServerOptions read fOptions write fOptions;
 
@@ -66,14 +68,13 @@ type
     property symbolDatabase: String read fSymbolDatabase write fSymbolDatabase;
 
     // FPC compiler options (passed to Code Tools)
-    // common options required for the parser:
-    //   -Fu<x>     Add <x> to unit path
-    //   -Fi<x>     Add <x> to include path
-    //   -d<x>      Defines the symbol <x>
-    //   -Mfpc      Free Pascal dialect (default)
-    //   -Mobjfpc   FPC mode with Object Pascal support
-    //   -Mdelphi   Delphi 7 compatibility mode
-    property FPCOptions: TStrings read fFPCOptions write fFPCOptions;
+    property fpcOptions: TStrings read fFPCOptions write fFPCOptions;
+
+    // Additional unit search paths (like -Fu and -Fi)
+    property unitPaths: TStrings read fUnitPaths write fUnitPaths;
+
+    // Optional codetools.config file to load settings from
+    property codeToolsConfig: String read fCodeToolsConfig write fCodeToolsConfig;
 
   public
     procedure AfterConstruction; override;
@@ -96,10 +97,9 @@ procedure TServerSettings.AfterConstruction;
 begin
   inherited;
 
-  if options = nil then
-    options := TServerOptions.Create;
-
+  options := TServerOptions.Create;
   FPCOptions := TStringList.Create;
+  UnitPaths := TStringList.Create;
 end;
 
 end.

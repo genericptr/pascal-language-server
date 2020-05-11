@@ -64,7 +64,7 @@ begin with Params do
       end
     else
       begin
-        PublishCodeToolsError;
+        PublishDiagnostic;
       end;
   end;
 end;

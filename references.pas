@@ -63,9 +63,11 @@ type
     function Process(var Params: TReferenceParams): TLocationItems; override;
   end;
 
+procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
+
 implementation
 uses
-  settings;
+  settings, diagnostics;
   
 procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
 var
@@ -92,14 +94,14 @@ begin
     X,Y,
     DeclCode,DeclX,DeclY,DeclTopLine) then
   begin
-    writeln(StdErr, 'CodeToolBoss.FindMainDeclaration failed: ',CodeToolBoss.ErrorMessage);
+    PublishDiagnostic('FindMainDeclaration failed in '+StartSrcCode.FileName+' at '+IntToStr(Y)+':'+IntToStr(X));
     ExitCode:=-1;
     exit;
   end;
 
   // Step 3: get identifier
   CodeToolBoss.GetIdentifierAt(DeclCode,DeclX,DeclY,Identifier);
-  writeln(StdErr, 'Found declaration: ',Identifier);
+  //writeln(StdErr, 'Found identifier: ',Identifier);
 
   // Step 4: collect all modules of program
   Files:=TStringList.Create;
@@ -140,7 +142,7 @@ begin
         DeclCode,DeclX,DeclY,
         Code, true, ListOfPCodeXYPosition, Cache) then
       begin
-        writeln(stderr, 'FindReferences failed in "',Code.Filename,'"');
+        PublishDiagnostic('FindReferences failed in "'+Code.Filename+'"');
         continue;
       end;
       if ListOfPCodeXYPosition=nil then continue;
@@ -201,10 +203,16 @@ begin with Params do
     // then use this unit as the root for searching, otherwise default to the
     // current text document
     if ServerSettings.&program <> '' then
-      Root := ServerSettings.&program
+      begin
+        Root := ExpandFileName(ServerSettings.&program);
+        if not FileExists(Root) then
+          Root := Path;
+      end
     else
       Root := Path;
-    FindReferences(Path, Path, X + 1, Y + 1, Result);
+    //writeln(stderr, 'find references in ', Root);
+    //flush(stderr);
+    FindReferences(Path, Root, X + 1, Y + 1, Result);
   end;
 end;
 

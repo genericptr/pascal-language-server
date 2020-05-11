@@ -78,34 +78,60 @@ type
 { Code Tools Error Handling }
 
 procedure CheckSyntax(Code: TCodeBuffer);
-procedure PublishCodeToolsError;
+procedure PublishDiagnostic(UserMessage: String = '');
 
 implementation
 uses
   SysUtils, settings;
 
 { Publish the last code tools error as a diagnostics }
-procedure PublishCodeToolsError;
+procedure PublishDiagnostic(UserMessage: String = '');
 var
-  notification: TPublishDiagnostics;
+  Notification: TPublishDiagnostics;
+  FileName: String;
 begin
   if not ServerSettings.options.publishDiagnostics then
     begin
-      writeln(stderr, 'Syntax Error -> '+CodeToolBoss.ErrorCode.FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
-      flush(stderr);
+      if UserMessage <> '' then
+        writeln(stderr, UserMessage)
+      else
+        begin
+          if CodeToolBoss.ErrorCode <> nil then
+            FileName := CodeToolBoss.ErrorCode.FileName
+          else
+            FileName := 'N/A';
+          writeln(stderr, 'Syntax Error -> '+FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
+        end;
+      Flush(stderr);
       exit;
     end;
 
-  notification := TPublishDiagnostics.Create;
-  notification.Add(CodeToolBoss.ErrorCode.FileName, 
-                   CodeToolBoss.ErrorMessage, 
-                   CodeToolBoss.ErrorLine - 1, 
-                   CodeToolBoss.ErrorColumn - 1, 
-                   // TODO: code tools error ID is too large (int64), what should we do?
-                   1{CodeToolBoss.ErrorID},
-                   TDiagnosticSeverity.Error);
-  notification.Send;
-  notification.Free;
+  if UserMessage <> '' then
+    begin
+      Notification := TPublishDiagnostics.Create;
+      Notification.Add('', 
+                       UserMessage, 
+                       0, 
+                       0, 
+                       // TODO: code tools error ID is too large (int64), what should we do?
+                       1{CodeToolBoss.ErrorID},
+                       TDiagnosticSeverity.Error);
+      Notification.Send;
+      Notification.Free;
+    end
+  else
+    begin
+      Notification := TPublishDiagnostics.Create;
+      Notification.Add(CodeToolBoss.ErrorCode.FileName, 
+                       CodeToolBoss.ErrorMessage, 
+                       CodeToolBoss.ErrorLine - 1, 
+                       CodeToolBoss.ErrorColumn - 1, 
+                       // TODO: code tools error ID is too large (int64), what should we do?
+                       1{CodeToolBoss.ErrorID},
+                       TDiagnosticSeverity.Error);
+      Notification.Send;
+      Notification.Free;
+    end;
 end;
 
 { Checks syntax for code buffer and publishes errors as diagnostics }
@@ -113,20 +139,20 @@ end;
 procedure CheckSyntax(Code: TCodeBuffer); 
 var
   Tool: TCodeTool;
-  notification: TPublishDiagnostics;
+  Notification: TPublishDiagnostics;
 begin
   if not ServerSettings.options.checkSyntax then
     exit;
   if not CodeToolBoss.Explore(Code,Tool,true) then
-    PublishCodeToolsError
+    PublishDiagnostic
   else if ServerSettings.options.publishDiagnostics then
     begin
       // todo: when we have a document store we can check to see
       // if we actually have any errors.
-      notification := TPublishDiagnostics.Create;
-      notification.Clear(Code.FileName);
-      notification.Send;
-      notification.Free;
+      Notification := TPublishDiagnostics.Create;
+      Notification.Clear(Code.FileName);
+      Notification.Send;
+      Notification.Free;
     end;
 end;
 
@@ -140,16 +166,16 @@ end;
 
 procedure TPublishDiagnostics.Add(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
 var
-  diagnostic: TDiagnostic;
+  Diagnostic: TDiagnostic;
 begin
   fParams.uri := PathToURI(fileName);
 
-  diagnostic := TDiagnostic(fParams.diagnostics.Add);
-  diagnostic.range := TRange.Create(line, column);
-  diagnostic.severity := severity;
-  diagnostic.code := code;
-  diagnostic.source := 'Free Pascal Compiler';
-  diagnostic.message := message;
+  Diagnostic := TDiagnostic(fParams.diagnostics.Add);
+  Diagnostic.range := TRange.Create(line, column);
+  Diagnostic.severity := severity;
+  Diagnostic.code := code;
+  Diagnostic.source := 'Free Pascal Compiler';
+  Diagnostic.message := message;
 end;
 
 constructor TPublishDiagnostics.Create;
