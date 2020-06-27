@@ -49,7 +49,6 @@ var
   RevertableJump: boolean;
 begin with Params do
   begin
-    Result := nil;
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
@@ -65,6 +64,7 @@ begin with Params do
     else
       begin
         PublishDiagnostic;
+        Result := nil;
       end;
   end;
 end;

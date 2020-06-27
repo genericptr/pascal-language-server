@@ -48,7 +48,6 @@ var
   NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: integer;
 begin with Params do
   begin
-    Result := nil;
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
@@ -62,6 +61,7 @@ begin with Params do
       end
     else
       begin
+        Result := nil;
         PublishDiagnostic;
       end;
   end;

@@ -217,7 +217,7 @@ begin with Params do
 
       // TODO: how do we know which one is active given the current parameters?
       Result.activeSignature := 0;
-
+      
       for ItemIndex := 0 to CodeContext.Count - 1 do
         begin
           Item := CodeContext[ItemIndex];

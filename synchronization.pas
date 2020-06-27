@@ -146,7 +146,7 @@ procedure TDidOpenTextDocument.Process(var Params : TDidOpenTextDocumentParams);
 var
   URI: TURI;
   Path: String;
-  Code: TCodeBuffer;
+  Code, MainCode: TCodeBuffer;
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
@@ -164,7 +164,11 @@ begin with Params do
     CheckSyntax(Code);
 
     if SymbolManager <> nil then
-      SymbolManager.Reload(Code);
+      begin
+        MainCode := CodeToolBoss.GetMainCode(Code);
+        if MainCode <> nil then
+          SymbolManager.Reload(MainCode, True);
+      end;
   end;
 end;
 
@@ -203,7 +207,7 @@ end;
 procedure TDidChangeTextDocument.Process(var Params : TDidChangeTextDocumentParams);
 var
   URI: TURI;
-  Code: TCodeBuffer;
+  Code, MainCode: TCodeBuffer;
   Change: TCollectionItem;
 begin with Params do
   begin
@@ -212,7 +216,12 @@ begin with Params do
     for Change in contentChanges do
     begin
       Code.Source := TTextDocumentContentChangeEvent(Change).text;
-      SymbolManager.Reload(Code, True);
+      if SymbolManager <> nil then
+        begin
+          MainCode := CodeToolBoss.GetMainCode(Code);
+          if MainCode <> nil then
+            SymbolManager.Reload(MainCode, True);
+        end;
     end;
   end;
 end;

@@ -87,6 +87,8 @@ type
   end;
 
 implementation
+uses
+  SysUtils, DateUtils;
 
 procedure TDidChangeWorkspaceFolders.Process(var Params : TDidChangeWorkspaceFoldersParams);
 begin with Params do
@@ -100,15 +102,19 @@ end;
 function TWorkspaceSymbolRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
 var
   Input: TWorkspaceSymbolParams;
+  StartTime: TDateTime;
 begin
   Input := specialize TLSPStreaming<TWorkspaceSymbolParams>.ToObject(Params);
-
+  StartTime := Now;
   Result := SymbolManager.FindWorkspaceSymbols(Input.query);
-  writeln(stderr,'workspace/symbol payload=', ConvertBytesToHumanReadable(Length(Result.AsJson)));
+  writeln(stderr,'workspace/symbol payload=', ConvertBytesToHumanReadable(Length(Result.AsJson)), ' in ', MilliSecondsBetween(Now,StartTime), 'ms');
+  //writeln(stderr, Result.AsJson);
   Flush(stderr);
+  Input.Free;
 
   if not Assigned(Result) then
     Result := TJSONNull.Create;
+
 end;
 
 initialization

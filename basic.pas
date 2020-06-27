@@ -55,8 +55,8 @@ type
     function GetValue: T;
     procedure SetValue(AValue: T);
   public
-    constructor Create;
-    constructor Create(AValue: T);
+    constructor Create; overload;
+    constructor Create(AValue: T); overload;
     property Value: T read GetValue write SetValue;
   end;
 

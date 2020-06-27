@@ -82,16 +82,16 @@ begin with Params do
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
     Y := position.line;
-    Result := TDocumentHighlightItems.Create;
-
+    Result := nil;
+    
     if CodeToolBoss.FindBlockCounterPart(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine) then
       begin
+        if Result = nil then
+          Result := TDocumentHighlightItems.Create;
         Item := TDocumentHighlight(Result.Add);
         Item.kind := TDocumentHighlightKind.Text;
         Item.range := TRange.Create(NewY - 1, NewX - 1, Y, X);
       end;
-
-    Flush(stderr);
   end;
 end;
 

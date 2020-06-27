@@ -90,21 +90,24 @@ var
   Notification: TPublishDiagnostics;
   FileName: String;
 begin
-  if not ServerSettings.options.publishDiagnostics then
+
+  if UserMessage <> '' then
+    writeln(stderr, UserMessage)
+  else
     begin
-      if UserMessage <> '' then
-        writeln(stderr, UserMessage)
+      if CodeToolBoss.ErrorCode <> nil then
+        writeln(stderr, 'Syntax Error -> '+CodeToolBoss.ErrorCode.FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn))
+      else if CodeToolBoss.ErrorMessage <> '' then
+        writeln(stderr, 'Syntax Error -> "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn))
       else
-        begin
-          if CodeToolBoss.ErrorCode <> nil then
-            FileName := CodeToolBoss.ErrorCode.FileName
-          else
-            FileName := 'N/A';
-          writeln(stderr, 'Syntax Error -> '+FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
-        end;
-      Flush(stderr);
-      exit;
+        // there's no error to show so bail
+        // probably PublishDiagnostic should not have been called
+        exit;
     end;
+  Flush(stderr);
+
+  if not ServerSettings.options.publishDiagnostics then
+    exit;
 
   if UserMessage <> '' then
     begin
@@ -119,7 +122,7 @@ begin
       Notification.Send;
       Notification.Free;
     end
-  else
+  else if CodeToolBoss.ErrorCode <> nil then
     begin
       Notification := TPublishDiagnostics.Create;
       Notification.Add(CodeToolBoss.ErrorCode.FileName, 
@@ -143,6 +146,7 @@ var
 begin
   if not ServerSettings.options.checkSyntax then
     exit;
+
   if not CodeToolBoss.Explore(Code,Tool,true) then
     PublishDiagnostic
   else if ServerSettings.options.publishDiagnostics then

@@ -22,7 +22,6 @@ program pasls;
 {$mode objfpc}{$H+}
 
 uses
-  TestCodeTools,
   { RTL }
   SysUtils, fpjson, jsonparser, jsonscanner,
 
@@ -43,23 +42,6 @@ var
   I, Length: Integer;
   Request, Response: TJSONData;
 begin
-  {define TEST_CODE_TOOLS}
-  {$ifdef TEST_CODE_TOOLS}
-  //TestDocumentSymbols;
-  //'/Users/ryanjoseph/Developer/ObjectivePascal/MacOS_10_10'
-  //TestProjectSymbols(['/Users/ryanjoseph/Developer/ObjectivePascal/iOS_8_0']);
-  //TestProjectSymbols(['/Users/ryanjoseph/Desktop/FPCLS-Test']);
-  TestProjectSymbols([
-    '/Users/ryanjoseph/Desktop/Projects/Games/ProceduralRPG',
-    '/Users/ryanjoseph/Developer/Projects/FPC/GLCanvas',
-    '/Users/ryanjoseph/Developer/Projects/FPC/GLPT',
-    '/Users/ryanjoseph/Desktop/Projects/Games/RPGEngine/engine',
-    '/Users/ryanjoseph/Desktop/Projects/Games/RPGEngine/rpg',
-    '/Users/ryanjoseph/Desktop/Projects/Games/ProceduralRPG/sources'
-    ]);
-  exit;
-  {$endif}
-
   Dispatcher := TLSPDispatcher.Create(nil);
   TJSONData.CompressedJSON := True;
   SetTextLineEnding(Input, #13#10);

@@ -101,7 +101,7 @@ begin
 
   // Step 3: get identifier
   CodeToolBoss.GetIdentifierAt(DeclCode,DeclX,DeclY,Identifier);
-  //writeln(StdErr, 'Found identifier: ',Identifier);
+  writeln(StdErr, 'Found identifier: ',Identifier);
 
   // Step 4: collect all modules of program
   Files:=TStringList.Create;
@@ -131,6 +131,7 @@ begin
 
     // Step 5: find references in all files
     for i:=0 to Files.Count-1 do begin
+      writeln(Stderr, 'Searching ', Files[i], '...');
       Code:=CodeToolBoss.LoadFile(Files[i],true,false);
       if Code=nil then begin
         writeln(stderr, 'unable to load "',Files[i],'"');
@@ -165,6 +166,7 @@ begin
       Loc := TLocationItem(Items.Add);
       Loc.URI := PathToURI(CodePos^.Code.Filename);
       Loc.Range := TRange.Create(CodePos^.Y - 1, CodePos^.X - 1);
+      writeln(StdErr, '  Found: ', CodePos^.Code.Filename, ' @ ', CodePos^.Y, ',',CodePos^.X);
       ANode:=TreeOfPCodeXYPosition.FindPrecessor(ANode);
     end;
 
@@ -182,7 +184,7 @@ end;
 function TReferencesRequest.Process(var Params: TReferenceParams): TLocationItems;
 var
   URI: TURI;
-  Path, Root: String;
+  Path: String;
   X, Y: Integer;
   List: TFPList;
   Cache: TFindIdentifierReferenceCache;
@@ -203,16 +205,9 @@ begin with Params do
     // then use this unit as the root for searching, otherwise default to the
     // current text document
     if ServerSettings.&program <> '' then
-      begin
-        Root := ExpandFileName(ServerSettings.&program);
-        if not FileExists(Root) then
-          Root := Path;
-      end
+      FindReferences(Path, ServerSettings.&program, X + 1, Y + 1, Result)
     else
-      Root := Path;
-    //writeln(stderr, 'find references in ', Root);
-    //flush(stderr);
-    FindReferences(Path, Root, X + 1, Y + 1, Result);
+      FindReferences(Path, Path, X + 1, Y + 1, Result);
   end;
 end;
 

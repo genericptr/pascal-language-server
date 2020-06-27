@@ -24,7 +24,7 @@ unit capabilities;
 interface
 
 uses
-  Classes, options, documentSymbol;
+  Classes, options, documentSymbol, settings;
 
 type
 
@@ -113,7 +113,7 @@ type
     fWorkspaceSymbolProvider: boolean;
     fSignatureHelpProvider: TSignatureHelpOptions;
   public
-    constructor Create;
+    constructor Create(settings: TServerSettings);
   published
     property textDocumentSync: TTextDocumentSyncOptions read fTextDocumentSync write fTextDocumentSync;
     property workspace: TWorkspaceServerCapabilities read fWorkspace write fWorkspace;
@@ -141,7 +141,7 @@ end;
 
 { TServerCapabilities }
 
-constructor TServerCapabilities.Create;
+constructor TServerCapabilities.Create(settings: TServerSettings);
 var
   triggerCharacters: TStringList;
 begin
@@ -161,7 +161,10 @@ begin
   documentHighlightProvider := true;
 
   documentSymbolProvider := Assigned(SymbolManager);
-  workspaceSymbolProvider := Assigned(SymbolManager);
+
+  // note(ryan): workspace symbols are so broken in the protocol I'm 
+  // going to ignore them for now until something changes
+  workspaceSymbolProvider := false;//settings.CanProvideWorkspaceSymbols;
   
   completionProvider := TCompletionOptions.Create;
   triggerCharacters := TStringList.Create;

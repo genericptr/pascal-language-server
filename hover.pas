@@ -71,11 +71,9 @@ begin with Params do
 
     try
       Hint := CodeToolBoss.FindSmartHint(Code, X + 1, Y + 1);
+      // empty hint string means nothing was found
       if Hint = '' then
-        begin
-          PublishDiagnostic;
-          exit;
-        end;
+        exit(nil);
     except
       on E: Exception do
         begin

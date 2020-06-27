@@ -56,6 +56,7 @@ type
   public
     class constructor Create;
     class function ToObject(const JSON: TJSONData): T; static;
+    class function ToObject(const JSON: TJSONStringType): T;
     class function ToJSON(AObject: TObject): TJSONData; static;
   end;
 
@@ -225,6 +226,12 @@ class function TLSPStreaming.ToObject(const JSON: TJSONData): T;
 begin
   Result := T.Create;
   DeStreamer.JSONToObject(JSON as TJSONObject, Result);
+end;
+
+class function TLSPStreaming.ToObject(const JSON: TJSONStringType): T;
+begin
+  Result := T.Create;
+  DeStreamer.JSONToObject(JSON, Result);
 end;
 
 class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;

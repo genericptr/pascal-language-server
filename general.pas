@@ -145,89 +145,107 @@ var
   URI: TURI;
   Item: TCollectionItem;
   re: TRegExpr;
-  DirectoryTemplate: TDefineTemplate;
+  DirectoryTemplate,
+  UnitPathTemplate: TDefineTemplate;
+  ServerCapabilities: TServerCapabilities;
 begin with Params do
   begin
     CodeToolsOptions := TCodeToolsOptions.Create;
-    re := TRegExpr.Create('^(-\w+)(.*)$');
+
+    // TODO: we need to copy this or implement ref counting
+    // once we figure out how memory is going to work with
+    // the JSON-RPC streaming model
+    ServerSettings := initializationOptions;
+    
+    SymbolManager := TSymbolManager.Create;
+    ServerCapabilities := TServerCapabilities.Create(initializationOptions);
+
+    re := TRegExpr.Create('^(-(Fu|Fi)+)(.*)$');
     with CodeToolsOptions do
-    begin
-      InitWithEnvironmentVariables;
+      begin
+        // note: these should be added to ENV variables in the editor
+        //FPCSrcDir := '/usr/local/share/fpcsrc';
+        //FPCPath := '/usr/local/lib/fpc/3.0.4/ppcx64';
 
-      // attempt to load optional config file
-      Path := ExpandFileName(initializationOptions.CodeToolsConfig);
-      if FileExists(Path) then
-        begin
-          writeln(StdErr, 'Loading config file: ', Path);
-          LoadFromFile(Path);
-        end;
+        InitWithEnvironmentVariables;
 
-      // TODO: we need to copy this or implement ref counting
-      // once we figure out how memory is going to work with
-      // the JSON-RPC streaming model
-      ServerSettings := initializationOptions;
+        writeln(StdErr, 'working diretory: ', GetCurrentDir);
 
-      SymbolManager := TSymbolManager.Create;
-
-      // include workspace paths as search paths
-      if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths or
-        ServerSettings.options.includeWorkspaceFoldersAsIncludePaths then
-        for Item in workspaceFolders do
+        // attempt to load optional config file
+        Path := ExpandFileName(initializationOptions.CodeToolsConfig);
+        if FileExists(Path) then
           begin
-            URI := ParseURI(TWorkspaceFolder(Item).uri);
-            Path := URI.Path + URI.Document;
-            
-            // todo: there is no include paths now!
-            if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths then
-              initializationOptions.UnitPaths.Add(Path);
-
-            if SymbolManager <> nil then
-              SymbolManager.Scan(Path, true);
+            writeln(StdErr, 'Loading config file: ', Path);
+            LoadFromFile(Path);
           end;
 
-      for Option in initializationOptions.FPCOptions do
-        begin
-          // parse compiler switches and expand file names
-          if re.Exec(Option) then
-            FPCOptions := FPCOptions + re.Match[1] + ExpandFileName(re.Match[2]) + ' '
-          else
-            FPCOptions := FPCOptions + Option + ' ';
-        end;
+        // include workspace paths as search paths
+        if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths or
+          ServerSettings.options.includeWorkspaceFoldersAsIncludePaths then
+          for Item in workspaceFolders do
+            begin
+              URI := ParseURI(TWorkspaceFolder(Item).uri);
+              Path := URI.Path + URI.Document;
+              
+              if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths then
+                begin
+                  initializationOptions.FPCOptions.Add('-Fu'+Path);
+                  initializationOptions.FPCOptions.Add('-Fi'+Path);
+                end;
 
+              // if the server supports workspace symbols then
+              // cane the workspace folder for symbols
+              if ServerCapabilities.workspaceSymbolProvider then
+                SymbolManager.Scan(Path, false);
+            end;
 
-      for Path in initializationOptions.UnitPaths do
-        begin
-          writeln(StdErr, 'Added unit path: ', ExpandFileName(Path));
-          DirectoryTemplate := TDefineTemplate.Create('Directory','','',ExpandFileName(Path),da_Directory);
-          CodeToolBoss.DefineTree.Add(DirectoryTemplate);
-        end;
+        for Option in initializationOptions.FPCOptions do
+          begin
+            // expand file names in switches with paths
+            if re.Exec(Option) then
+              begin
+                writeln(stderr, 'switch: ', re.Match[2], ' = ', ExpandFileName(re.Match[3]));
+                FPCOptions := FPCOptions + '-' + re.Match[2] + ExpandFileName(re.Match[3]) + ' ';
+              end
+            else
+              begin
+                writeln(stderr, 'switch: ', Option);
+                FPCOptions := FPCOptions + Option + ' ';
+              end;
+          end;
+        writeln(stderr, 'FPCOptions: ', FPCOptions);
 
-      if FPCOptions <> '' then
-        writeln(StdErr, 'FPC Options: ', FPCOptions);
+        if ServerSettings.&program <> '' then
+          begin
+            Path := ExpandFileName(ServerSettings.&program);
+            if FileExists(Path) then
+              begin
+                writeln(StdErr, 'Main program file: ', Path);
+                ServerSettings.&program := Path;
+              end
+            else
+              begin
+                writeln(StdErr, 'Error: Main program file ', Path, ' can''t be found.');
+                ServerSettings.&program := '';
+              end;
+          end;
 
-      if ServerSettings.&program <> '' then
-        begin
-          Path := ExpandFileName(ServerSettings.&program);
-          if FileExists(Path) then
-            writeln(StdErr, 'Main program file: ', Path)
-          else
-            writeln(StdErr, 'Error: Main program file ', Path, ' can''t be found.');
-        end;
+        Flush(stderr);
 
-      Flush(stderr);
-      ProjectDir := ParseURI(rootUri).Path;
-    end;
+        if rootUri <> '' then
+          ProjectDir := ParseURI(rootUri).Path;
+      end;
     re.Free;
     
     with CodeToolBoss do
-    begin
-      Init(CodeToolsOptions);
-      IdentifierList.SortForHistory := True;
-      IdentifierList.SortForScope := True;
-    end;
+      begin
+        Init(CodeToolsOptions);
+        IdentifierList.SortForHistory := True;
+        IdentifierList.SortForScope := True;
+      end;
 
     Result := TInitializeResult.Create;
-    Result.capabilities := TServerCapabilities.Create;
+    Result.capabilities := ServerCapabilities;
   end;
 end;
 

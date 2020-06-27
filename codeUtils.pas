@@ -49,7 +49,7 @@ type
     procedure Clear;
     procedure Rewind;
     procedure Add(part: AnsiString); overload;
-    procedure Add(Part: AnsiString; Offset, Len: Integer); overload;
+    function Add(Part: AnsiString; Offset, Len: Integer): Boolean; overload;
     function Last: Char; inline;
   end;
 
@@ -100,15 +100,16 @@ begin
   LastPos := Length(S);
 end;
 
-procedure TLongString.Add(Part: AnsiString; Offset, Len: Integer); 
+function TLongString.Add(Part: AnsiString; Offset, Len: Integer): Boolean;
 begin
   Assert(Offset + Len <= Length(Part), IntToStr(Offset)+'-'+IntToStr(Len)+' is > '+IntToStr(Length(Part)));
   // zero length inserts do nothing
   if (Len = 0) or ((Len - Offset) = 0) then
-    exit;
+    exit(false);
   LastPos := Length(S);
   SetLength(S, LastPos + Len);
   Move(Part[Offset + 1], S[LastPos + 1], Len);
+  Result := true;
 end;
 
 procedure TLongString.Add(Part: AnsiString); 

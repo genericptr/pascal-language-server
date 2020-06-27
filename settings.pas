@@ -45,6 +45,8 @@ type
     // syntax errors will be published as diagnostics
     property publishDiagnostics: Boolean read fBooleans[5] write fBooleans[5];
 
+    property workspaceSymbols: Boolean read fBooleans[6] write fBooleans[6];
+
   public
     procedure AfterConstruction; override;
   end;
@@ -55,27 +57,21 @@ type
     fProgram: String;
     fSymbolDatabase: String;
     fFPCOptions: TStrings;
-    fUnitPaths: TStrings;
     fCodeToolsConfig: String;
   published
+    // general options
     property options: TServerOptions read fOptions write fOptions;
-
     // path to the main program file for resolving references
     // if not available the path of the current document will be used
     property &program: String read fProgram write fProgram;
-
     // path to SQLite3 database for symbols
     property symbolDatabase: String read fSymbolDatabase write fSymbolDatabase;
-
     // FPC compiler options (passed to Code Tools)
     property fpcOptions: TStrings read fFPCOptions write fFPCOptions;
-
-    // Additional unit search paths (like -Fu and -Fi)
-    property unitPaths: TStrings read fUnitPaths write fUnitPaths;
-
     // Optional codetools.config file to load settings from
     property codeToolsConfig: String read fCodeToolsConfig write fCodeToolsConfig;
 
+    function CanProvideWorkspaceSymbols: boolean;
   public
     procedure AfterConstruction; override;
   end;
@@ -84,13 +80,31 @@ var
   ServerSettings: TServerSettings = nil;
 
 implementation
+uses
+  SysUtils;
+
+{ TServerOptions }
 
 procedure TServerOptions.AfterConstruction;
 begin
+
+  // default settings
   includeWorkspaceFoldersAsUnitPaths := true;
   includeWorkspaceFoldersAsIncludePaths := true;
+  workspaceSymbols := false;
+  publishDiagnostics := false;
 
   inherited;
+end;
+
+
+{ TServerSettings }
+
+function TServerSettings.CanProvideWorkspaceSymbols: boolean;
+begin
+  result := options.workspaceSymbols and 
+            (symbolDatabase <> '') and 
+            FileExists(ExpandFileName(symbolDatabase));
 end;
 
 procedure TServerSettings.AfterConstruction;
@@ -99,7 +113,9 @@ begin
 
   options := TServerOptions.Create;
   FPCOptions := TStringList.Create;
-  UnitPaths := TStringList.Create;
+
+  // default settings
+  symbolDatabase := '';
 end;
 
 end.

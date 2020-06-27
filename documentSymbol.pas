@@ -204,8 +204,9 @@ type
     Code: TCodeBuffer;
     Tool: TCodeTool;
     Entry: TSymbolTableEntry;
-    UsedIdentifiers: TFPHashList;
     IndentLevel: integer;
+    UsedIdentifiers: TFPHashList;
+    RelatedFiles: TFPHashList;
   private
     procedure WalkTree(node: TCodeTreeNode); 
     procedure ExtractClassMethods(ClassSymbol: TSymbol; Node: TCodeTreeNode);
@@ -278,7 +279,7 @@ type
 
     { Loading }
     procedure Reload(Code: TCodeBuffer; Always: Boolean = false); overload;
-    procedure Reload(Path: String); overload;
+    procedure Reload(Path: String; Always: Boolean = false); overload;
     procedure Scan(Path: String; SearchSubDirs: Boolean);
   end;
 
@@ -290,10 +291,10 @@ function SymbolKindFromString(kind: ShortString): TSymbolKind;
 
 implementation
 uses
-  SysUtils, FileUtil, fpjsonrtti,
+  SysUtils, FileUtil, DateUtils, fpjsonrtti, 
   CodeToolsConfig, IdentCompletionTool, CodeAtom,
   BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
-  settings;
+  settings, diagnostics;
 
 function SymbolKindToString(kind: TSymbolKind): ShortString;
 begin
@@ -459,7 +460,7 @@ var
 begin
   SerializedItems := specialize TLSPStreaming<TSymbolInformationItems>.ToJSON(Symbols) as TJSONArray;
   
-  //writeln('serialize ', key, ': ', SerializedItems.count);
+  //writeln(stderr, 'serialize ', key, ': ', SerializedItems.count);flush(stderr);
 
   for i := 0 to SerializedItems.Count - 1 do
     begin
@@ -483,20 +484,15 @@ begin
         end;
     end;
 
-  // todo: insert entry json into database
-  // if we are going to support empty query strings
   fRawJSON := SerializedItems.AsJSON;
 
   SerializedItems.Free;
-
-  // free the symbols also once they're serialized
-  FreeAndNil(Symbols);
+  Symbols.Clear;
 end;
 
 procedure TSymbolTableEntry.Clear;
 begin
-  if Symbols <> nil then
-    Symbols.Clear;
+  Symbols.Clear;
   if SymbolManager.Database <> nil then
     SymbolManager.Database.ClearSymbols(Code.FileName);
 end;
@@ -576,8 +572,24 @@ end;
 function TSymbolExtractor.AddSymbol(StartPos, EndPos: LongInt; Name: String; Kind: TSymbolKind): TSymbol;
 var
   CodePos: TCodeXYPosition;
+  FileName: String;
 begin
   Tool.CleanPosToCaret(StartPos, CodePos);
+  
+  // clear existing symbols in symbol database
+  // we don't know which include files are associated
+  // with each unit so we need to check each time
+  // a symbol is added
+  if SymbolManager.Database <> nil then
+    begin
+      FileName := ExtractFileName(CodePos.Code.FileName);
+      if RelatedFiles.Find(FileName) = nil then
+        begin
+          SymbolManager.Database.ClearSymbols(CodePos.Code.FileName);
+          RelatedFiles.Add(FileName, @CodePos);
+        end;
+    end;
+    
   Result := Entry.AddSymbol(Name, Kind, CodePos.Code.FileName, CodePos.Y, CodePos.X, EndPos - StartPos);
 end;
 
@@ -626,7 +638,8 @@ begin
             //if UsedIdentifiers.Find(ProcHead) = nil then
               begin
                 Symbol := AddSymbol(Node.StartPos, Node.EndPos + Length(ClassSymbol.Name), ProcHead, SymbolKindMethod);
-                Symbol.containerName := TOptionalString.Create(ClassSymbol.Name);
+                // todo: i'm seeing crashing when serializing this. did it ever work???
+                //Symbol.containerName := TOptionalString.Create(ClassSymbol.Name);
               end;
             // stop searching so we don't get into parameter lists
             Node := Node.NextBrother;
@@ -691,7 +704,10 @@ begin
         ctnConstDefinition:
           AddSymbol(Node.StartPos, Node.EndPos, SymbolKindConstant);
         ctnEnumIdentifier:
-          AddSymbol(Node.StartPos, Node.EndPos, SymbolKindEnum);
+          begin
+            // todo: if the enum is scoped then we need to add the container name!
+            AddSymbol(Node.StartPos, Node.EndPos, SymbolKindEnum);
+          end;
         ctnTypeDefinition:
           begin
             // todo: how do we know if this is a class type?
@@ -740,11 +756,13 @@ begin
   Code := _Code;
   Tool := _Tool;
   UsedIdentifiers := TFPHashList.Create;
+  RelatedFiles := TFPHashList.Create;
 end;
 
 destructor TSymbolExtractor.Destroy; 
 begin
   UsedIdentifiers.Free;
+  RelatedFiles.Free;
   inherited;
 end;
 
@@ -840,7 +858,10 @@ var
   Contents: TLongString;
 begin
   Result := nil;
-  Stat := 'SELECT * FROM symbols WHERE name LIKE ''%'+Query+'%'''#0;
+  if Query = '' then
+    Stat := 'SELECT * FROM symbols'#0
+  else
+    Stat := 'SELECT * FROM symbols WHERE name LIKE ''%'+Query+'%'''#0;
   if sqlite3_prepare_v2(database, @Stat[1], -1, @statement, @errmsg) = SQLITE_OK then
     begin
       Contents.Clear;
@@ -923,16 +944,7 @@ begin
       Stat += '(';
 
       AddField(Stat, Symbol.name);
-      //if Symbol.containerName <> nil then
-      //  AddField(Stat, Symbol.containerName.value)
-      //else
-      //  AddField(Stat, '');
       AddField(Stat, Symbol.Path);
-      //AddField(Stat, Symbol.location.range.start.line);
-      //AddField(Stat, Symbol.location.range.start.character);
-      //AddField(Stat, Symbol.location.range.&end.line);
-      //AddField(Stat, Symbol.location.range.&end.character);
-      //AddField(Stat, Integer(Symbol.kind));
       AddField(Stat, Symbol.RawJSON, false);
 
       Stat += ')';
@@ -953,16 +965,7 @@ begin
   Stat := 'INSERT INTO symbols VALUES (';
 
   AddField(Stat, Symbol.name);
-  //if Symbol.containerName <> nil then
-  //  AddField(Stat, Symbol.containerName.value)
-  //else
-  //  AddField(Stat, '');
   AddField(Stat, Symbol.Path);
-  //AddField(Stat, Symbol.location.range.start.line);
-  //AddField(Stat, Symbol.location.range.start.character);
-  //AddField(Stat, Symbol.location.range.&end.line);
-  //AddField(Stat, Symbol.location.range.&end.character);
-  //AddField(Stat, Integer(Symbol.kind));
   AddField(Stat, Symbol.RawJSON, false);
 
   Stat += ')'#0;
@@ -976,18 +979,11 @@ const
   CREATE_ENTRY_TABLE = 'CREATE TABLE IF NOT EXISTS entries ('+
                        'path varchar(1023),'+
                        'date integer,'+
-                       //'json text,'+
                        'UNIQUE(path)'+
                        ')'#0;
   CREATE_SYMBOL_TABLE = 'CREATE TABLE IF NOT EXISTS symbols ('+
                        'name varchar(255),'+
-                       //'container_name varchar(255),'+
                        'path varchar(1023),'+
-                       //'start_line integer,'+
-                       //'start_character integer,'+
-                       //'end_line integer,'+
-                       //'end_character integer,'+
-                       //'kind integer,'+
                        'json text'+
                        ')'#0;
 begin
@@ -1029,23 +1025,34 @@ begin
 end;
 
 function TSymbolManager.FindWorkspaceSymbols(Query: String): TJSONSerializedArray;
+// note: there is a bug in Sublime Text which requires the workspace
+// symbols command to send a query string so we define a wildcard
+// to replace an empty query (which should return all symbols)
+const
+  WILDCARD_QUERY = '*';
 begin
-  if (Database <> nil) and (Query <> '') then
-    result := Database.FindSymbols(Query)
-  else
+  if (Database <> nil) and (Query <> '') {and (Query <> WILDCARD_QUERY)} then
     begin
-      // todo: search workspace symbols without database
-      result := CollectSerializedSymbols;
-    end;
+      if Query = WILDCARD_QUERY then
+        Query := '';
+      result := Database.FindSymbols(Query);
+    end
+  else
+    result := CollectSerializedSymbols;
 end;
 
-
+{
+  note: a full database query of 3MB takes 20ms so what does this really get us??
+}
 function TSymbolManager.CollectSerializedSymbols: TJSONSerializedArray;
 var
   i, j: integer;
   Entry: TSymbolTableEntry;
   Contents: TLongString;
 begin
+  writeln(stderr, 'collecting serialized symbols...');
+  Flush(stderr);
+
   Contents.Clear;
   Contents.Add('[');
 
@@ -1053,10 +1060,8 @@ begin
     begin
       Entry := TSymbolTableEntry(SymbolTable[i]);
       if Entry.RawJSON <> '' then
-        begin
-          Contents.Add(Entry.RawJSON, 1, Length(Entry.RawJSON) - 2);
+        if Contents.Add(Entry.RawJSON, 1, Length(Entry.RawJSON) - 2) then
           Contents.Add(',');
-        end;
     end;
   
   Contents.Rewind;
@@ -1176,17 +1181,18 @@ end;
 procedure TSymbolManager.Reload(Code: TCodeBuffer; Always: Boolean = false);
 var
   Entry: TSymbolTableEntry;
-  Tool: TCodeTool;
+  Tool: TCodeTool = nil;
   Extractor: TSymbolExtractor;
   MainCode: TCodeBuffer;
+  StartTime: TDateTime;
 begin
-  Tool := nil;
-
-  // if the main code is not the current code
-  // then we're dealing with an include file
-  MainCode := CodeToolBoss.GetMainCode(Code);
-  if CompareCodeBuffers(MainCode, Code) <> 0 then
-    exit;
+  StartTime := Now;
+  Code := CodeToolBoss.GetMainCode(Code);
+  //if CompareCodeBuffers(MainCode, Code) <> 0 then
+  //  begin
+  //    writeln(stderr, 'main code is not current code.');flush(stderr);
+  //    exit;
+  //  end;
   
   // check if the file mod dates have changed
   Entry := GetEntry(Code);
@@ -1214,18 +1220,18 @@ begin
 
   Entry.SerializeSymbols;
 
-  //writeln(stderr, 'reloaded ', Code.FileName);
-  //flush(stderr);
+  writeln(stderr, 'reloaded ', Code.FileName, ' in ', MilliSecondsBetween(Now,StartTime),'ms');
+  flush(stderr);
 end;
 
-procedure TSymbolManager.Reload(Path: String);
+procedure TSymbolManager.Reload(Path: String; Always: Boolean = false);
 var
   Code: TCodeBuffer;
 begin
   Code := Load(Path);
   if Code = nil then
     exit;
-  Reload(Code);
+  Reload(Code, Always);
 end;
 
 constructor TSymbolManager.Create;
