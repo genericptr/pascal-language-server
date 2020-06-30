@@ -68,7 +68,7 @@ begin
       Read(Content[I]);
       Inc(I);
     end;
-
+    
     Request := TJSONParser.Create(Content, DefaultOptions).Parse;
     Response := Dispatcher.Execute(Request);
     if Assigned(Response) then

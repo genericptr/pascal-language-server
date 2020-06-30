@@ -31,32 +31,32 @@ uses
 
 type
   TSymbolKind = (
-{}    SymbolKindFile = 1,
-{}    SymbolKindModule = 2,
-{}    SymbolKindNamespace = 3,
-{}    SymbolKindPackage = 4,
-{}    SymbolKindClass = 5,
-{}    SymbolKindMethod = 6,
-{}    SymbolKindProperty = 7,
-{}    SymbolKindField = 8,
-{}    SymbolKindConstructor = 9,
-{}    SymbolKindEnum = 10,
-{}    SymbolKindInterface = 11,
-{}    SymbolKindFunction = 12,
-{}    SymbolKindVariable = 13,
-{}    SymbolKindConstant = 14,
-{}    SymbolKindString = 15,
-{}    SymbolKindNumber = 16,
-{}    SymbolKindBoolean = 17,
-{}    SymbolKindArray = 18,
-{}    SymbolKindObject = 19,
-{}    SymbolKindKey = 20,
-{}    SymbolKindNull = 21,
-{}    SymbolKindEnumMember = 22,
-{}    SymbolKindStruct = 23,
-{}    SymbolKindEvent = 24,
-{}    SymbolKindOperator = 25,
-{}    SymbolKindTypeParameter = 26
+    SymbolKindFile = 1,
+    SymbolKindModule = 2,
+    SymbolKindNamespace = 3,
+    SymbolKindPackage = 4,
+    SymbolKindClass = 5,
+    SymbolKindMethod = 6,
+    SymbolKindProperty = 7,
+    SymbolKindField = 8,
+    SymbolKindConstructor = 9,
+    SymbolKindEnum = 10,
+    SymbolKindInterface = 11,
+    SymbolKindFunction = 12,
+    SymbolKindVariable = 13,
+    SymbolKindConstant = 14,
+    SymbolKindString = 15,
+    SymbolKindNumber = 16,
+    SymbolKindBoolean = 17,
+    SymbolKindArray = 18,
+    SymbolKindObject = 19,
+    SymbolKindKey = 20,
+    SymbolKindNull = 21,
+    SymbolKindEnumMember = 22,
+    SymbolKindStruct = 23,
+    SymbolKindEvent = 24,
+    SymbolKindOperator = 25,
+    SymbolKindTypeParameter = 26
   );
 
   { TDocumentSymbol }
@@ -107,7 +107,7 @@ type
     fKind: TSymbolKind;
     fDeprecated: TOptionalBoolean;
     fLocation: TLocation;
-    fContainerName: TOptionalString;
+    fContainerName: string;
   published
     // The name of this symbol.
     property name: string read fName write fName;
@@ -129,7 +129,7 @@ type
     // user interface purposes (e.g. to render a qualifier in the user interface
     // if necessary). It can't be used to re-infer a hierarchy for the document
     // symbols.
-    property containerName: TOptionalString read fContainerName write fContainerName;
+    property containerName: string read fContainerName write fContainerName;
   end;
 
   TSymbolInformationItems = specialize TGenericCollection<TSymbolInformation>;
@@ -208,13 +208,15 @@ type
     UsedIdentifiers: TFPHashList;
     RelatedFiles: TFPHashList;
   private
-    procedure WalkTree(node: TCodeTreeNode); 
-    procedure ExtractClassMethods(ClassSymbol: TSymbol; Node: TCodeTreeNode);
-    function FindProcHead(Node: TCodeTreeNode): TCodeTreeNode;
-    function AddSymbol(StartPos, EndPos: LongInt; Kind: TSymbolKind): TSymbol; overload;
-    function AddSymbol(StartPos, EndPos: LongInt; Name: String; Kind: TSymbolKind): TSymbol; overload;
-    function GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
-    function GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false): String; inline;
+    procedure PrintNodeDebug(Node: TCodeTreeNode; Deep: boolean = false);
+    function AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind): TSymbol; overload;
+    function AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind; Name: String; Container: String = ''): TSymbol; overload;
+    procedure ExtractCodeSection(Node: TCodeTreeNode);
+    procedure ExtractTypeDefinition(TypeDefNode, Node: TCodeTreeNode); 
+    procedure ExtractObjCClassMethods(ClassNode, Node: TCodeTreeNode);
+  private
+    function GetIdentifier(Identifier: PChar; aSkipAmp, IncludeDot, IncludeOps: Boolean): string;
+    function GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false; IncludeOps: Boolean = false): String; inline;
   public
     constructor Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
     destructor Destroy; override;
@@ -363,6 +365,15 @@ begin
   result := ExtractFileName(Path);
 end;
 
+function IndentLevelString(level: integer): ShortString;
+var
+  i: integer;
+begin
+  result := '';
+  for i := 0 to level - 1 do
+    result += '  ';
+end;
+
 { TSymbol }
 
 function TSymbol.Path: String;
@@ -375,13 +386,13 @@ end;
 
 function TSymbol.IsGlobal: boolean;
 begin
-  result := ContainerName <> nil;
+  result := ContainerName <> '';
 end;
 
 function TSymbol.GetFullName: String;
 begin
-  if ContainerName <> nil then
-    Result := containerName.Value+'.'+Name
+  if ContainerName <> '' then
+    Result := containerName+'.'+Name
   else
     Result := Name;
 end;
@@ -458,7 +469,7 @@ var
   i, Start, Next, Total: Integer;
   Symbol: TSymbol;
 begin
-  SerializedItems := specialize TLSPStreaming<TSymbolInformationItems>.ToJSON(Symbols) as TJSONArray;
+  SerializedItems := specialize TLSPStreaming<TSymbolItems>.ToJSON(Symbols) as TJSONArray;
   
   //writeln(stderr, 'serialize ', key, ': ', SerializedItems.count);flush(stderr);
 
@@ -512,10 +523,11 @@ end;
 
 { TSymbolExtractor }
 
-function TSymbolExtractor.GetIdentifier(Identifier: PChar; const aSkipAmp, IncludeDot: Boolean): string;
-// todo:  we need to include these also
+function TSymbolExtractor.GetIdentifier(Identifier: PChar; aSkipAmp, IncludeDot, IncludeOps: Boolean): string;
 const
-  OperatorNameCharacters = ['+', '*', '-', '/', '<', '>', '=', ':'];
+  OpChar =         ['+', '*', '-', '/', '<', '>', '=', ':'];
+  IdentStartChar = ['a'..'z','A'..'Z','_'] + OpChar;
+  IdentChar =      ['a'..'z','A'..'Z','_','0'..'9'] + OpChar;
 var
   len: integer;
 begin
@@ -523,7 +535,7 @@ begin
     Result:='';
     exit;
   end;
-  if IsIdentStartChar[Identifier^] or ((Identifier^='&') and (IsIdentStartChar[Identifier[1]])) then begin
+  if (Identifier^ in IdentStartChar) or ((Identifier^='&') and ((Identifier[1] in IdentStartChar))) then begin
     len:=0;
     if (Identifier^='&') then
     begin
@@ -532,7 +544,7 @@ begin
       else
         inc(len);
     end;
-    while (IsIdentChar[Identifier[len]]) or (IncludeDot and (Identifier[len] = '.')) do inc(len);
+    while (Identifier[len] in IdentChar) or (IncludeDot and (Identifier[len] = '.')) do inc(len);
     SetLength(Result,len);
     if len>0 then
       Move(Identifier[0],Result[1],len);
@@ -540,41 +552,52 @@ begin
     Result:='';
 end;
 
-function TSymbolExtractor.GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false): String;
+function TSymbolExtractor.GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean; IncludeDot: Boolean; IncludeOps: Boolean): String;
 var
   Source: String;
 begin
   Source := Tool.Scanner.CleanedSrc;
-  Result := GetIdentifier(@Source[StartPos], aSkipAmp, IncludeDot);
+  Result := GetIdentifier(@Source[StartPos], aSkipAmp, IncludeDot, IncludeOps);
 end;
 
-function TSymbolExtractor.FindProcHead(Node: TCodeTreeNode): TCodeTreeNode;
-begin
-  Assert(Node.Desc = ctnProcedure, 'Must start from procedure node');
-  result := nil;
-  Node := Node.FirstChild;
-  while Node <> nil do
-    begin
-      if Node.Desc = ctnProcedureHead then
-        exit(Node);
-      Node := Node.NextBrother;
-    end;
-end;
-
-function TSymbolExtractor.AddSymbol(StartPos, EndPos: LongInt; Kind: TSymbolKind): TSymbol;
+procedure TSymbolExtractor.PrintNodeDebug(Node: TCodeTreeNode; Deep: boolean);
 var
-  Identifier: string;
+  Child: TCodeTreeNode;
 begin
-  Identifier := GetIdentifierAtPos(StartPos, true, true);
-  Result := AddSymbol(StartPos, EndPos, Identifier, Kind);
+  {$ifdef SYMBOL_DEBUG}
+  writeln(IndentLevelString(IndentLevel), Node.DescAsString, ' (', GetIdentifierAtPos(Node.StartPos, true, true), ') -> ', Node.ChildCount);
+  if Deep then
+    begin
+      Child := Node.FirstChild;
+      Inc(IndentLevel);
+      while Child <> nil do
+        begin
+          if Child.ChildCount > 0 then
+            PrintNodeDebug(Child.FirstChild, true)
+          else
+            PrintNodeDebug(Child);
+          Child := Child.NextBrother;
+        end;
+      Dec(IndentLevel);
+    end;
+  {$endif}
 end;
 
-function TSymbolExtractor.AddSymbol(StartPos, EndPos: LongInt; Name: String; Kind: TSymbolKind): TSymbol;
+function TSymbolExtractor.AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind): TSymbol;
+begin
+  AddSymbol(Node, Kind, GetIdentifierAtPos(Node.StartPos, true, true));
+end;
+
+function TSymbolExtractor.AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind; Name: String; Container: String): TSymbol;
 var
   CodePos: TCodeXYPosition;
   FileName: String;
 begin
-  Tool.CleanPosToCaret(StartPos, CodePos);
+  {$ifdef SYMBOL_DEBUG}
+  writeln(IndentLevelString(IndentLevel + 1), '* ', Name);
+  {$endif}
+
+  Tool.CleanPosToCaret(Node.StartPos, CodePos);
   
   // clear existing symbols in symbol database
   // we don't know which include files are associated
@@ -590,164 +613,186 @@ begin
         end;
     end;
     
-  Result := Entry.AddSymbol(Name, Kind, CodePos.Code.FileName, CodePos.Y, CodePos.X, EndPos - StartPos);
+  Result := Entry.AddSymbol(Name, Kind, CodePos.Code.FileName, CodePos.Y, CodePos.X, Node.EndPos - Node.StartPos);
 end;
 
-function IndentLevelString(level: integer): ShortString;
+procedure TSymbolExtractor.ExtractObjCClassMethods(ClassNode, Node: TCodeTreeNode);
 var
-  i: integer;
+  Child: TCodeTreeNode;
+  ExternalClass: boolean = false;
+  TypeName: String;
 begin
-  result := '';
-  for i := 0 to level - 1 do
-    result += '  ';
-end;
-
-procedure TSymbolExtractor.ExtractClassMethods(ClassSymbol: TSymbol; Node: TCodeTreeNode);
-var
-  ProcHead, ContainerName: String;
-  Symbol: TSymbolInformation;
-  ExternalClass: boolean;
-begin
-  Inc(IndentLevel);
-  ExternalClass := false;
-
   while Node <> nil do
     begin
-      {$ifdef SYMBOL_DEBUG}
-      writeln(IndentLevelString(IndentLevel - 1), Node.DescAsString, ' -> ', Node.ChildCount);
-      {$endif}
+      PrintNodeDebug(Node);
 
       case Node.Desc of
         ctnClassExternal:
           begin
+            ExternalClass := true;
             Tool.MoveCursorToCleanPos(Node.EndPos);
             Tool.ReadNextAtom;
             // objective-c forward class definition, i.e:
             // ACAccount = objcclass external;
-            // which we should skip
             if Tool.CurPos.Flag = cafSemicolon then
               begin
-                Include(ClassSymbol.Flags, TSymbolFlag.ForwardClassDefinition);
+                // todo: we need to assign this to the symbol so we don't show it in indexes
+                //Include(ClassSymbol.Flags, TSymbolFlag.ForwardClassDefinition);
                 break;
               end;
-            ExternalClass := true;
           end;
         ctnProcedure:
           begin
-            ProcHead := Tool.ExtractProcName(Node, []);
-            //if UsedIdentifiers.Find(ProcHead) = nil then
-              begin
-                Symbol := AddSymbol(Node.StartPos, Node.EndPos + Length(ClassSymbol.Name), ProcHead, SymbolKindMethod);
-                // todo: i'm seeing crashing when serializing this. did it ever work???
-                //Symbol.containerName := TOptionalString.Create(ClassSymbol.Name);
-              end;
-            // stop searching so we don't get into parameter lists
-            Node := Node.NextBrother;
-            continue;
+            AddSymbol(Node, SymbolKindMethod, Tool.ExtractProcName(Node, []));
           end;
-        ctnClassPublic,
-        ctnClassPublished:
+        ctnClassPublic,ctnClassPublished,ctnClassPrivate,ctnClassProtected,
+        ctnClassRequired,ctnClassOptional:
+          if ExternalClass then
+            begin
+              // if the class is external then search methods
+              //if ExternalClass then
+              //  ExtractObjCClassMethods(ClassNode, Node.FirstChild);
+              TypeName := GetIdentifierAtPos(ClassNode.StartPos, true, true);
+              Child := Node.FirstChild;
+              while Child <> nil do
+                begin
+                  PrintNodeDebug(Child);
+                  AddSymbol(Node, SymbolKindMethod, TypeName+'.'+Tool.ExtractProcName(Child, []));
+                  Child := Child.NextBrother;
+                end;
+            end;
+      end;
+
+      Node := Node.NextBrother;
+    end;
+end;
+
+procedure TSymbolExtractor.ExtractTypeDefinition(TypeDefNode, Node: TCodeTreeNode); 
+var
+  Child: TCodeTreeNode;
+begin
+  while Node <> nil do
+    begin
+      PrintNodeDebug(Node);
+
+      case Node.Desc of
+        ctnClass,ctnClassHelper,ctnRecordHelper,ctnTypeHelper:
           begin
-            // if the class is external then search methods
-            if ExternalClass then
-              ExtractClassMethods(ClassSymbol, Node.FirstChild);
+            AddSymbol(TypeDefNode, SymbolKindClass);
+          end;
+        ctnObject,ctnRecordType:
+          begin
+            AddSymbol(TypeDefNode, SymbolKindStruct);
+          end;
+        ctnObjCClass,ctnObjCCategory,ctnCPPClass:
+          begin
+            // todo: ignore forward defs!
+            AddSymbol(TypeDefNode, SymbolKindClass);
+            Inc(IndentLevel);
+            ExtractObjCClassMethods(TypeDefNode, Node.FirstChild);
+            Dec(IndentLevel);
+          end;
+        ctnSpecialize:
+          begin
+            (*
+              Type (TDocumentSymbolItems) -> 1
+                Specialize Type (specialize) -> 2
+                Specialize Typename (TGenericCollection) -> 0
+                Specialize Parameterlist () -> 1
+            *)
+            // todo: is this a class/record???
+            PrintNodeDebug(Node.FirstChild, true);
+            AddSymbol(TypeDefNode, SymbolKindClass);
+          end;
+        ctnEnumerationType:
+          begin
+            AddSymbol(TypeDefNode, SymbolKindEnum);
+            Child := Node.FirstChild;
+            while Child <> nil do
+              begin
+                PrintNodeDebug(Child);
+                // todo: make an option to show enum members in doc symbols
+                //AddSymbol(Child, SymbolKindEnumMember, TypeName+'.'+GetIdentifierAtPos(Child.StartPos, true, true));
+                Child := Child.NextBrother;
+              end;
+          end;
+        otherwise
+          begin
+            AddSymbol(TypeDefNode, SymbolKindTypeParameter);
           end;
       end;
 
       Node := Node.NextBrother;
     end;
-  Dec(IndentLevel);
 end;
 
-procedure TSymbolExtractor.WalkTree(Node: TCodeTreeNode); 
+procedure TSymbolExtractor.ExtractCodeSection(Node: TCodeTreeNode); 
 var
-  ProcHead: String;
-  Symbol: TSymbol;
+  Symbol: TSymbol = nil;
+  Child: TCodeTreeNode;
 begin
-  IndentLevel += 1;
-
   while Node <> nil do
     begin
-      {$ifdef SYMBOL_DEBUG}
-      writeln(IndentLevelString(IndentLevel - 1), Node.DescAsString, ' -> ', Node.ChildCount);
-      {$endif}
+      PrintNodeDebug(Node);
+
+      // recurse into code sections
+      if (Node.Desc in AllCodeSections) and (Node.ChildCount > 0) then
+        begin
+          case Node.Desc of
+            ctnInterface:
+              AddSymbol(Node, SymbolKindNamespace, '==== INTERFACE ====');
+            ctnImplementation:
+              AddSymbol(Node, SymbolKindNamespace, '==== IMPLEMENTATION ====');
+          end;
+          Inc(IndentLevel);
+          ExtractCodeSection(Node.FirstChild);
+          Dec(IndentLevel);
+          Node := Node.NextBrother;
+          continue;
+        end;
 
       case Node.Desc of
-        
-        // top-level procedures/functions
+
+        ctnConstSection:
+          begin
+            Inc(IndentLevel);
+            Child := Node.FirstChild;
+            while Child <> nil do
+              begin
+                AddSymbol(Child, SymbolKindConstant);
+                PrintNodeDebug(Child);
+                Child := Child.NextBrother;
+              end;
+            Dec(IndentLevel);
+          end;
+
+        ctnTypeSection:
+          begin
+            Inc(IndentLevel);
+            Child := Node.FirstChild;
+            while Child <> nil do
+              begin
+                if Child.Desc = ctnTypeDefinition then
+                  begin
+                    PrintNodeDebug(Child);
+                    Inc(IndentLevel);
+                    ExtractTypeDefinition(Child, Child.FirstChild);
+                    Dec(IndentLevel);
+                  end;
+                Child := Child.NextBrother;
+              end;
+            Dec(IndentLevel);
+          end;
+
         ctnProcedure:
           begin
-            ProcHead := Tool.ExtractProcName(Node, []);
-            //if UsedIdentifiers.Find(ProcHead) = nil then
-              begin
-                // todo: for TDocumentSymbol there is a detail field 
-                // which we can fill with the signature
-                //ProcHead := Tool.ExtractProcHead(Node,
-                //                             [phpWithResultType,
-                //                             phpWithoutClassKeyword,
-                //                             phpWithoutClassName,
-                //                             phpWithoutSemicolon,
-                //                             phpDoNotAddSemicolon,
-                //                             phpWithParameterNames
-                //                             ]);
-                Symbol := AddSymbol(Node.StartPos, Node.EndPos, ProcHead, SymbolKindFunction);
-                //UsedIdentifiers.Add(ProcHead, Symbol);
-              end;
-
-            // stop searching so we don't get into parameter lists
-            Node := Node.NextBrother;
-            continue;
+            PrintNodeDebug(Node, true);
+            AddSymbol(Node, SymbolKindFunction, Tool.ExtractProcName(Node, []));
           end;
-
-        ctnVarDefinition:
-          AddSymbol(Node.StartPos, Node.EndPos, SymbolKindVariable);
-        ctnConstDefinition:
-          AddSymbol(Node.StartPos, Node.EndPos, SymbolKindConstant);
-        ctnEnumIdentifier:
-          begin
-            // todo: if the enum is scoped then we need to add the container name!
-            AddSymbol(Node.StartPos, Node.EndPos, SymbolKindEnum);
-          end;
-        ctnTypeDefinition:
-          begin
-            // todo: how do we know if this is a class type?
-            Symbol := AddSymbol(Node.StartPos, Node.EndPos, SymbolKindTypeParameter);
-          end;
-
-        // object members
-        ctnClass,
-        ctnRecordType,
-        ctnObject,
-        ctnClassInterface,
-        ctnTypeHelper,
-        ctnRecordHelper,
-        ctnClassHelper:
-          begin
-            // TODO: we only do this when we return TDocumentSymbol which
-            // support a tree structure (using children)
-            Node := Node.NextBrother;
-            continue;
-          end;
-
-        // external objective-c classes need to extract methods
-        // because there is no implementation for them
-        ctnObjCClass,
-        ctnObjCCategory,
-        ctnObjCProtocol:
-          begin
-            ExtractClassMethods(Symbol, Node.FirstChild);
-            Node := Node.NextBrother;
-            continue;
-          end;
-      end;              
-
-      if Node.ChildCount > 0 then
-        WalkTree(Node.FirstChild);
+      end;
 
       Node := Node.NextBrother;
     end;
-
-  IndentLevel -= 1;
 end;
 
 constructor TSymbolExtractor.Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
@@ -1202,7 +1247,7 @@ begin
   if not CodeToolBoss.Explore(Code, Tool, false, false) then
     begin
       {$ifdef SYMBOL_DEBUG}
-      writeln(ExtractFileName(Code.FileName), ' -> ', CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
+      writeln(StdErr, ExtractFileName(Code.FileName), ' -> ', CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
       {$endif}
       // todo: these errors are overwhelming on startup so we probably need a better way
       //AddError(ExtractFileName(Code.FileName)+' -> '+CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
@@ -1215,7 +1260,7 @@ begin
   // now that we have a symbol table entry we can extract
   // relevant symbols from the node tree
   Extractor := TSymbolExtractor.Create(Entry, Code, Tool);  
-  Extractor.WalkTree(Tool.Tree.Root);
+  Extractor.ExtractCodeSection(Tool.Tree.Root);
   Extractor.Free;
 
   Entry.SerializeSymbols;

@@ -63,8 +63,6 @@ type
 
 { Functions }
 
-function FindIdentifierParent(Identifier: TIdentifierListItem): ShortString;
-
 function ParseParamList(RawList: String): TStringList; overload;
 function ParseParamList(RawList: String; AsSnippet: boolean): String; overload;
 
@@ -194,23 +192,6 @@ begin
       exponent += 1;
     end;
   result := IntToStr(bytes)+units[exponent];
-end;
-
-function FindIdentifierParent(Identifier: TIdentifierListItem): ShortString;
-var
-  Node: TCodeTreeNode;
-begin
-  result := '';
-  Node := Identifier.Node;
-  while Node <> nil do
-    begin
-      if Node.Desc = ctnClass then
-        begin
-          result := Identifier.Tool.ExtractClassName(Node, false);
-          exit;
-        end;
-      Node := Node.Parent;
-    end;
 end;
 
 function SplitString (s: string; delimiter: char): TStringArray;

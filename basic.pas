@@ -298,6 +298,15 @@ type
 
   { TMarkupContent }
 
+  { A `MarkupContent` literal represents a string value which content is interpreted base on its
+    kind flag. Currently the protocol supports `plaintext` and `markdown` as markup kinds.
+    
+    If the kind is `markdown` then the value can contain fenced code blocks like in GitHub issues.
+    See https://help.github.com/articles/creating-and-highlighting-code-blocks/#syntax-highlighting
+       
+    *Please Note* that clients might sanitize the return markdown. A client could decide to
+    remove HTML from the markdown to avoid script execution. }
+
   TMarkupContent = class(TPersistent)
   private
     fKind: TMarkupKind;
@@ -308,7 +317,7 @@ type
     // The content itself
     property value: string read fValue write fValue;
   public
-    constructor Create(content: string);
+    constructor Create(content: string; plainText: boolean = true);
   end;
 
   { TDiagnostic }
@@ -544,10 +553,13 @@ end;
 
 { TMarkupContent }
 
-constructor TMarkupContent.Create(content: string);
+constructor TMarkupContent.Create(content: string; plainText: boolean = true);
 begin
   value := content;
-  kind := TMarkupKind.PlainText;
+  if plainText then
+    kind := TMarkupKind.PlainText
+  else
+    kind := TMarkupKind.Markdown;
 end;
 
 { TOptional }

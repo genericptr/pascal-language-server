@@ -158,7 +158,9 @@ begin
   declarationProvider := true;
   implementationProvider := true;
   referencesProvider := true;
-  documentHighlightProvider := true;
+  // todo: disabling this until we can figure out how to highlight
+  // only begin/end keywords. too annoying right now.
+  documentHighlightProvider := false;
 
   documentSymbolProvider := Assigned(SymbolManager);
 

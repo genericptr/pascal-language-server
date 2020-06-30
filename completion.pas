@@ -247,7 +247,181 @@ implementation
 uses
   SysUtils, Contnrs, PascalParserTool,
   codeUtils, diagnostics, settings;
+ 
+
+{ todo: move to codeUtils.pas }
   
+function FindIdentifierClass(Identifier: TIdentifierListItem): ShortString;
+var
+  Node: TCodeTreeNode;
+begin
+  result := '';
+  Node := Identifier.Node;
+  while Node <> nil do
+    begin
+      if Node.Desc = ctnClass then
+        begin
+          result := Identifier.Tool.ExtractClassName(Node, false);
+          exit;
+        end;
+      Node := Node.Parent;
+    end;
+end;
+
+function IsNodeObjectMember(Node: TCodeTreeNode): Boolean;
+begin
+  result := false;
+  while Node <> nil do
+    begin
+      if Node.Desc in AllClassObjects then
+        exit(true);
+      Node := Node.Parent;
+    end;
+end;
+
+function DetailsForIdentifier(Identifier: TIdentifierListItem): ShortString;
+var
+  Node: TCodeTreeNode;
+begin
+  result := '';
+
+  if Identifier.Node = nil then
+    exit;
+
+    // todo: local variable
+    //pascal-language-server: Identifier -> Var
+    //pascal-language-server:   Var children=1
+    //pascal-language-server:   Var Section children=17
+    //pascal-language-server:   Procedure children=3
+    //pascal-language-server:   Implementation children=7
+
+  case Identifier.Node.Desc of
+    ctnProcedure,
+    ctnVarDefinition,
+    ctnTypeDefinition,
+    ctnProperty,
+    ctnConstDefinition,
+    ctnEnumerationType:
+      begin
+        Node := Identifier.Node;
+        while Node <> nil do
+          begin
+            if Node.Desc in AllClassObjects then
+              begin
+                result := 'Member ('+Identifier.Tool.ExtractClassName(Node, false)+')';
+                exit;
+              end;
+            Node := Node.Parent;
+          end;
+        // default to node desc
+        result := Identifier.Node.DescAsString;
+      end;
+    ctnEnumIdentifier:
+      begin
+        Node := Identifier.Node;
+        while Node <> nil do
+          begin
+            if Node.Desc = ctnTypeDefinition then
+              begin
+                result := 'Enum ('+Identifier.Tool.ExtractNode(Node, [])+')';
+                exit;
+              end;
+            Node := Node.Parent;
+          end;
+      end;
+    otherwise
+      result := Identifier.Node.DescAsString;
+  end;
+end;
+
+procedure PrintIdentifierTree(Identifier: TIdentifierListItem);
+var
+  Node: TCodeTreeNode;
+begin
+  writeln(StdErr, Identifier.Identifier, ' -> ', DetailsForIdentifier(Identifier));
+  Node := Identifier.Node;
+  while Node <> nil do
+    begin
+      writeln(StdErr, '  ', Node.DescAsString, ' children=', Node.ChildCount);
+      writeln(StdErr);
+      Node := Node.Parent;
+    end;
+end;
+
+function KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
+begin
+  if Identifier.Node = nil then
+    exit;
+
+  // get completion item kind from identifier node
+  case Identifier.Node.Desc of
+    ctnUnit,
+    ctnUseUnit,
+    ctnUseUnitClearName,
+    ctnUseUnitNamespace:
+      result := TCompletionItemKind.ModuleItem;
+    ctnClass,
+    ctnObject,
+    ctnObjCClass,
+    ctnObjCCategory,
+    ctnObjCProtocol,
+    ctnCPPClass,
+    ctnTypeHelper,
+    ctnRecordHelper:
+      result := TCompletionItemKind.ClassItem;
+    ctnRecordType:
+      result := TCompletionItemKind.StructItem;
+    ctnClassInterface,
+    ctnDispinterface:
+      result := TCompletionItemKind.InterfaceItem;
+    ctnTypeSection,
+    ctnVarSection,
+    ctnConstSection,
+    ctnResStrSection,
+    ctnLabelSection,
+    ctnPropertySection,
+    ctnUsesSection,
+    ctnRequiresSection,
+    ctnContainsSection,
+    ctnExportsSection:
+      result := TCompletionItemKind.FolderItem; {todo: not sure?}
+    ctnProcedure:
+      begin
+        if IsNodeObjectMember(Identifier.Node) then
+          result := TCompletionItemKind.MethodItem
+        else
+          result := TCompletionItemKind.FunctionItem;
+      end;
+    ctnTypeDefinition:
+      result := TCompletionItemKind.TypeParameterItem;
+    ctnGenericType,
+    ctnGenericParameter:
+      result := TCompletionItemKind.TypeParameterItem; {todo: generics of class/recrod??}
+    ctnProperty,
+    ctnGlobalProperty:
+      result := TCompletionItemKind.PropertyItem;
+    ctnVarDefinition:
+      begin
+        if IsNodeObjectMember(Identifier.Node) then
+          result := TCompletionItemKind.FieldItem
+        else
+          result := TCompletionItemKind.VariableItem;
+      end;
+    ctnConstDefinition:
+      result := TCompletionItemKind.ConstantItem;
+    ctnEnumerationType:
+      result := TCompletionItemKind.EnumItem;
+    ctnEnumIdentifier:
+      begin
+        result := TCompletionItemKind.EnumMemberItem;
+      end;
+    otherwise
+      //writeln(StdErr, 'Default kind for '+Identifier.Identifier, ' (', Identifier.Node.DescAsString, ')');
+      //PrintIdentifierTree(Identifier);
+      result := TCompletionItemKind.KeywordItem;
+  end;   
+end;
+
 { TCompletion }
 
 function TCompletion.Process(var Params: TCompletionParams): TCompletionList;
@@ -274,7 +448,7 @@ begin with Params do
     IdentifierMap := TFPHashList.Create;
     Completions := TCompletionItems.Create;
     Result := TCompletionList.Create;
-
+    
     try
       if CodeToolBoss.GatherIdentifiers(Code,X + 1,Y + 1) then
         begin
@@ -282,7 +456,6 @@ begin with Params do
           for I := 0 to Count - 1 do
             begin
               Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
-
               if ServerSettings.options.insertCompletionsAsSnippets and 
                 Identifier.IsProcNodeWithParams then
                 begin
@@ -290,8 +463,10 @@ begin with Params do
                   SnippetText := ParseParamList(RawList, True);
                   Completion := TCompletionItem(Completions.Add);
                   Completion.&label := Identifier.Identifier+'('+RawList+')';
+                  Completion.detail := DetailsForIdentifier(Identifier);
                   Completion.insertText := Identifier.Identifier+'('+SnippetText+');';
                   Completion.insertTextFormat := TInsertTextFormat.Snippet;
+                  Completion.kind := KindForIdentifier(Identifier);
                   // according to LSP plugin devs filterText should be the identifier name
                   // if the label contains non-alpha-numeric characters
                   Completion.filterText := Identifier.Identifier;
@@ -302,8 +477,8 @@ begin with Params do
                 begin
                   Completion := TCompletionItem(Completions.Add);
                   Completion.&label := Identifier.Identifier;
-                  Completion.detail := Identifier.Node.DescAsString;
-              
+                  Completion.detail := DetailsForIdentifier(Identifier);
+                  Completion.kind := KindForIdentifier(Identifier);
                   if ServerSettings.options.insertCompletionProcedureBrackets and 
                     Identifier.IsProcNodeWithParams then
                     begin
