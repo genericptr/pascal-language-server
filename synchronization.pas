@@ -24,7 +24,8 @@ unit synchronization;
 interface
 
 uses
-  Classes, URIParser, CodeToolManager, CodeCache,
+  Classes, DateUtils, URIParser, 
+  CodeToolManager, CodeCache,
   lsp, basic;
 
 type
@@ -89,7 +90,10 @@ type
   TTextDocumentContentChangeEvent = class(TCollectionItem)
   private
     fText: string;
+    fRange: TRange;
   published
+    // The range of the document that changed.
+    property range: TRange read fRange write fRange;
     // The new text of the whole document.
     property text: string read fText write fText;
   end;
@@ -209,21 +213,39 @@ var
   URI: TURI;
   Code, MainCode: TCodeBuffer;
   Change: TCollectionItem;
+  Range: TRange;
+  StartPos, EndPos: integer;
+  StartTime: TDateTime;
 begin with Params do
   begin
+    StartTime := Now;
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     for Change in contentChanges do
-    begin
-      Code.Source := TTextDocumentContentChangeEvent(Change).text;
-      if SymbolManager <> nil then
-        begin
-          MainCode := CodeToolBoss.GetMainCode(Code);
-          if MainCode <> nil then
-            SymbolManager.Reload(MainCode, True);
-        end;
+      begin
+        // note(ryan): can't get this working yet
+        // and I'm not even sure if it's worth it
+        Range := TTextDocumentContentChangeEvent(Change).range;
+        if Range <> nil then
+          begin
+            Code.LineColToPosition(Range.start.line + 1, Range.start.character + 1, StartPos);
+            Code.LineColToPosition(Range.&end.line + 1, Range.&end.character + 1, EndPos);
+            writeln(StdErr, 'insert: ', StartPos,' -> ',EndPos, ' text=',TTextDocumentContentChangeEvent(Change).text);
+            Code.Replace(StartPos, EndPos - StartPos, TTextDocumentContentChangeEvent(Change).text);
+          end
+        else
+          Code.Source := TTextDocumentContentChangeEvent(Change).text;
+
+        if SymbolManager <> nil then
+          begin
+            MainCode := CodeToolBoss.GetMainCode(Code);
+            if MainCode <> nil then
+              SymbolManager.FileModified(MainCode);
+          end;
+      end;
+      //writeln(StdErr, 'Synched text in ', MilliSecondsBetween(Now, StartTime),'ms');
+      //Flush(StdErr);
     end;
-  end;
 end;
 
 initialization

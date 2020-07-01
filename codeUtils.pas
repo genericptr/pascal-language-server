@@ -26,7 +26,7 @@ interface
 
 uses
   SysUtils, Classes, fpjson,
-  IdentCompletionTool;
+  CodeTree, PascalParserTool, IdentCompletionTool;
 
 
 type
@@ -62,6 +62,9 @@ type
     end;
 
 { Functions }
+function FindIdentifierClass(Identifier: TIdentifierListItem): ShortString;
+function IsNodeObjectMember(Node: TCodeTreeNode): Boolean;
+function DescriptionForIdentifier(Identifier: TIdentifierListItem): ShortString;
 
 function ParseParamList(RawList: String): TStringList; overload;
 function ParseParamList(RawList: String; AsSnippet: boolean): String; overload;
@@ -69,8 +72,96 @@ function ParseParamList(RawList: String; AsSnippet: boolean): String; overload;
 function ConvertBytesToHumanReadable(bytes: cardinal): ShortString;
 
 implementation
-uses
-  CodeTree, PascalParserTool;
+
+function FindIdentifierClass(Identifier: TIdentifierListItem): ShortString;
+var
+  Node: TCodeTreeNode;
+begin
+  result := '';
+  Node := Identifier.Node;
+  while Node <> nil do
+    begin
+      if Node.Desc = ctnClass then
+        begin
+          result := Identifier.Tool.ExtractClassName(Node, false);
+          exit;
+        end;
+      Node := Node.Parent;
+    end;
+end;
+
+function IsNodeObjectMember(Node: TCodeTreeNode): Boolean;
+begin
+  result := false;
+  while Node <> nil do
+    begin
+      if Node.Desc in AllClassObjects then
+        exit(true);
+      Node := Node.Parent;
+    end;
+end;
+
+function DescriptionForIdentifier(Identifier: TIdentifierListItem): ShortString;
+var
+  Node: TCodeTreeNode;
+begin
+  result := '';
+
+  if Identifier.Node = nil then
+    exit;
+
+  case Identifier.Node.Desc of
+    ctnProcedure,
+    ctnVarDefinition,
+    ctnTypeDefinition,
+    ctnProperty,
+    ctnConstDefinition,
+    ctnEnumerationType:
+      begin
+        Node := Identifier.Node;
+        while Node <> nil do
+          begin
+            if Node.Desc in AllClassObjects then
+              begin
+                result := 'Member ('+Identifier.Tool.ExtractClassName(Node, false)+')';
+                exit;
+              end;
+            Node := Node.Parent;
+          end;
+        // default to node desc
+        result := Identifier.Node.DescAsString;
+      end;
+    ctnEnumIdentifier:
+      begin
+        Node := Identifier.Node;
+        while Node <> nil do
+          begin
+            if Node.Desc = ctnTypeDefinition then
+              begin
+                result := 'Enum ('+Identifier.Tool.ExtractNode(Node, [])+')';
+                exit;
+              end;
+            Node := Node.Parent;
+          end;
+      end;
+    otherwise
+      result := Identifier.Node.DescAsString;
+  end;
+end;
+
+procedure PrintIdentifierTree(Identifier: TIdentifierListItem);
+var
+  Node: TCodeTreeNode;
+begin
+  writeln(StdErr, Identifier.Identifier, ' -> ', DescriptionForIdentifier(Identifier));
+  Node := Identifier.Node;
+  while Node <> nil do
+    begin
+      writeln(StdErr, '  ', Node.DescAsString, ' children=', Node.ChildCount);
+      writeln(StdErr);
+      Node := Node.Parent;
+    end;
+end;
 
 { TJSONSerializedArray }
 

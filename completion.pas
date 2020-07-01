@@ -25,7 +25,8 @@ unit completion;
 interface
 
 uses
-  Classes, URIParser, CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
+  Classes, DateUtils, URIParser, 
+  CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
   lsp, basic;
 
 type
@@ -246,107 +247,7 @@ type
 implementation
 uses
   SysUtils, Contnrs, PascalParserTool,
-  codeUtils, diagnostics, settings;
- 
-
-{ todo: move to codeUtils.pas }
-  
-function FindIdentifierClass(Identifier: TIdentifierListItem): ShortString;
-var
-  Node: TCodeTreeNode;
-begin
-  result := '';
-  Node := Identifier.Node;
-  while Node <> nil do
-    begin
-      if Node.Desc = ctnClass then
-        begin
-          result := Identifier.Tool.ExtractClassName(Node, false);
-          exit;
-        end;
-      Node := Node.Parent;
-    end;
-end;
-
-function IsNodeObjectMember(Node: TCodeTreeNode): Boolean;
-begin
-  result := false;
-  while Node <> nil do
-    begin
-      if Node.Desc in AllClassObjects then
-        exit(true);
-      Node := Node.Parent;
-    end;
-end;
-
-function DetailsForIdentifier(Identifier: TIdentifierListItem): ShortString;
-var
-  Node: TCodeTreeNode;
-begin
-  result := '';
-
-  if Identifier.Node = nil then
-    exit;
-
-    // todo: local variable
-    //pascal-language-server: Identifier -> Var
-    //pascal-language-server:   Var children=1
-    //pascal-language-server:   Var Section children=17
-    //pascal-language-server:   Procedure children=3
-    //pascal-language-server:   Implementation children=7
-
-  case Identifier.Node.Desc of
-    ctnProcedure,
-    ctnVarDefinition,
-    ctnTypeDefinition,
-    ctnProperty,
-    ctnConstDefinition,
-    ctnEnumerationType:
-      begin
-        Node := Identifier.Node;
-        while Node <> nil do
-          begin
-            if Node.Desc in AllClassObjects then
-              begin
-                result := 'Member ('+Identifier.Tool.ExtractClassName(Node, false)+')';
-                exit;
-              end;
-            Node := Node.Parent;
-          end;
-        // default to node desc
-        result := Identifier.Node.DescAsString;
-      end;
-    ctnEnumIdentifier:
-      begin
-        Node := Identifier.Node;
-        while Node <> nil do
-          begin
-            if Node.Desc = ctnTypeDefinition then
-              begin
-                result := 'Enum ('+Identifier.Tool.ExtractNode(Node, [])+')';
-                exit;
-              end;
-            Node := Node.Parent;
-          end;
-      end;
-    otherwise
-      result := Identifier.Node.DescAsString;
-  end;
-end;
-
-procedure PrintIdentifierTree(Identifier: TIdentifierListItem);
-var
-  Node: TCodeTreeNode;
-begin
-  writeln(StdErr, Identifier.Identifier, ' -> ', DetailsForIdentifier(Identifier));
-  Node := Identifier.Node;
-  while Node <> nil do
-    begin
-      writeln(StdErr, '  ', Node.DescAsString, ' children=', Node.ChildCount);
-      writeln(StdErr);
-      Node := Node.Parent;
-    end;
-end;
+  codeUtils, diagnostics, settings;  
 
 function KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
 begin
@@ -412,9 +313,7 @@ begin
     ctnEnumerationType:
       result := TCompletionItemKind.EnumItem;
     ctnEnumIdentifier:
-      begin
-        result := TCompletionItemKind.EnumMemberItem;
-      end;
+      result := TCompletionItemKind.EnumMemberItem;
     otherwise
       //writeln(StdErr, 'Default kind for '+Identifier.Identifier, ' (', Identifier.Node.DescAsString, ')');
       //PrintIdentifierTree(Identifier);
@@ -435,8 +334,11 @@ var
   Completion: TCompletionItem;
   SnippetText, RawList, Parent: String;
   IdentifierMap: TFPHashList;
+  StartTime: TDateTime;
 begin with Params do
   begin
+    StartTime := Now;
+
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
@@ -448,22 +350,22 @@ begin with Params do
     IdentifierMap := TFPHashList.Create;
     Completions := TCompletionItems.Create;
     Result := TCompletionList.Create;
-    
+
     try
-      if CodeToolBoss.GatherIdentifiers(Code,X + 1,Y + 1) then
-        begin
+      if CodeToolBoss.GatherIdentifiers(Code, X + 1, Y + 1) then
+        begin          
           Count := CodeToolBoss.IdentifierList.GetFilteredCount;
           for I := 0 to Count - 1 do
             begin
               Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
-              if ServerSettings.options.insertCompletionsAsSnippets and 
-                Identifier.IsProcNodeWithParams then
+              if ServerSettings.options.insertCompletionsAsSnippets and Identifier.IsProcNodeWithParams then
                 begin
                   RawList := Identifier.ParamNameList;
-                  SnippetText := ParseParamList(RawList, True);
+                  //SnippetText := ParseParamList(RawList, True);
+                  SnippetText := '$0';
                   Completion := TCompletionItem(Completions.Add);
                   Completion.&label := Identifier.Identifier+'('+RawList+')';
-                  Completion.detail := DetailsForIdentifier(Identifier);
+                  Completion.detail := DescriptionForIdentifier(Identifier);
                   Completion.insertText := Identifier.Identifier+'('+SnippetText+');';
                   Completion.insertTextFormat := TInsertTextFormat.Snippet;
                   Completion.kind := KindForIdentifier(Identifier);
@@ -477,7 +379,7 @@ begin with Params do
                 begin
                   Completion := TCompletionItem(Completions.Add);
                   Completion.&label := Identifier.Identifier;
-                  Completion.detail := DetailsForIdentifier(Identifier);
+                  Completion.detail := DescriptionForIdentifier(Identifier);
                   Completion.kind := KindForIdentifier(Identifier);
                   if ServerSettings.options.insertCompletionProcedureBrackets and 
                     Identifier.IsProcNodeWithParams then
@@ -503,10 +405,13 @@ begin with Params do
       on E: Exception do
         begin
           writeln(StdErr, 'Completion Error: ', E.ClassName, ' ', E.Message);
-          flush(StdErr);
+          Flush(StdErr);
           Result.isIncomplete := true;
         end;
     end;
+
+    //writeln(StdErr, 'got completions ', Completions.Count, ' in ', MilliSecondsBetween(Now, StartTime),'ms');
+    //Flush(StdErr);
 
     Result.items := Completions;
   end;

@@ -49,6 +49,8 @@ type
   published
     // The client is supposed to include the content on save.
     property includeText: Boolean read fIncludeText write fIncludeText;
+  public
+    constructor Create(_includeText: boolean);
   end;
 
   { TTextDocumentSyncOptions }
@@ -132,6 +134,13 @@ type
   end;
 
 implementation
+
+{ TSaveOptions }
+
+constructor TSaveOptions.Create(_includeText: boolean);
+begin
+  includeText := _includeText;
+end;
 
 { TTextDocumentSyncOptions}
 

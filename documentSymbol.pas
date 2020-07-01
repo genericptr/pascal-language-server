@@ -73,6 +73,7 @@ type
   private
     fName: string;
     fDetail: string;
+    fKind: TSymbolKind;
     fDeprecated: boolean;
     fRange: TRange;
     fSelectionRange: TRange;
@@ -83,6 +84,8 @@ type
     property name: string read fName write fName;
     // More detail for this symbol, e.g the signature of a function.
     property detail: string read fDetail write fDetail;
+    // The kind of this symbol.
+    property kind: TSymbolKind read fKind write fKind;
     // Indicates if this symbol is deprecated.
     property deprecated: boolean read fDeprecated write fDeprecated;
     // The range enclosing this symbol not including leading/trailing whitespace but everything else
@@ -170,6 +173,8 @@ type
   public
     RawJSON: String;
     Flags: TSymbolFlags;
+    //location: TLocation;
+    //containerName: String;
     function Path: String;
     function IsGlobal: boolean;
     property FullName: String read GetFullName;
@@ -186,6 +191,8 @@ type
     Code: TCodeBuffer;
     fRawJSON: String;
     function GetRawJSON: String; inline;
+  public
+    Modified: Boolean;
   public
     constructor Create(_Code: TCodeBuffer);
     destructor Destroy; override;
@@ -268,6 +275,8 @@ type
     function GetDatabase: TSymbolDatabase; inline;
     property Database: TSymbolDatabase read GetDatabase;
   public
+
+    { Constructors }
     constructor Create;
     destructor Destroy; override;
 
@@ -283,6 +292,7 @@ type
     procedure Reload(Code: TCodeBuffer; Always: Boolean = false); overload;
     procedure Reload(Path: String; Always: Boolean = false); overload;
     procedure Scan(Path: String; SearchSubDirs: Boolean);
+    procedure FileModified(Code: TCodeBuffer);
   end;
 
 var
@@ -386,12 +396,12 @@ end;
 
 function TSymbol.IsGlobal: boolean;
 begin
-  result := ContainerName <> '';
+  result := containerName <> '';
 end;
 
 function TSymbol.GetFullName: String;
 begin
-  if ContainerName <> '' then
+  if containerName <> '' then
     Result := containerName+'.'+Name
   else
     Result := Name;
@@ -458,6 +468,7 @@ begin
   Symbol.name := Name;
   Symbol.kind := Kind;
   Symbol.location := TLocation.Create(FileName, Line - 1, Column - 1, RangeLen);
+
   result := Symbol;
 end;
 
@@ -503,6 +514,7 @@ end;
 
 procedure TSymbolTableEntry.Clear;
 begin
+  Modified := false;
   Symbols.Clear;
   if SymbolManager.Database <> nil then
     SymbolManager.Database.ClearSymbols(Code.FileName);
@@ -1129,6 +1141,15 @@ begin
   Flush(stderr);
 end;
 
+procedure TSymbolManager.FileModified(Code: TCodeBuffer);
+var
+  Entry: TSymbolTableEntry;
+begin
+  Entry := GetEntry(Code);
+  if Entry <> nil then
+    Entry.Modified := true;
+end;
+
 procedure TSymbolManager.Scan(Path: String; SearchSubDirs: Boolean);
 var
   Files: TStringList;
@@ -1202,6 +1223,14 @@ begin
   FileName := GetFileKey(MainCode.FileName);
   Entry := TSymbolTableEntry(SymbolTable.Find(FileName));
 
+  // the symtable entry was explicitly modified so it needs to be reloaded
+  if Entry.Modified then
+    begin
+      writeln(StdErr, 'document has been modified!');
+      Flush(StdErr);
+      Reload(Path, True);
+    end;
+
   if Entry <> nil then
     Result := TJSONSerializedArray.Create(Entry.RawJSON)
   else
@@ -1235,7 +1264,7 @@ begin
   Code := CodeToolBoss.GetMainCode(Code);
   //if CompareCodeBuffers(MainCode, Code) <> 0 then
   //  begin
-  //    writeln(stderr, 'main code is not current code.');flush(stderr);
+  //    writeln(stderr, 'main code is not current code.');
   //    exit;
   //  end;
   
@@ -1265,8 +1294,8 @@ begin
 
   Entry.SerializeSymbols;
 
-  writeln(stderr, 'reloaded ', Code.FileName, ' in ', MilliSecondsBetween(Now,StartTime),'ms');
-  flush(stderr);
+  writeln(StdErr, 'reloaded ', Code.FileName, ' in ', MilliSecondsBetween(Now,StartTime),'ms');
+  Flush(StdErr);
 end;
 
 procedure TSymbolManager.Reload(Path: String; Always: Boolean = false);

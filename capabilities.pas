@@ -45,7 +45,6 @@ type
 
     // The client supports `workspace/configuration` requests.
     property configuration: Boolean read fConfiguration write fConfiguration;
-
   end;
 
   { TWorkspaceFoldersServerCapabilities }
@@ -147,8 +146,8 @@ var
 begin
   textDocumentSync := TTextDocumentSyncOptions.Create;
 
-  textDocumentSync.save := TSaveOptions.Create;
-  textDocumentSync.save.includeText := false;
+  textDocumentSync.save := TSaveOptions.Create(false);
+  textDocumentSync.change := TTextDocumentSyncKind.Full;
 
   workspace := TWorkspaceServerCapabilities.Create;
   workspace.workspaceFolders.supported := true;
