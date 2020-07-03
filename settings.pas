@@ -118,7 +118,40 @@ end;
 { TServerSettings }
 
 procedure TServerSettings.ReplaceMacros(Macros: TMacroMap);
+
+  function ReplaceMacro(const S: String): String;
+  var
+    I: Integer;
+  begin
+    { support multiple formats: 
+      1) $macro
+      2) $MACRO
+      3) $(macro)
+      4) $(MACRO)
+    }
+    Result := S;
+    for I := 0 to Macros.Count - 1 do
+      begin
+        Result := StringReplace(Result, '$('+LowerCase(Macros.Keys[I])+')', Macros.Data[I], [rfReplaceAll]);
+        Result := StringReplace(Result, '$('+UpperCase(Macros.Keys[I])+')', Macros.Data[I], [rfReplaceAll]);
+        Result := StringReplace(Result, '$'+LowerCase(Macros.Keys[I]), Macros.Data[I], [rfReplaceAll]);
+        Result := StringReplace(Result, '$'+UpperCase(Macros.Keys[I]), Macros.Data[I], [rfReplaceAll]);
+      end;
+  end;
+
+var
+  ExpandedOption: String;
+  I: integer;
 begin
+  &program := ReplaceMacro(&program);
+  symbolDatabase := ReplaceMacro(symbolDatabase);
+
+  for I := 0 to fpcOptions.Count - 1 do
+    begin
+      ExpandedOption := ReplaceMacro(fpcOptions[I]);
+      fpcOptions.Delete(I);
+      fpcOptions.Insert(I, ExpandedOption);
+    end;
 end;
 
 function TServerSettings.CanProvideWorkspaceSymbols: boolean;
@@ -137,7 +170,7 @@ begin
 
   // default settings
   symbolDatabase := '';
-  maximumCompletions := MaxInt;
+  maximumCompletions := 500;
   overloadPolicy := TOverloadPolicy.Suffix;
 end;
 

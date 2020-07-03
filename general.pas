@@ -24,7 +24,8 @@ unit general;
 interface
 
 uses
-  Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
+  Classes,
+  CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
   lsp, basic, capabilities, documentSymbol, settings;
 
 type
@@ -56,14 +57,23 @@ type
   { TInitializeParams }
 
   TInitializeParams = class(TPersistent)
+  private type
+    TClientInfo = class
+      // The name of the client as defined by the client.
+      clientInfo: string;
+      // The client's version as defined by the client.
+      version: string;
+    end;
   private
-    //fProcessId: string;
+    fProcessId: integer;
+    fClientInfo: TClientInfo;
     fRootUri: string;
     fCapabilities: TClientCapabilities;
     fInitializationOptions: TInitializationOptions;
     fWorkspaceFolders: TWorkspaceFolderItems;
   published
-    //property processId: string read fProcessId write fProcessId;
+    property processId: integer read fProcessId write fProcessId;
+    property clientInfo: TClientInfo read fClientInfo write fClientInfo;
     property rootUri: string read fRootUri write fRootUri;
     property capabilities: TClientCapabilities read fCapabilities write fCapabilities;
     property initializationOptions: TInitializationOptions read fInitializationOptions write fInitializationOptions;
@@ -130,6 +140,9 @@ procedure TInitializeParams.AfterConstruction;
 begin
   inherited;
 
+  if clientInfo = nil then
+    clientInfo := TClientInfo.Create;
+    
   if initializationOptions = nil then
     initializationOptions := TInitializationOptions.Create;
 
@@ -148,6 +161,7 @@ var
   DirectoryTemplate,
   UnitPathTemplate: TDefineTemplate;
   ServerCapabilities: TServerCapabilities;
+  Macros: TMacroMap;
 begin with Params do
   begin
     CodeToolsOptions := TCodeToolsOptions.Create;
@@ -157,6 +171,13 @@ begin with Params do
     // the JSON-RPC streaming model
     ServerSettings := initializationOptions;
     
+    // replace macros in server settings
+    Macros := TMacroMap.Create;
+    Macros.Add('tmpdir', GetTempDir(true));
+    Macros.Add('root', ParseURI(rootUri).path);
+
+    ServerSettings.ReplaceMacros(Macros);
+
     SymbolManager := TSymbolManager.Create;
     ServerCapabilities := TServerCapabilities.Create(initializationOptions);
 
@@ -229,6 +250,10 @@ begin with Params do
                 ServerSettings.&program := '';
               end;
           end;
+
+        writeln(stderr, 'Symbol Database: ', ServerSettings.symbolDatabase);
+        writeln(stderr, 'Maximum Completions: ', ServerSettings.maximumCompletions);
+        writeln(stderr, 'Overload Policy: ', ServerSettings.overloadPolicy);
 
         Flush(stderr);
 

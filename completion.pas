@@ -367,7 +367,7 @@ begin with Params do
             begin
 
               // make sure we don't exceed the maximum completions count
-              if I >= ServerSettings.maximumCompletions then
+              if (ServerSettings.maximumCompletions > -1) and (I >= ServerSettings.maximumCompletions) then
                 begin
                   Result.isIncomplete := true;
                   break;
