@@ -26,7 +26,7 @@ interface
 
 uses
   SysUtils, Classes, fpjson,
-  CodeTree, PascalParserTool, IdentCompletionTool;
+  CodeTree, PascalReaderTool, PascalParserTool, IdentCompletionTool;
 
 
 type
@@ -62,9 +62,10 @@ type
     end;
 
 { Functions }
+function GetIdentifierAtPos(Tool: TPascalReaderTool; StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false; IncludeOps: Boolean = false): String;
 function FindIdentifierClass(Identifier: TIdentifierListItem): ShortString;
 function IsNodeObjectMember(Node: TCodeTreeNode): Boolean;
-function DescriptionForIdentifier(Identifier: TIdentifierListItem): ShortString;
+function IdentifierContext(Identifier: TIdentifierListItem; out DetailString: ShortString; out ObjectMember: boolean): ShortString;
 
 function ParseParamList(RawList: String): TStringList; overload;
 function ParseParamList(RawList: String; AsSnippet: boolean): String; overload;
@@ -101,11 +102,52 @@ begin
     end;
 end;
 
-function DescriptionForIdentifier(Identifier: TIdentifierListItem): ShortString;
+function GetIdentifierAtPos(Tool: TPascalReaderTool; StartPos: Longint; aSkipAmp: Boolean; IncludeDot: Boolean; IncludeOps: Boolean): String;
+  
+  function GetIdentifier(Identifier: PChar; aSkipAmp, IncludeDot, IncludeOps: Boolean): string;
+  const
+    OpChar =         ['+', '*', '-', '/', '<', '>', '=', ':'];
+    IdentStartChar = ['a'..'z','A'..'Z','_'] + OpChar;
+    IdentChar =      ['a'..'z','A'..'Z','_','0'..'9'] + OpChar;
+  var
+    len: integer;
+  begin
+    if (Identifier=nil) then begin
+      Result:='';
+      exit;
+    end;
+    if (Identifier^ in IdentStartChar) or ((Identifier^='&') and ((Identifier[1] in IdentStartChar))) then begin
+      len:=0;
+      if (Identifier^='&') then
+      begin
+        if aSkipAmp then
+          inc(Identifier)
+        else
+          inc(len);
+      end;
+      while (Identifier[len] in IdentChar) or (IncludeDot and (Identifier[len] = '.')) do inc(len);
+      SetLength(Result,len);
+      if len>0 then
+        Move(Identifier[0],Result[1],len);
+    end else
+      Result:='';
+  end;
+
+var
+  Source: String;
+begin
+  Source := Tool.Scanner.CleanedSrc;
+  Result := GetIdentifier(@Source[StartPos], aSkipAmp, IncludeDot, IncludeOps);
+end;
+
+function IdentifierContext(Identifier: TIdentifierListItem; out DetailString: ShortString; out ObjectMember: boolean): ShortString;
 var
   Node: TCodeTreeNode;
+  Container, TypeName, UnitName: ShortString;
 begin
   result := '';
+  DetailString := '';
+  ObjectMember := false;
 
   if Identifier.Node = nil then
     exit;
@@ -118,18 +160,51 @@ begin
     ctnConstDefinition,
     ctnEnumerationType:
       begin
+        TypeName := '';
+        UnitName := ExtractFileName(Identifier.Tool.MainFilename);
+
+        // find type for variables
+        if Identifier.Node.Desc = ctnVarDefinition then
+          begin
+            Node := Identifier.Tool.FindTypeNodeOfDefinition(Identifier.Node);
+            if Node <> nil then
+              TypeName := GetIdentifierAtPos(Identifier.Tool, Node.StartPos);
+          end;
+
         Node := Identifier.Node;
         while Node <> nil do
           begin
             if Node.Desc in AllClassObjects then
               begin
-                result := 'Member ('+Identifier.Tool.ExtractClassName(Node, false)+')';
+                Container := Identifier.Tool.ExtractClassName(Node, false);
+                if TypeName <> '' then
+                  begin
+                    result := TypeName+' -> '+Container;
+                    DetailString := Container+'.'+Identifier.Identifier+': '+TypeName+' ('+UnitName+')';
+                  end
+                else
+                  begin
+                    result := Container;
+                    DetailString := Container+'.'+Identifier.Identifier+' ('+UnitName+')';
+                  end;
+                ObjectMember := true;
                 exit;
               end;
             Node := Node.Parent;
           end;
-        // default to node desc
-        result := Identifier.Node.DescAsString;
+
+        if TypeName <> '' then
+          result := TypeName;
+
+        // show unit name for global procedures 
+        if Identifier.Node.Desc = ctnProcedure then
+          begin
+            DetailString := 'Unit '+UnitName;
+          end;
+
+        // show contants values as details
+        if Identifier.Node.Desc = ctnConstDefinition then
+          DetailString := Identifier.Tool.ExtractNode(Identifier.Node, []);
       end;
     ctnEnumIdentifier:
       begin
@@ -138,22 +213,28 @@ begin
           begin
             if Node.Desc = ctnTypeDefinition then
               begin
-                result := 'Enum ('+Identifier.Tool.ExtractNode(Node, [])+')';
+                //result := Identifier.Tool.ExtractNode(Node, []);
+                Node := Identifier.Tool.FindTypeNodeOfDefinition(Identifier.Node);
+                if Node <> nil then
+                  result := GetIdentifierAtPos(Identifier.Tool, Node.StartPos);
+
+                DetailString := 'Enum ('+result+')';
+                ObjectMember := true;
                 exit;
               end;
             Node := Node.Parent;
           end;
       end;
-    otherwise
-      result := Identifier.Node.DescAsString;
   end;
 end;
 
 procedure PrintIdentifierTree(Identifier: TIdentifierListItem);
 var
   Node: TCodeTreeNode;
+  Details: ShortString;
+  ObjectMember: boolean;
 begin
-  writeln(StdErr, Identifier.Identifier, ' -> ', DescriptionForIdentifier(Identifier));
+  writeln(StdErr, Identifier.Identifier, ' -> ', IdentifierContext(Identifier, Details, ObjectMember));
   Node := Identifier.Node;
   while Node <> nil do
     begin

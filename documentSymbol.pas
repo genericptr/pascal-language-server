@@ -173,6 +173,7 @@ type
   public
     RawJSON: String;
     Flags: TSymbolFlags;
+    OverloadCount: integer;
     //location: TLocation;
     //containerName: String;
     function Path: String;
@@ -211,19 +212,18 @@ type
     Code: TCodeBuffer;
     Tool: TCodeTool;
     Entry: TSymbolTableEntry;
-    IndentLevel: integer;
-    UsedIdentifiers: TFPHashList;
+    OverloadMap: TFPHashList;
     RelatedFiles: TFPHashList;
+    IndentLevel: integer;
+    CodeSection: TCodeTreeNodeDesc;
   private
     procedure PrintNodeDebug(Node: TCodeTreeNode; Deep: boolean = false);
     function AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind): TSymbol; overload;
     function AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind; Name: String; Container: String = ''): TSymbol; overload;
     procedure ExtractCodeSection(Node: TCodeTreeNode);
+    procedure ExtractProcedure(ParentNode, Node: TCodeTreeNode);
     procedure ExtractTypeDefinition(TypeDefNode, Node: TCodeTreeNode); 
     procedure ExtractObjCClassMethods(ClassNode, Node: TCodeTreeNode);
-  private
-    function GetIdentifier(Identifier: PChar; aSkipAmp, IncludeDot, IncludeOps: Boolean): string;
-    function GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false; IncludeOps: Boolean = false): String; inline;
   public
     constructor Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
     destructor Destroy; override;
@@ -535,49 +535,12 @@ end;
 
 { TSymbolExtractor }
 
-function TSymbolExtractor.GetIdentifier(Identifier: PChar; aSkipAmp, IncludeDot, IncludeOps: Boolean): string;
-const
-  OpChar =         ['+', '*', '-', '/', '<', '>', '=', ':'];
-  IdentStartChar = ['a'..'z','A'..'Z','_'] + OpChar;
-  IdentChar =      ['a'..'z','A'..'Z','_','0'..'9'] + OpChar;
-var
-  len: integer;
-begin
-  if (Identifier=nil) then begin
-    Result:='';
-    exit;
-  end;
-  if (Identifier^ in IdentStartChar) or ((Identifier^='&') and ((Identifier[1] in IdentStartChar))) then begin
-    len:=0;
-    if (Identifier^='&') then
-    begin
-      if aSkipAmp then
-        inc(Identifier)
-      else
-        inc(len);
-    end;
-    while (Identifier[len] in IdentChar) or (IncludeDot and (Identifier[len] = '.')) do inc(len);
-    SetLength(Result,len);
-    if len>0 then
-      Move(Identifier[0],Result[1],len);
-  end else
-    Result:='';
-end;
-
-function TSymbolExtractor.GetIdentifierAtPos(StartPos: Longint; aSkipAmp: Boolean; IncludeDot: Boolean; IncludeOps: Boolean): String;
-var
-  Source: String;
-begin
-  Source := Tool.Scanner.CleanedSrc;
-  Result := GetIdentifier(@Source[StartPos], aSkipAmp, IncludeDot, IncludeOps);
-end;
-
 procedure TSymbolExtractor.PrintNodeDebug(Node: TCodeTreeNode; Deep: boolean);
 var
   Child: TCodeTreeNode;
 begin
   {$ifdef SYMBOL_DEBUG}
-  writeln(IndentLevelString(IndentLevel), Node.DescAsString, ' (', GetIdentifierAtPos(Node.StartPos, true, true), ') -> ', Node.ChildCount);
+  writeln(IndentLevelString(IndentLevel), Node.DescAsString, ' (', GetIdentifierAtPos(Tool, Node.StartPos, true, true), ') -> ', Node.ChildCount);
   if Deep then
     begin
       Child := Node.FirstChild;
@@ -597,7 +560,7 @@ end;
 
 function TSymbolExtractor.AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind): TSymbol;
 begin
-  AddSymbol(Node, Kind, GetIdentifierAtPos(Node.StartPos, true, true));
+  AddSymbol(Node, Kind, GetIdentifierAtPos(Tool, Node.StartPos, true, true));
 end;
 
 function TSymbolExtractor.AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind; Name: String; Container: String): TSymbol;
@@ -664,7 +627,7 @@ begin
               // if the class is external then search methods
               //if ExternalClass then
               //  ExtractObjCClassMethods(ClassNode, Node.FirstChild);
-              TypeName := GetIdentifierAtPos(ClassNode.StartPos, true, true);
+              TypeName := GetIdentifierAtPos(Tool, ClassNode.StartPos, true, true);
               Child := Node.FirstChild;
               while Child <> nil do
                 begin
@@ -696,7 +659,7 @@ begin
           begin
             AddSymbol(TypeDefNode, SymbolKindStruct);
           end;
-        ctnObjCClass,ctnObjCCategory,ctnCPPClass:
+        ctnObjCClass,ctnObjCCategory,ctnObjCProtocol:
           begin
             // todo: ignore forward defs!
             AddSymbol(TypeDefNode, SymbolKindClass);
@@ -706,12 +669,6 @@ begin
           end;
         ctnSpecialize:
           begin
-            (*
-              Type (TDocumentSymbolItems) -> 1
-                Specialize Type (specialize) -> 2
-                Specialize Typename (TGenericCollection) -> 0
-                Specialize Parameterlist () -> 1
-            *)
             // todo: is this a class/record???
             PrintNodeDebug(Node.FirstChild, true);
             AddSymbol(TypeDefNode, SymbolKindClass);
@@ -738,6 +695,60 @@ begin
     end;
 end;
 
+procedure TSymbolExtractor.ExtractProcedure(ParentNode, Node: TCodeTreeNode);
+var
+  Child: TCodeTreeNode;
+  Name, OrigName: ShortString;
+  Symbol: TSymbol;
+begin
+  PrintNodeDebug(Node);
+    
+  if ParentNode <> nil then
+    Name := Tool.ExtractProcName(ParentNode, [])+'.'+Tool.ExtractProcName(Node, [])
+  else
+    Name := Tool.ExtractProcName(Node, []);
+
+  OrigName := Name;
+  Symbol := TSymbol(OverloadMap.Find(Name));
+  if Symbol <> nil then
+    begin
+      // if the overloaded name is found in the implementation section
+      // then just ignore it so we have only function in the list
+      if CodeSection = ctnImplementation then
+        exit;
+      Inc(Symbol.overloadCount);
+      case ServerSettings.overloadPolicy of
+        TOverloadPolicy.Duplicates:
+          ;
+        TOverloadPolicy.Suffix:
+          Name := Name+'$'+IntToStr(Symbol.OverloadCount);
+        TOverloadPolicy.Ignore:
+          exit;
+      end;
+    end;
+
+  Symbol := AddSymbol(Node, SymbolKindFunction, Name);
+  OverloadMap.Add(Symbol.name, Symbol);
+
+  // recurse into procedures to find nested procedures
+
+  if not Tool.ProcNodeHasSpecifier(Node, psForward) and
+     not Tool.ProcNodeHasSpecifier(Node, psExternal) then
+    begin
+      Child := Node.FirstChild;
+      while Child <> nil do
+        begin
+          if Child.Desc = ctnProcedure then
+            begin
+              Inc(IndentLevel);
+              ExtractProcedure(Node, Child);
+              Dec(IndentLevel);
+            end;
+          Child := Child.NextBrother;
+        end;
+    end;
+end;
+
 procedure TSymbolExtractor.ExtractCodeSection(Node: TCodeTreeNode); 
 var
   Symbol: TSymbol = nil;
@@ -756,6 +767,7 @@ begin
             ctnImplementation:
               AddSymbol(Node, SymbolKindNamespace, '==== IMPLEMENTATION ====');
           end;
+          CodeSection := Node.Desc;
           Inc(IndentLevel);
           ExtractCodeSection(Node.FirstChild);
           Dec(IndentLevel);
@@ -765,18 +777,20 @@ begin
 
       case Node.Desc of
 
-        ctnConstSection:
-          begin
-            Inc(IndentLevel);
-            Child := Node.FirstChild;
-            while Child <> nil do
-              begin
-                AddSymbol(Child, SymbolKindConstant);
-                PrintNodeDebug(Child);
-                Child := Child.NextBrother;
-              end;
-            Dec(IndentLevel);
-          end;
+
+        // todo: make constants an option?
+        //ctnConstSection:
+        //  begin
+        //    Inc(IndentLevel);
+        //    Child := Node.FirstChild;
+        //    while Child <> nil do
+        //      begin
+        //        AddSymbol(Child, SymbolKindConstant);
+        //        PrintNodeDebug(Child);
+        //        Child := Child.NextBrother;
+        //      end;
+        //    Dec(IndentLevel);
+        //  end;
 
         ctnTypeSection:
           begin
@@ -797,10 +811,7 @@ begin
           end;
 
         ctnProcedure:
-          begin
-            PrintNodeDebug(Node, true);
-            AddSymbol(Node, SymbolKindFunction, Tool.ExtractProcName(Node, []));
-          end;
+          ExtractProcedure(nil, Node);
       end;
 
       Node := Node.NextBrother;
@@ -812,13 +823,13 @@ begin
   Entry := _Entry;
   Code := _Code;
   Tool := _Tool;
-  UsedIdentifiers := TFPHashList.Create;
+  OverloadMap := TFPHashList.Create;
   RelatedFiles := TFPHashList.Create;
 end;
 
 destructor TSymbolExtractor.Destroy; 
 begin
-  UsedIdentifiers.Free;
+  OverloadMap.Free;
   RelatedFiles.Free;
   inherited;
 end;
@@ -1225,11 +1236,7 @@ begin
 
   // the symtable entry was explicitly modified so it needs to be reloaded
   if Entry.Modified then
-    begin
-      writeln(StdErr, 'document has been modified!');
-      Flush(StdErr);
-      Reload(Path, True);
-    end;
+    Reload(Path, True);
 
   if Entry <> nil then
     Result := TJSONSerializedArray.Create(Entry.RawJSON)

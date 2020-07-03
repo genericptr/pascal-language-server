@@ -150,6 +150,9 @@ type
     fTextEdit: TTextEdit;
     fAdditionalTextEdits: TTextEdits;
     fCommitCharacters: TStrings;
+  private
+    // the following private fields are for private us and not part of LSP
+    overloadCount: integer;
   published
     // The label of this completion item. By default also the text
     // that is inserted when selecting this completion.
@@ -288,7 +291,7 @@ begin
       result := TCompletionItemKind.FolderItem; {todo: not sure?}
     ctnProcedure:
       begin
-        if IsNodeObjectMember(Identifier.Node) then
+        if not ServerSettings.options.minimalisticCompletions and IsNodeObjectMember(Identifier.Node) then
           result := TCompletionItemKind.MethodItem
         else
           result := TCompletionItemKind.FunctionItem;
@@ -303,7 +306,7 @@ begin
       result := TCompletionItemKind.PropertyItem;
     ctnVarDefinition:
       begin
-        if IsNodeObjectMember(Identifier.Node) then
+        if not ServerSettings.options.minimalisticCompletions and IsNodeObjectMember(Identifier.Node) then
           result := TCompletionItemKind.FieldItem
         else
           result := TCompletionItemKind.VariableItem;
@@ -333,8 +336,10 @@ var
   Identifier: TIdentifierListItem;
   Completion: TCompletionItem;
   SnippetText, RawList, Parent: String;
-  IdentifierMap: TFPHashList;
-  StartTime: TDateTime;
+  OverloadMap: TFPHashList;
+  StartTime, GatherTime: TDateTime;
+  IdentContext, IdentDetails: ShortString;
+  ObjectMember: boolean;
 begin with Params do
   begin
     StartTime := Now;
@@ -346,55 +351,91 @@ begin with Params do
     Line := Code.GetLine(Y);
     GetIdentStartEndAtPosition(Line, X + 1, PStart, PEnd);
     CodeToolBoss.IdentifierList.Prefix := Copy(Line, PStart, PEnd - PStart);
-    
-    IdentifierMap := TFPHashList.Create;
+
+    OverloadMap := TFPHashList.Create;
     Completions := TCompletionItems.Create;
     Result := TCompletionList.Create;
 
     try
       if CodeToolBoss.GatherIdentifiers(Code, X + 1, Y + 1) then
-        begin          
+        begin    
           Count := CodeToolBoss.IdentifierList.GetFilteredCount;
+          GatherTime := Now;
+          IdentContext := '';
+          IdentDetails := '';
           for I := 0 to Count - 1 do
             begin
+
+              // make sure we don't exceed the maximum completions count
+              if I >= ServerSettings.maximumCompletions then
+                begin
+                  Result.isIncomplete := true;
+                  break;
+                end;
+
               Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
-              if ServerSettings.options.insertCompletionsAsSnippets and Identifier.IsProcNodeWithParams then
+
+              if not ServerSettings.options.minimalisticCompletions then
+                IdentContext := IdentifierContext(Identifier, IdentDetails, ObjectMember);
+
+              if Identifier.IsProcNodeWithParams then
                 begin
-                  RawList := Identifier.ParamNameList;
                   //SnippetText := ParseParamList(RawList, True);
-                  SnippetText := '$0';
+                  //SnippetText := '$0';
+
+                  Completion := TCompletionItem(OverloadMap.Find(Identifier.Identifier));
+                  if Completion <> nil then
+                    begin
+                      Inc(Completion.overloadCount);
+                      if Completion.overloadCount = 1 then
+                        Completion.&label := '+'+IntToStr(Completion.overloadCount)+' overload'
+                      else
+                        Completion.&label := '+'+IntToStr(Completion.overloadCount)+' overloads';
+                      continue;
+                    end;
+
                   Completion := TCompletionItem(Completions.Add);
-                  Completion.&label := Identifier.Identifier+'('+RawList+')';
-                  Completion.detail := DescriptionForIdentifier(Identifier);
-                  Completion.insertText := Identifier.Identifier+'('+SnippetText+');';
-                  Completion.insertTextFormat := TInsertTextFormat.Snippet;
+                  Completion.&label := IdentContext;
                   Completion.kind := KindForIdentifier(Identifier);
-                  // according to LSP plugin devs filterText should be the identifier name
-                  // if the label contains non-alpha-numeric characters
-                  Completion.filterText := Identifier.Identifier;
-                  // this ensures the sort order is maintained in Sublime Text
+
+                  if not ServerSettings.options.minimalisticCompletions then
+                    begin
+                      // todo: make showing parameters in details as an option?
+                      //Completion.detail := IdentDetails+' ('+Identifier.ParamNameList+')';
+                      Completion.detail := IdentDetails;
+                      if ServerSettings.options.insertCompletionsAsSnippets then
+                        begin
+                          Completion.insertText := Identifier.Identifier+'($0);';
+                          Completion.insertTextFormat := TInsertTextFormat.Snippet;
+                        end
+                      else
+                        begin
+                          Completion.insertText := Identifier.Identifier;
+                          Completion.insertTextFormat := TInsertTextFormat.PlainText;
+                        end;
+                      Completion.filterText := Identifier.Identifier;
+                    end;
+
                   Completion.sortText := IntToStr(I);
+                  OverloadMap.Add(Identifier.Identifier, Completion);
                 end
-              else if IdentifierMap.Find(Identifier.Identifier) = nil then
+              else
                 begin
                   Completion := TCompletionItem(Completions.Add);
-                  Completion.&label := Identifier.Identifier;
-                  Completion.detail := DescriptionForIdentifier(Identifier);
-                  Completion.kind := KindForIdentifier(Identifier);
-                  if ServerSettings.options.insertCompletionProcedureBrackets and 
-                    Identifier.IsProcNodeWithParams then
+                  if not ServerSettings.options.minimalisticCompletions then
                     begin
-                      Completion.insertText := Identifier.Identifier+'($0)';
-                      Completion.insertTextFormat := TInsertTextFormat.Snippet;
+                      Completion.&label := IdentContext;
+                      Completion.filterText := Identifier.Identifier;
+                      Completion.detail := IdentDetails;
+                      Completion.insertText := Identifier.Identifier;
+                      Completion.insertTextFormat := TInsertTextFormat.PlainText;
                     end
                   else
                     begin
-                      Completion.insertText := Identifier.Identifier;
-                      Completion.insertTextFormat := TInsertTextFormat.PlainText;
+                      Completion.&label := Identifier.Identifier;
                     end;
-                  // this ensures the sort order is maintained in Sublime Text
+                  Completion.kind := KindForIdentifier(Identifier);
                   Completion.sortText := IntToStr(I);
-                  IdentifierMap.Add(Identifier.Identifier, Identifier);
                 end;
             end;
         end else begin
@@ -410,13 +451,13 @@ begin with Params do
         end;
     end;
 
-    //writeln(StdErr, 'got completions ', Completions.Count, ' in ', MilliSecondsBetween(Now, StartTime),'ms');
-    //Flush(StdErr);
+    writeln(StdErr, 'got completions ', Completions.Count, ' in ', MilliSecondsBetween(Now, GatherTime), 'ms and processed in ', MilliSecondsBetween(Now, StartTime),'ms');
+    Flush(StdErr);
 
     Result.items := Completions;
   end;
 
-  FreeAndNil(IdentifierMap);
+  FreeAndNil(OverloadMap);
 end;
 
 initialization

@@ -20,10 +20,17 @@
 unit settings;
 
 {$mode objfpc}{$H+}
+{$scopedenums on}
 
 interface
 uses
-  Classes;
+  Classes, FGL;
+
+type
+  TOverloadPolicy = ( Duplicates = 1,  // duplicate function names appear in the list
+                      Ignore = 2,      // after the original definition ignore others
+                      Suffix = 3       // add a suffix which denotes the overload count
+                      );
 
 type
   TServerOptions = class(TPersistent)
@@ -32,24 +39,24 @@ type
   published
     // procedure completions with parameters are inserted as snippets
     property insertCompletionsAsSnippets: Boolean read fBooleans[0] write fBooleans[0];
-
     // procedure completions with parameters (non-snippet) insert
     // empty brackets (and insert as snippet)
     property insertCompletionProcedureBrackets: Boolean read fBooleans[1] write fBooleans[1];
     property includeWorkspaceFoldersAsUnitPaths: Boolean read fBooleans[2] write fBooleans[2];
     property includeWorkspaceFoldersAsIncludePaths: Boolean read fBooleans[3] write fBooleans[3];
-
     // syntax will be checked when file opens or saves
     property checkSyntax: Boolean read fBooleans[4] write fBooleans[4];
-
     // syntax errors will be published as diagnostics
     property publishDiagnostics: Boolean read fBooleans[5] write fBooleans[5];
-
+    // enable workspace symbols
     property workspaceSymbols: Boolean read fBooleans[6] write fBooleans[6];
-
+    // completions contain a minimal amount of extra information
+    property minimalisticCompletions: Boolean read fBooleans[7] write fBooleans[7];
   public
     procedure AfterConstruction; override;
   end;
+
+  TMacroMap = specialize TFPGMap<ShortString, String>;
 
   TServerSettings = class(TPersistent)
   private
@@ -58,22 +65,30 @@ type
     fSymbolDatabase: String;
     fFPCOptions: TStrings;
     fCodeToolsConfig: String;
+    fMaximumCompletions: Integer;
+    fOverloadPolicy: TOverloadPolicy;
   published
-    // general options
+    // General options
     property options: TServerOptions read fOptions write fOptions;
-    // path to the main program file for resolving references
+    // Path to the main program file for resolving references
     // if not available the path of the current document will be used
     property &program: String read fProgram write fProgram;
-    // path to SQLite3 database for symbols
+    // Path to SQLite3 database for symbols
     property symbolDatabase: String read fSymbolDatabase write fSymbolDatabase;
     // FPC compiler options (passed to Code Tools)
     property fpcOptions: TStrings read fFPCOptions write fFPCOptions;
     // Optional codetools.config file to load settings from
     property codeToolsConfig: String read fCodeToolsConfig write fCodeToolsConfig;
+    // Maximum number of completion items to be returned
+    // if the threshold is reached then CompletionList.isIncomplete = true
+    property maximumCompletions: Integer read fMaximumCompletions write fMaximumCompletions;
+    // Policy which determines how overloaded document symbols are displayed
+    property overloadPolicy: TOverloadPolicy read fOverloadPolicy write fOverloadPolicy;
 
     function CanProvideWorkspaceSymbols: boolean;
   public
     procedure AfterConstruction; override;
+    procedure ReplaceMacros(Macros: TMacroMap);
   end;
 
 var
@@ -89,16 +104,22 @@ procedure TServerOptions.AfterConstruction;
 begin
 
   // default settings
+  insertCompletionsAsSnippets := true;
   includeWorkspaceFoldersAsUnitPaths := true;
   includeWorkspaceFoldersAsIncludePaths := true;
   workspaceSymbols := false;
   publishDiagnostics := false;
-
+  minimalisticCompletions := false;
+  
   inherited;
 end;
 
 
 { TServerSettings }
+
+procedure TServerSettings.ReplaceMacros(Macros: TMacroMap);
+begin
+end;
 
 function TServerSettings.CanProvideWorkspaceSymbols: boolean;
 begin
@@ -116,6 +137,8 @@ begin
 
   // default settings
   symbolDatabase := '';
+  maximumCompletions := MaxInt;
+  overloadPolicy := TOverloadPolicy.Suffix;
 end;
 
 end.
