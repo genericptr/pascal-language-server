@@ -50,8 +50,12 @@ type
     property publishDiagnostics: Boolean read fBooleans[5] write fBooleans[5];
     // enable workspace symbols
     property workspaceSymbols: Boolean read fBooleans[6] write fBooleans[6];
+    // enable document symbols
+    property documentSymbols: Boolean read fBooleans[7] write fBooleans[7];
     // completions contain a minimal amount of extra information
-    property minimalisticCompletions: Boolean read fBooleans[7] write fBooleans[7];
+    property minimalisticCompletions: Boolean read fBooleans[8] write fBooleans[8];
+    // syntax errors as shown in the UI with ‘window/showMessage’
+    property showSyntaxErrors: Boolean read fBooleans[9] write fBooleans[9];
   public
     procedure AfterConstruction; override;
   end;
@@ -104,13 +108,16 @@ procedure TServerOptions.AfterConstruction;
 begin
 
   // default settings
+  checkSyntax := false;
   insertCompletionsAsSnippets := true;
   includeWorkspaceFoldersAsUnitPaths := true;
   includeWorkspaceFoldersAsIncludePaths := true;
   workspaceSymbols := false;
+  documentSymbols := true;
   publishDiagnostics := false;
   minimalisticCompletions := false;
-  
+  showSyntaxErrors := true;
+
   inherited;
 end;
 

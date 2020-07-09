@@ -198,12 +198,13 @@ begin
 
         // show unit name for global procedures 
         if Identifier.Node.Desc = ctnProcedure then
-          begin
-            DetailString := 'Unit '+UnitName;
-          end;
-
+          DetailString := 'Unit '+UnitName
+        // find type definition
+        else if Identifier.Node.Desc = ctnTypeDefinition then
+          //DetailString := Identifier.Tool.ExtractNode(Identifier.Node, [])
+          DetailString := 'Unit '+UnitName
         // show contants values as details
-        if Identifier.Node.Desc = ctnConstDefinition then
+        else if Identifier.Node.Desc = ctnConstDefinition then
           DetailString := Identifier.Tool.ExtractNode(Identifier.Node, []);
       end;
     ctnEnumIdentifier:

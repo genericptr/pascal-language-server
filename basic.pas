@@ -446,7 +446,7 @@ type
     must not send a response back. They work like events. }
 
   TNotificationMessage = class(TAbstractMessage)
-  private
+  protected
     fMethod: string;
     fParams: TPersistent;
   published

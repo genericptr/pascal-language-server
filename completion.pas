@@ -405,7 +405,7 @@ begin with Params do
                       Completion.detail := IdentDetails;
                       if ServerSettings.options.insertCompletionsAsSnippets then
                         begin
-                          Completion.insertText := Identifier.Identifier+'($0);';
+                          Completion.insertText := Identifier.Identifier+'($0)';
                           Completion.insertTextFormat := TInsertTextFormat.Snippet;
                         end
                       else

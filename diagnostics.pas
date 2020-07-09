@@ -26,7 +26,7 @@ interface
 uses
   Classes, 
   CodeToolManager, CodeCache,
-  lsp, basic;
+  lsp, basic, window;
 
 type
 
@@ -66,8 +66,6 @@ type
     previously pushed diagnostics. There is no merging that happens on the client side. }
 
   TPublishDiagnostics = class(TNotificationMessage)
-  private
-    fParams: TPublishDiagnosticsParams;
   public
     constructor Create;
     destructor Destroy; override;
@@ -79,6 +77,7 @@ type
 
 procedure CheckSyntax(Code: TCodeBuffer);
 procedure PublishDiagnostic(UserMessage: String = '');
+procedure ClearDiagnostics(Code: TCodeBuffer);
 
 implementation
 uses
@@ -88,7 +87,9 @@ uses
 procedure PublishDiagnostic(UserMessage: String = '');
 var
   Notification: TPublishDiagnostics;
-  FileName: String;
+  ShowMessage: TShowMessageNotification;
+  FileName, 
+  MessageString: String;
 begin
 
   if UserMessage <> '' then
@@ -96,13 +97,24 @@ begin
   else
     begin
       if CodeToolBoss.ErrorCode <> nil then
-        writeln(stderr, 'Syntax Error -> '+CodeToolBoss.ErrorCode.FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn))
+        MessageString := CodeToolBoss.ErrorCode.FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn)
       else if CodeToolBoss.ErrorMessage <> '' then
-        writeln(stderr, 'Syntax Error -> "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn))
+        MessageString := '"'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn)
       else
         // there's no error to show so bail
         // probably PublishDiagnostic should not have been called
         exit;
+
+      // print the erro to StdErr
+      writeln(StdErr, 'Syntax Error -> '+MessageString);
+
+      // Show message in the gui also
+      if ServerSettings.options.showSyntaxErrors then
+        begin
+          ShowMessage := TShowMessageNotification.Create(TMessageType.Error, '⚠️ '+MessageString);
+          ShowMessage.Send;
+          ShowMessage.Free;
+        end;
     end;
   Flush(stderr);
 
@@ -160,21 +172,36 @@ begin
     end;
 end;
 
+procedure ClearDiagnostics(Code: TCodeBuffer);
+var
+  Notification: TPublishDiagnostics;
+begin
+  if ServerSettings.options.publishDiagnostics then
+    begin
+      // todo: when we have a document store we can check to see
+      // if we actually have any errors.
+      Notification := TPublishDiagnostics.Create;
+      Notification.Clear(Code.FileName);
+      Notification.Send;
+      Notification.Free;
+    end;
+end;
+
 { TPublishDiagnostics }
 
 procedure TPublishDiagnostics.Clear(fileName: string);
 begin
-  fParams.uri := PathToURI(fileName);
-  fParams.diagnostics.Clear;
+  TPublishDiagnosticsParams(params).uri := PathToURI(fileName);
+  TPublishDiagnosticsParams(params).diagnostics.Clear;
 end;
 
 procedure TPublishDiagnostics.Add(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
 var
   Diagnostic: TDiagnostic;
 begin
-  fParams.uri := PathToURI(fileName);
+  TPublishDiagnosticsParams(params).uri := PathToURI(fileName);
 
-  Diagnostic := TDiagnostic(fParams.diagnostics.Add);
+  Diagnostic := TDiagnostic(TPublishDiagnosticsParams(params).diagnostics.Add);
   Diagnostic.range := TRange.Create(line, column);
   Diagnostic.severity := severity;
   Diagnostic.code := code;
@@ -184,14 +211,13 @@ end;
 
 constructor TPublishDiagnostics.Create;
 begin  
-  fParams := TPublishDiagnosticsParams.Create;
-  params := fParams;
+  params := TPublishDiagnosticsParams.Create;
   method := 'textDocument/publishDiagnostics';
 end;
 
 destructor TPublishDiagnostics.Destroy; 
 begin
-  fParams.Free;
+  params.Free;
   inherited;
 end;
 

@@ -162,10 +162,7 @@ begin
   documentHighlightProvider := false;
 
   documentSymbolProvider := Assigned(SymbolManager);
-
-  // note(ryan): workspace symbols are so broken in the protocol I'm 
-  // going to ignore them for now until something changes
-  workspaceSymbolProvider := false;//settings.CanProvideWorkspaceSymbols;
+  workspaceSymbolProvider := settings.CanProvideWorkspaceSymbols;
   
   completionProvider := TCompletionOptions.Create;
   triggerCharacters := TStringList.Create;

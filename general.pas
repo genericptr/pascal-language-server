@@ -178,7 +178,10 @@ begin with Params do
 
     ServerSettings.ReplaceMacros(Macros);
 
-    SymbolManager := TSymbolManager.Create;
+    // load the symbol manager if it's enabled
+    if ServerSettings.options.documentSymbols or ServerSettings.options.workspaceSymbols then
+      SymbolManager := TSymbolManager.Create;
+
     ServerCapabilities := TServerCapabilities.Create(initializationOptions);
 
     re := TRegExpr.Create('^(-(Fu|Fi)+)(.*)$');

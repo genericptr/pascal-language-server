@@ -187,6 +187,7 @@ begin with Params do
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     CheckSyntax(Code);
+    ClearDiagnostics(Code);
   end;
 end;
 
@@ -228,10 +229,10 @@ begin with Params do
         Range := TTextDocumentContentChangeEvent(Change).range;
         if Range <> nil then
           begin
-            Code.LineColToPosition(Range.start.line + 1, Range.start.character + 1, StartPos);
-            Code.LineColToPosition(Range.&end.line + 1, Range.&end.character + 1, EndPos);
+            //Code.LineColToPosition(Range.start.line + 1, Range.start.character + 1, StartPos);
+            //Code.LineColToPosition(Range.&end.line + 1, Range.&end.character + 1, EndPos);
             writeln(StdErr, 'insert: ', StartPos,' -> ',EndPos, ' text=',TTextDocumentContentChangeEvent(Change).text);
-            Code.Replace(StartPos, EndPos - StartPos, TTextDocumentContentChangeEvent(Change).text);
+            //Code.Replace(StartPos, EndPos - StartPos, TTextDocumentContentChangeEvent(Change).text);
           end
         else
           Code.Source := TTextDocumentContentChangeEvent(Change).text;

@@ -107,14 +107,13 @@ begin
   Input := specialize TLSPStreaming<TWorkspaceSymbolParams>.ToObject(Params);
   StartTime := Now;
   Result := SymbolManager.FindWorkspaceSymbols(Input.query);
-  writeln(stderr,'workspace/symbol payload=', ConvertBytesToHumanReadable(Length(Result.AsJson)), ' in ', MilliSecondsBetween(Now,StartTime), 'ms');
+  //writeln(stderr,'workspace/symbol payload=', ConvertBytesToHumanReadable(Length(Result.AsJson)), ' in ', MilliSecondsBetween(Now,StartTime), 'ms');
   //writeln(stderr, Result.AsJson);
   Flush(stderr);
   Input.Free;
 
   if not Assigned(Result) then
     Result := TJSONNull.Create;
-
 end;
 
 initialization
