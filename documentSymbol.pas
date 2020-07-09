@@ -26,7 +26,7 @@ interface
 
 uses
   Classes, Contnrs, URIParser, fpjson, fpjsonrpc, SQLite3,
-  CodeToolManager, CodeCache, CodeTree,
+  CodeToolManager, CodeCache, CodeTree, LinkScanner,
   lsp, basic, codeUtils;
 
 type
@@ -753,10 +753,21 @@ procedure TSymbolExtractor.ExtractCodeSection(Node: TCodeTreeNode);
 var
   Symbol: TSymbol = nil;
   Child: TCodeTreeNode;
+  Scanner: TLinkScanner;
+  LinkIndex: Integer;
 begin
   while Node <> nil do
     begin
       PrintNodeDebug(Node);
+
+      // ignore nodes from include files
+      Scanner := Tool.Scanner;
+      LinkIndex := Scanner.LinkIndexAtCleanPos(Node.StartPos);
+      if (LinkIndex >= 0) and (Scanner.LinkP[LinkIndex]^.Code<>Scanner.MainCode) then
+        begin
+          Node := Node.NextBrother;
+          continue;
+        end;
 
       // recurse into code sections
       if (Node.Desc in AllCodeSections) and (Node.ChildCount > 0) then
