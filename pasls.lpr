@@ -31,7 +31,7 @@ uses
   { Protocols }
   basic, synchronization, completion, hover, gotoDeclaration, 
   gotoImplementation, signatureHelp, references, codeAction,
-  documentHighlight, documentSymbol, workspace;
+  documentHighlight, documentSymbol, workspace, window;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';
@@ -41,6 +41,7 @@ var
   Header, Name, Value, Content: string;
   I, Length: Integer;
   Request, Response: TJSONData;
+  ShowMessage: TShowMessageNotification;
 begin
   Dispatcher := TLSPDispatcher.Create(nil);
   TJSONData.CompressedJSON := True;
@@ -79,6 +80,9 @@ begin
         ((TJSONObject(Response).Find('id') = nil) or 
           TJSONObject(Response).Nulls['id']) then
         begin
+          ShowMessage := TShowMessageNotification.Create(TMessageType.Error, '⚠️ Invalid response');
+          ShowMessage.Send;
+          ShowMessage.Free;
           Writeln(StdErr, 'invalid response -> ', response.AsJSON);
           Flush(StdErr);
           continue;

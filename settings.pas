@@ -42,7 +42,9 @@ type
     // procedure completions with parameters (non-snippet) insert
     // empty brackets (and insert as snippet)
     property insertCompletionProcedureBrackets: Boolean read fBooleans[1] write fBooleans[1];
+    // workspaces folders will be added to unit paths (i.e. -Fu)
     property includeWorkspaceFoldersAsUnitPaths: Boolean read fBooleans[2] write fBooleans[2];
+    // workspaces folders will be added to include paths (i.e. -Fi)
     property includeWorkspaceFoldersAsIncludePaths: Boolean read fBooleans[3] write fBooleans[3];
     // syntax will be checked when file opens or saves
     property checkSyntax: Boolean read fBooleans[4] write fBooleans[4];

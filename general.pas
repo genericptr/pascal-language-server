@@ -254,7 +254,10 @@ begin with Params do
               end;
           end;
 
-        writeln(stderr, 'Symbol Database: ', ServerSettings.symbolDatabase);
+        if ServerSettings.symbolDatabase <> '' then
+          writeln(stderr, 'Symbol Database: ', ServerSettings.symbolDatabase)
+        else
+          writeln(stderr, 'Symbol Database: n/a');
         writeln(stderr, 'Maximum Completions: ', ServerSettings.maximumCompletions);
         writeln(stderr, 'Overload Policy: ', ServerSettings.overloadPolicy);
 
