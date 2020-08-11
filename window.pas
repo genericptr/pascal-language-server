@@ -64,12 +64,9 @@ type
     the client to display a particular message in the user interface. }
 
   TShowMessageNotification = class(TNotificationMessage)
-  private
-    //fParams: TShowMessageParams;
   public
     constructor Create(_type: TMessageType; Message: String);
     destructor Destroy; override;
-    //property params: TShowMessageParams read fParams;
   end;
 
   TMessageActionItem = class(TCollectionItem)

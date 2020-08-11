@@ -219,6 +219,7 @@ begin
     [jsoEnumeratedAsInteger, jsoSetEnumeratedAsInteger, jsoTStringsAsArray];
 
   DeStreamer := TLSPDeStreamer.Create(nil);
+  DeStreamer.Options := DeStreamer.Options + [jdoIgnorePropertyErrors, jdoIgnoreNulls];
   DeStreamer.OnGetObject := @GetObject;
 end;
 
@@ -258,11 +259,18 @@ end;
 function TLSPRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
 var
   Input: T;
+  Output: TObject;
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
-  Result := specialize TLSPStreaming<U>.ToJSON(Process(Input));
+  Output := Process(Input);
+  // todo: is there a better way to do this?
+  // if the request output is nil then return an empty object to represent nil
+  // returning TJSONNull gives an error from the RPC layer, which we don't want
+  if not Assigned(Output) then Output := TPersistent.Create;
+  Result := specialize TLSPStreaming<U>.ToJSON(Output);
   if not Assigned(Result) then Result := TJSONNull.Create;
   Input.Free;
+  Output.Free;
 end;
 
 { TLSPNotification }

@@ -324,6 +324,43 @@ begin
   end;   
 end;
 
+{ TCompletionItemHelper }
+
+type
+  TCompletionItemHelper = class helper for TCompletionItem
+    private
+      procedure SetPrimaryText(text: string);
+      procedure SetSecondaryText(text: string);
+    public
+      property primaryText: string write SetPrimaryText;
+      property secondaryText: string write SetSecondaryText;
+  end;
+
+procedure TCompletionItemHelper.SetPrimaryText(text: string);
+begin
+  if ClientInfo.name = 'Sublime Text LSP' then
+    begin
+      filterText := text;
+    end
+  else
+    begin
+      filterText := text;
+      &label := text;
+    end;
+end;
+
+procedure TCompletionItemHelper.SetSecondaryText(text: string);
+begin
+  if ClientInfo.name = 'Sublime Text LSP' then
+    begin
+      &label := text;
+    end
+  else
+    begin
+      // todo: append to details?
+    end;
+end;
+
 { TCompletion }
 
 function TCompletion.Process(var Params: TCompletionParams): TCompletionList;
@@ -383,19 +420,21 @@ begin with Params do
                   //SnippetText := ParseParamList(RawList, True);
                   //SnippetText := '$0';
 
+                  // the completion is overloaded so increment the overload count
                   Completion := TCompletionItem(OverloadMap.Find(Identifier.Identifier));
                   if Completion <> nil then
                     begin
                       Inc(Completion.overloadCount);
                       if Completion.overloadCount = 1 then
-                        Completion.&label := '+'+IntToStr(Completion.overloadCount)+' overload'
+                        Completion.secondaryText := '+'+IntToStr(Completion.overloadCount)+' overload'
                       else
-                        Completion.&label := '+'+IntToStr(Completion.overloadCount)+' overloads';
+                        Completion.secondaryText := '+'+IntToStr(Completion.overloadCount)+' overloads';
                       continue;
                     end;
 
                   Completion := TCompletionItem(Completions.Add);
-                  Completion.&label := IdentContext;
+                  Completion.primaryText := Identifier.Identifier;
+                  Completion.secondaryText := IdentContext;
                   Completion.kind := KindForIdentifier(Identifier);
 
                   if not ServerSettings.options.minimalisticCompletions then
@@ -413,7 +452,6 @@ begin with Params do
                           Completion.insertText := Identifier.Identifier;
                           Completion.insertTextFormat := TInsertTextFormat.PlainText;
                         end;
-                      Completion.filterText := Identifier.Identifier;
                     end;
 
                   Completion.sortText := IntToStr(I);
@@ -424,15 +462,16 @@ begin with Params do
                   Completion := TCompletionItem(Completions.Add);
                   if not ServerSettings.options.minimalisticCompletions then
                     begin
-                      Completion.&label := IdentContext;
-                      Completion.filterText := Identifier.Identifier;
+                      Completion.secondaryText := IdentContext;
+                      Completion.primaryText := Identifier.Identifier;
                       Completion.detail := IdentDetails;
                       Completion.insertText := Identifier.Identifier;
                       Completion.insertTextFormat := TInsertTextFormat.PlainText;
                     end
                   else
                     begin
-                      Completion.&label := Identifier.Identifier;
+                      Completion.primaryText := Identifier.Identifier;
+                      Completion.secondaryText := Identifier.Identifier;
                     end;
                   Completion.kind := KindForIdentifier(Identifier);
                   Completion.sortText := IntToStr(I);
@@ -451,6 +490,7 @@ begin with Params do
         end;
     end;
 
+    // todo: make this a verbosity option
     writeln(StdErr, 'got completions ', Completions.Count, ' in ', MilliSecondsBetween(Now, GatherTime), 'ms and processed in ', MilliSecondsBetween(Now, StartTime),'ms');
     Flush(StdErr);
 

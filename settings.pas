@@ -97,8 +97,20 @@ type
     procedure ReplaceMacros(Macros: TMacroMap);
   end;
 
+  TClientInfo = class(TPersistent)
+  private
+    fName: string;
+    fVersion: string;
+  published
+    // The name of the client as defined by the client.
+    property name: string read fName write fName;
+    // The client's version as defined by the client.
+    property version: string read fVersion write fVersion;
+  end;
+
 var
   ServerSettings: TServerSettings = nil;
+  ClientInfo: TClientInfo = nil;
 
 implementation
 uses
@@ -110,15 +122,16 @@ procedure TServerOptions.AfterConstruction;
 begin
 
   // default settings
-  checkSyntax := false;
   insertCompletionsAsSnippets := true;
   includeWorkspaceFoldersAsUnitPaths := true;
   includeWorkspaceFoldersAsIncludePaths := true;
-  workspaceSymbols := false;
   documentSymbols := true;
+  showSyntaxErrors := true;
+
+  checkSyntax := false;
+  workspaceSymbols := false;
   publishDiagnostics := false;
   minimalisticCompletions := false;
-  showSyntaxErrors := true;
 
   inherited;
 end;

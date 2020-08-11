@@ -42,12 +42,13 @@ var
   I, Length: Integer;
   Request, Response: TJSONData;
   ShowMessage: TShowMessageNotification;
+  VerboseDebugging: boolean = false;
 begin
   Dispatcher := TLSPDispatcher.Create(nil);
   TJSONData.CompressedJSON := True;
   SetTextLineEnding(Input, #13#10);
   SetTextLineEnding(Output, #13#10);
-
+  
   while not EOF do
   begin
     ReadLn(Header);
@@ -71,6 +72,14 @@ begin
     end;
     
     Request := TJSONParser.Create(Content, DefaultOptions).Parse;
+    
+    // log request payload
+    if VerboseDebugging then
+      begin
+        writeln(StdErr, Request.FormatJSON);
+        Flush(StdErr);
+      end;
+      
     Response := Dispatcher.Execute(Request);
     if Assigned(Response) then
     begin
@@ -80,9 +89,6 @@ begin
         ((TJSONObject(Response).Find('id') = nil) or 
           TJSONObject(Response).Nulls['id']) then
         begin
-          ShowMessage := TShowMessageNotification.Create(TMessageType.Error, '⚠️ Invalid response');
-          ShowMessage.Send;
-          ShowMessage.Free;
           Writeln(StdErr, 'invalid response -> ', response.AsJSON);
           Flush(StdErr);
           continue;
@@ -93,6 +99,13 @@ begin
       WriteLn;
       Write(Content);
       Flush(Output);
+      
+      // log response payload
+      if VerboseDebugging then
+        begin
+          writeln(StdErr, Content);
+          Flush(StdErr);
+        end;
 
       Response.Free;
     end;
