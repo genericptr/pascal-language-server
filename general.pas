@@ -239,7 +239,7 @@ begin with Params do
     ServerSettings.ReplaceMacros(Macros);
 
     // load the symbol manager if it's enabled
-    if ServerSettings.options.documentSymbols or ServerSettings.options.workspaceSymbols then
+    if ServerSettings.documentSymbols or ServerSettings.workspaceSymbols then
       SymbolManager := TSymbolManager.Create;
 
     ServerCapabilities := TServerCapabilities.Create(initializationOptions);
@@ -270,14 +270,14 @@ begin with Params do
           end;
 
         // include workspace paths as search paths
-        if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths or
-          ServerSettings.options.includeWorkspaceFoldersAsIncludePaths then
+        if ServerSettings.includeWorkspaceFoldersAsUnitPaths or
+          ServerSettings.includeWorkspaceFoldersAsIncludePaths then
           for Item in workspaceFolders do
             begin
               URI := ParseURI(TWorkspaceFolder(Item).uri);
               Path := URI.Path + URI.Document;
               
-              if ServerSettings.options.includeWorkspaceFoldersAsUnitPaths then
+              if ServerSettings.includeWorkspaceFoldersAsUnitPaths then
                 begin
                   initializationOptions.FPCOptions.Add('-Fu'+Path);
                   initializationOptions.FPCOptions.Add('-Fi'+Path);

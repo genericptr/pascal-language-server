@@ -83,11 +83,7 @@ begin
     Response := Dispatcher.Execute(Request);
     if Assigned(Response) then
     begin
-      // invalid responses without id's or null id's must not be sent to server, i.e:
-      // {"jsonrpc":"2.0","error":{"code":-32603,"message":"Access violation"},"id":null}
-      if (Response is TJSONObject) and 
-        ((TJSONObject(Response).Find('id') = nil) or 
-          TJSONObject(Response).Nulls['id']) then
+      if not IsResponseValid(Response) then
         begin
           Writeln(StdErr, 'invalid response -> ', response.AsJSON);
           Flush(StdErr);

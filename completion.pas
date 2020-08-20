@@ -291,7 +291,7 @@ begin
       result := TCompletionItemKind.FolderItem; {todo: not sure?}
     ctnProcedure:
       begin
-        if not ServerSettings.options.minimalisticCompletions and IsNodeObjectMember(Identifier.Node) then
+        if not ServerSettings.minimalisticCompletions and IsNodeObjectMember(Identifier.Node) then
           result := TCompletionItemKind.MethodItem
         else
           result := TCompletionItemKind.FunctionItem;
@@ -306,7 +306,7 @@ begin
       result := TCompletionItemKind.PropertyItem;
     ctnVarDefinition:
       begin
-        if not ServerSettings.options.minimalisticCompletions and IsNodeObjectMember(Identifier.Node) then
+        if not ServerSettings.minimalisticCompletions and IsNodeObjectMember(Identifier.Node) then
           result := TCompletionItemKind.FieldItem
         else
           result := TCompletionItemKind.VariableItem;
@@ -412,7 +412,7 @@ begin with Params do
 
               Identifier := CodeToolBoss.IdentifierList.FilteredItems[I];
 
-              if not ServerSettings.options.minimalisticCompletions then
+              if not ServerSettings.minimalisticCompletions then
                 IdentContext := IdentifierContext(Identifier, IdentDetails, ObjectMember);
 
               if Identifier.IsProcNodeWithParams then
@@ -437,12 +437,12 @@ begin with Params do
                   Completion.secondaryText := IdentContext;
                   Completion.kind := KindForIdentifier(Identifier);
 
-                  if not ServerSettings.options.minimalisticCompletions then
+                  if not ServerSettings.minimalisticCompletions then
                     begin
                       // todo: make showing parameters in details as an option?
                       //Completion.detail := IdentDetails+' ('+Identifier.ParamNameList+')';
                       Completion.detail := IdentDetails;
-                      if ServerSettings.options.insertCompletionsAsSnippets then
+                      if ServerSettings.insertCompletionsAsSnippets then
                         begin
                           Completion.insertText := Identifier.Identifier+'($0)';
                           Completion.insertTextFormat := TInsertTextFormat.Snippet;
@@ -460,7 +460,7 @@ begin with Params do
               else
                 begin
                   Completion := TCompletionItem(Completions.Add);
-                  if not ServerSettings.options.minimalisticCompletions then
+                  if not ServerSettings.minimalisticCompletions then
                     begin
                       Completion.secondaryText := IdentContext;
                       Completion.primaryText := Identifier.Identifier;
@@ -491,8 +491,8 @@ begin with Params do
     end;
 
     // todo: make this a verbosity option
-    writeln(StdErr, 'got completions ', Completions.Count, ' in ', MilliSecondsBetween(Now, GatherTime), 'ms and processed in ', MilliSecondsBetween(Now, StartTime),'ms');
-    Flush(StdErr);
+    //writeln(StdErr, 'got completions ', Completions.Count, ' in ', MilliSecondsBetween(Now, GatherTime), 'ms and processed in ', MilliSecondsBetween(Now, StartTime),'ms');
+    //Flush(StdErr);
 
     Result.items := Completions;
   end;

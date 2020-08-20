@@ -91,7 +91,7 @@ var
   FileName, 
   MessageString: String;
 begin
-
+  
   if UserMessage <> '' then
     writeln(stderr, UserMessage)
   else
@@ -109,7 +109,7 @@ begin
       writeln(StdErr, 'Syntax Error -> '+MessageString);
 
       // Show message in the gui also
-      if ServerSettings.options.showSyntaxErrors then
+      if ServerSettings.showSyntaxErrors then
         begin
           ShowMessage := TShowMessageNotification.Create(TMessageType.Error, '⚠️ '+MessageString);
           ShowMessage.Send;
@@ -118,7 +118,7 @@ begin
     end;
   Flush(stderr);
 
-  if not ServerSettings.options.publishDiagnostics then
+  if not ServerSettings.publishDiagnostics then
     exit;
 
   if UserMessage <> '' then
@@ -156,12 +156,12 @@ var
   Tool: TCodeTool;
   Notification: TPublishDiagnostics;
 begin
-  if not ServerSettings.options.checkSyntax then
+  if not ServerSettings.checkSyntax then
     exit;
 
   if not CodeToolBoss.Explore(Code,Tool,true) then
     PublishDiagnostic
-  else if ServerSettings.options.publishDiagnostics then
+  else if ServerSettings.publishDiagnostics then
     begin
       // todo: when we have a document store we can check to see
       // if we actually have any errors.
@@ -176,7 +176,7 @@ procedure ClearDiagnostics(Code: TCodeBuffer);
 var
   Notification: TPublishDiagnostics;
 begin
-  if ServerSettings.options.publishDiagnostics then
+  if ServerSettings.publishDiagnostics then
     begin
       // todo: when we have a document store we can check to see
       // if we actually have any errors.

@@ -127,7 +127,20 @@ type
 
 function LSPHandlerManager: TCustomJSONRPCHandlerManager;
 
+function IsResponseValid(Response: TJSONData): boolean;
+
 implementation
+
+function IsResponseValid(Response: TJSONData): boolean;
+begin
+  result := true;
+  // invalid responses without id's or null id's must not be sent to client, i.e:
+  // {"jsonrpc":"2.0","error":{"code":-32603,"message":"Access violation"},"id":null}
+  if (Response is TJSONObject) and 
+    ((TJSONObject(Response).Find('id') = nil) or 
+      TJSONObject(Response).Nulls['id']) then
+    result := false;
+end;
 
 { TLSPStreamer }
 

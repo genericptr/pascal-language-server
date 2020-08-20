@@ -427,6 +427,10 @@ type
     // TODO: not implemented!
   end;
 
+  {
+    TODO: I think we can actually use TLSPNotification (see TInitialized)
+  }
+
   { TAbstractMessage }
 
   { A general message as defined by JSON-RPC. The language server 
