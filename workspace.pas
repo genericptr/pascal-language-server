@@ -25,7 +25,7 @@ interface
 
 uses
   Classes, fpjson, fpjsonrpc,
-  lsp, basic, general, documentSymbol, codeUtils;
+  lsp, basic, general, documentSymbol, settings;
 
 type
   
@@ -86,9 +86,35 @@ type
     function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
   end;
 
+  { TDidChangeConfigurationParams }
+
+  TDidChangeConfigurationParams = class(TPersistent)
+  private
+    fSettings: TServerSettings;
+  published
+    property settings: TServerSettings read fSettings write fSettings;
+  end;
+
+  { TDidChangeConfiguration }
+
+  { A notification sent from the client to the server to signal the change of configuration settings. }
+
+  TDidChangeConfiguration = class(specialize TLSPNotification<TDidChangeConfigurationParams>)
+    procedure Process(var Params: TDidChangeConfigurationParams); override;
+  end;
+
 implementation
 uses
   SysUtils, DateUtils;
+
+{ TDidChangeConfiguration }
+
+procedure TDidChangeConfiguration.Process(var Params: TDidChangeConfigurationParams);
+begin
+  // todo: this messages comes AFTER the initializationOptions
+end;
+
+{ TDidChangeWorkspaceFolders }
 
 procedure TDidChangeWorkspaceFolders.Process(var Params : TDidChangeWorkspaceFoldersParams);
 begin with Params do
@@ -117,6 +143,7 @@ begin
 end;
 
 initialization
+  LSPHandlerManager.RegisterHandler('workspace/didChangeConfiguration', TDidChangeConfiguration);
   LSPHandlerManager.RegisterHandler('workspace/didChangeWorkspaceFolders', TDidChangeWorkspaceFolders);
   LSPHandlerManager.RegisterHandler('workspace/symbol', TWorkspaceSymbolRequest);
 end.
