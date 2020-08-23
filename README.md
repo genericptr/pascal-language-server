@@ -131,6 +131,9 @@ Example settings JSON for the [LSP](https://github.com/sublimelsp/LSP) package o
           "LAZARUSDIR": "/usr/share/lazarus",
           "PP": "/usr/local/lib/fpc/3.0.4/ppcx64"
         },
+        "initializationOptions": {
+          // global options which apply to all projects
+        }
         "languageId": "pascal",
         "scopes":
         [
