@@ -145,6 +145,12 @@ Example settings JSON for the [LSP](https://github.com/sublimelsp/LSP) package o
         ]
       }
 
+### Visual Studio Code
+
+Install the [extension](
+https://github.com/genericptr/pasls-vscode) and configure the settings accordingly. You must have the actual language installed before the extension will work.
+
+
 ## Building
 
 Requires Free Pascal Compiler version 3.2.0 and Lazarus version 2.0.8,
