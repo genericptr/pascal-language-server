@@ -712,6 +712,10 @@ begin
   Symbol := TSymbol(OverloadMap.Find(Name));
   if Symbol <> nil then
     begin
+      // TODO: when newest LSP version is released on package control
+      // we can include the container name to be implementation
+      // and at least make this an option
+
       // if the overloaded name is found in the implementation section
       // then just ignore it so we have only function in the list
       if CodeSection = ctnImplementation then
@@ -761,9 +765,13 @@ begin
       PrintNodeDebug(Node);
 
       // ignore nodes from include files
+      //   for main code files ignore include nodes
+      //   for include files ignore main code nodes
       Scanner := Tool.Scanner;
       LinkIndex := Scanner.LinkIndexAtCleanPos(Node.StartPos);
-      if (LinkIndex >= 0) and (Scanner.LinkP[LinkIndex]^.Code<>Scanner.MainCode) then
+      if (LinkIndex >= 0) and (Scanner.LinkP[LinkIndex]^.Code <> nil) and
+        not (Node.Desc in AllCodeSections) and 
+        (Code.FileName <> TCodeBuffer(Scanner.LinkP[LinkIndex]^.Code).FileName) then
         begin
           Node := Node.NextBrother;
           continue;
@@ -774,9 +782,9 @@ begin
         begin
           case Node.Desc of
             ctnInterface:
-              AddSymbol(Node, SymbolKindNamespace, '==== INTERFACE ====');
+              AddSymbol(Node, SymbolKindNamespace, kSymbolName_Interface);
             ctnImplementation:
-              AddSymbol(Node, SymbolKindNamespace, '==== IMPLEMENTATION ====');
+              AddSymbol(Node, SymbolKindNamespace, kSymbolName_Implementation);
           end;
           CodeSection := Node.Desc;
           Inc(IndentLevel);
@@ -1233,16 +1241,17 @@ function TSymbolManager.FindDocumentSymbols(Path: String): TJSONSerializedArray;
 var
   Entry: TSymbolTableEntry;
   FileName: ShortString;
-  Code, MainCode: TCodeBuffer;
+  Code: TCodeBuffer;
 begin
 
   // get the main code in case we're dealing with includes
   Code := CodeToolBoss.FindFile(Path);
-  MainCode := CodeToolBoss.GetMainCode(Code);
-  if MainCode = nil then
+  //Code := CodeToolBoss.GetMainCode(Code);
+  writeln('CodeBuffer: ', Code.Filename);
+  if Code = nil then
     exit(nil);
 
-  FileName := GetFileKey(MainCode.FileName);
+  FileName := GetFileKey(Code.FileName);
   Entry := TSymbolTableEntry(SymbolTable.Find(FileName));
 
   // the symtable entry was explicitly modified so it needs to be reloaded
@@ -1279,7 +1288,7 @@ var
   StartTime: TDateTime;
 begin
   StartTime := Now;
-  Code := CodeToolBoss.GetMainCode(Code);
+  //Code := CodeToolBoss.GetMainCode(Code);
   //if CompareCodeBuffers(MainCode, Code) <> 0 then
   //  begin
   //    writeln(stderr, 'main code is not current code.');

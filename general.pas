@@ -206,8 +206,21 @@ const
     else
       writeln(stderr, kStatusPrefix+'Symbol Database: [unspecified]');
 
-    writeln(stderr, kStatusPrefix+'Maximum Completions: ', ServerSettings.maximumCompletions);
-    writeln(stderr, kStatusPrefix+'Overload Policy: ', ServerSettings.overloadPolicy);
+    // other settings
+    writeln(stderr, kStatusPrefix+'Settings:');
+    writeln(stderr, '  ► maximumCompletions: ', ServerSettings.maximumCompletions);
+    writeln(stderr, '  ► overloadPolicy: ', ServerSettings.overloadPolicy);
+    writeln(stderr, '  ► insertCompletionsAsSnippets: ', ServerSettings.insertCompletionsAsSnippets);
+    writeln(stderr, '  ► insertCompletionProcedureBrackets: ', ServerSettings.insertCompletionProcedureBrackets);
+    writeln(stderr, '  ► includeWorkspaceFoldersAsUnitPaths: ', ServerSettings.includeWorkspaceFoldersAsUnitPaths);
+    writeln(stderr, '  ► includeWorkspaceFoldersAsIncludePaths: ', ServerSettings.includeWorkspaceFoldersAsIncludePaths);
+    writeln(stderr, '  ► checkSyntax: ', ServerSettings.checkSyntax);
+    writeln(stderr, '  ► publishDiagnostics: ', ServerSettings.publishDiagnostics);
+    writeln(stderr, '  ► workspaceSymbols: ', ServerSettings.workspaceSymbols);
+    writeln(stderr, '  ► documentSymbols: ', ServerSettings.documentSymbols);
+    writeln(stderr, '  ► minimalisticCompletions: ', ServerSettings.minimalisticCompletions);
+    writeln(stderr, '  ► showSyntaxErrors: ', ServerSettings.showSyntaxErrors);
+  
     Flush(stderr);
   end;
 

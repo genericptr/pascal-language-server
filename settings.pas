@@ -26,6 +26,11 @@ interface
 uses
   Classes, FGL;
 
+{ Global String Constants }
+const
+  kSymbolName_Interface = '==== INTERFACE ====';
+  kSymbolName_Implementation = '==== IMPLEMENTATION ====';
+
 type
   TOverloadPolicy = ( Duplicates = 1,  // duplicate function names appear in the list
                       Ignore = 2,      // after the original definition ignore others
