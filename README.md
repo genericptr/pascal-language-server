@@ -34,26 +34,28 @@ Editors can supply [initialization options](https://microsoft.github.io/language
 
 The follow options are supported:
 
-    "initializationOptions":
-    {
-      "fpcOptions":
-      [
-        "-Fu/path/to",
-        "-Fi/path/to",
-        "-dMY_MACRO"
-      ],
-      "options":
-      {
-        [string]: [boolean]
-      },
-      "symbolDatabase": "/path/to/symbols.db",
-      "maximumCompletions": [integer],
-      "overloadPolicy": [Duplicates = 1,  // duplicate function names appear in the list
-                         Ignore = 2,      // after the original definition ignore others
-                         Suffix = 3       // add a suffix which denotes the overload count
-                         ],
-      "program": "pasls.lpr"
-    }
+```json
+"initializationOptions":
+{
+  "fpcOptions":
+  [
+    "-Fu/path/to",
+    "-Fi/path/to",
+    "-dMY_MACRO"
+  ],
+  "options":
+  {
+    "name": "string|number|boolean"
+  },
+  "symbolDatabase": "/path/to/symbols.db",
+  "maximumCompletions": "number",
+  "overloadPolicy": [1,  // duplicate function names appear in the list
+                     2,  // after the original definition ignore others
+                     3   // add a suffix which denotes the overload count
+                     ],
+  "program": "pasls.lpr"
+}
+```
 
  - `fpcOptions`: compiler flags used to specifiy paths, macros etc...
  - `symbolDatabase`:  if a valid path is provided the server will use an SQL database to store symbol information (recommended for faster documentSymbol queries).
@@ -76,28 +78,29 @@ The following macro formats are valid:
 
 Boolean values used in *initializationOptions.options*.
 
-    // procedure completions with parameters are inserted as snippets
-    insertCompletionsAsSnippets
-    // procedure completions with parameters (non-snippet) insert
-    // empty brackets (and insert as snippet)
-    insertCompletionProcedureBrackets
-    // workspaces folders will be added to unit paths (i.e. -Fu)
-    includeWorkspaceFoldersAsUnitPaths
-    // workspaces folders will be added to include paths (i.e. -Fi)
-    includeWorkspaceFoldersAsIncludePaths
-    // syntax will be checked when file opens or saves
-    checkSyntax
-    // syntax errors will be published as diagnostics
-    publishDiagnostics
-    // enable workspace symbols
-    workspaceSymbols
-    // enable document symbols
-    documentSymbols
-    // completions contain a minimal amount of extra information
-    minimalisticCompletions
-    // syntax errors as shown in the UI with ‘window/showMessage’
-    showSyntaxErrors
-
+```json
+// procedure completions with parameters are inserted as snippets
+insertCompletionsAsSnippets
+// procedure completions with parameters (non-snippet) insert
+// empty brackets (and insert as snippet)
+insertCompletionProcedureBrackets
+// workspaces folders will be added to unit paths (i.e. -Fu)
+includeWorkspaceFoldersAsUnitPaths
+// workspaces folders will be added to include paths (i.e. -Fi)
+includeWorkspaceFoldersAsIncludePaths
+// syntax will be checked when file opens or saves
+checkSyntax
+// syntax errors will be published as diagnostics
+publishDiagnostics
+// enable workspace symbols
+workspaceSymbols
+// enable document symbols
+documentSymbols
+// completions contain a minimal amount of extra information
+minimalisticCompletions
+// syntax errors as shown in the UI with ‘window/showMessage’
+showSyntaxErrors
+```
 
 ### TODO:
 
@@ -117,33 +120,35 @@ To use the server from `lsp-mode` in Emacs, install the separate
 
 Example settings JSON for the [LSP](https://github.com/sublimelsp/LSP) package on macOS.
 
-     "pascal-language-server":
-      {
-        "command":
-        [
-          "/pascal-language-server/lib/x86_64-darwin/pasls"
-        ],
-        "env":
-        {
-          "FPCDIR": "/usr/local/share/fpcsrc",
-          "FPCTARGET": "darwin",
-          "FPCTARGETCPU": "x86_64",
-          "LAZARUSDIR": "/usr/share/lazarus",
-          "PP": "/usr/local/lib/fpc/3.0.4/ppcx64"
-        },
-        "initializationOptions": {
-          // global options which apply to all projects
-        }
-        "languageId": "pascal",
-        "scopes":
-        [
-          "source.pascal"
-        ],
-        "syntaxes":
-        [
-          "Packages/FPC/FPC.tmLanguage"
-        ]
-      }
+```json
+"pascal-language-server":
+{
+  "command":
+  [
+    "/pascal-language-server/lib/x86_64-darwin/pasls"
+  ],
+  "env":
+  {
+    "FPCDIR": "/usr/local/share/fpcsrc",
+    "FPCTARGET": "darwin",
+    "FPCTARGETCPU": "x86_64",
+    "LAZARUSDIR": "/usr/share/lazarus",
+    "PP": "/usr/local/lib/fpc/3.0.4/ppcx64"
+  },
+  "initializationOptions": {
+    // global options which apply to all projects
+  },
+  "languageId": "pascal",
+  "scopes":
+  [
+    "source.pascal"
+  ],
+  "syntaxes":
+  [
+    "Packages/FPC/FPC.sublime-syntax"
+  ]
+}
+```
 
 ### Visual Studio Code
 
