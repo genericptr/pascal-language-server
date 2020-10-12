@@ -84,6 +84,8 @@ type
     property minimalisticCompletions: Boolean read fBooleans[8] write fBooleans[8];
     // syntax errors as shown in the UI with ‘window/showMessage’
     property showSyntaxErrors: Boolean read fBooleans[9] write fBooleans[9];
+    // ignores completion items like "begin" and "var" which may interfer with IDE snippets
+    property ignoreTextCompletions: Boolean read fBooleans[10] write fBooleans[10];
 
     function CanProvideWorkspaceSymbols: boolean;
   public
@@ -118,7 +120,7 @@ procedure TServerSettings.ReplaceMacros(Macros: TMacroMap);
   var
     I: Integer;
   begin
-    { support multiple formats: 
+    { supported multiple formats: 
       1) $macro
       2) $MACRO
       3) $(macro)
@@ -173,7 +175,8 @@ begin
   includeWorkspaceFoldersAsIncludePaths := true;
   documentSymbols := true;
   showSyntaxErrors := true;
-
+  ignoreTextCompletions := true;
+  
   checkSyntax := false;
   workspaceSymbols := false;
   publishDiagnostics := false;

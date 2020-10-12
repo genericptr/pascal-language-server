@@ -254,8 +254,9 @@ uses
 
 function KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
 begin
+  // the identifier has no node so we consider this a text item
   if Identifier.Node = nil then
-    exit;
+    exit(TCompletionItemKind.TextItem);
 
   // get completion item kind from identifier node
   case Identifier.Node.Desc of
@@ -377,6 +378,7 @@ var
   StartTime, GatherTime: TDateTime;
   IdentContext, IdentDetails: ShortString;
   ObjectMember: boolean;
+  Kind: TCompletionItemKind;
 begin with Params do
   begin
     StartTime := Now;
@@ -432,10 +434,15 @@ begin with Params do
                       continue;
                     end;
 
+                  Kind := KindForIdentifier(Identifier);
+
+                  if (ServerSettings.ignoreTextCompletions) and (Kind = TCompletionItemKind.TextItem) then
+                    continue;
+
                   Completion := TCompletionItem(Completions.Add);
                   Completion.primaryText := Identifier.Identifier;
                   Completion.secondaryText := IdentContext;
-                  Completion.kind := KindForIdentifier(Identifier);
+                  Completion.kind := Kind;
 
                   if not ServerSettings.minimalisticCompletions then
                     begin
@@ -459,6 +466,11 @@ begin with Params do
                 end
               else
                 begin
+                  Kind := KindForIdentifier(Identifier);
+
+                  if (ServerSettings.ignoreTextCompletions) and (Kind = TCompletionItemKind.TextItem) then
+                    continue;
+
                   Completion := TCompletionItem(Completions.Add);
                   if not ServerSettings.minimalisticCompletions then
                     begin
@@ -473,7 +485,7 @@ begin with Params do
                       Completion.primaryText := Identifier.Identifier;
                       Completion.secondaryText := Identifier.Identifier;
                     end;
-                  Completion.kind := KindForIdentifier(Identifier);
+                  Completion.kind := Kind;
                   Completion.sortText := IntToStr(I);
                 end;
             end;
@@ -493,7 +505,7 @@ begin with Params do
     // todo: make this a verbosity option
     //writeln(StdErr, 'got completions ', Completions.Count, ' in ', MilliSecondsBetween(Now, GatherTime), 'ms and processed in ', MilliSecondsBetween(Now, StartTime),'ms');
     //Flush(StdErr);
-
+      
     Result.items := Completions;
   end;
 
