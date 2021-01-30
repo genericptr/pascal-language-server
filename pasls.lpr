@@ -29,12 +29,47 @@ uses
   lsp, general, 
 
   { Protocols }
-  basic, synchronization, completion, hover, gotoDeclaration, 
-  gotoImplementation, signatureHelp, references, codeAction,
+  basic, synchronization, completion, gotoDeclaration, gotoDefinition, 
+  gotoImplementation, hover, signatureHelp, references, codeAction, 
   documentHighlight, documentSymbol, workspace, window;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';
+
+type
+  TTestNotification = class(specialize TLSPNotification<TShowMessageParams>)
+    procedure Process(var Params : TShowMessageParams); override;
+  end;
+
+procedure TTestNotification.Process(var Params : TShowMessageParams);
+begin
+  writeln('got params: ', Params.ClassName)
+end;
+
+
+procedure TestNotifications;
+var
+  params: TShowMessageParams;
+  notification: TTestNotification;
+  data: TJSONData;
+  Dispatcher: TLSPDispatcher;
+begin
+  params := TShowMessageParams.Create;
+  params.&type := TMessageType.Error;
+  params.message := 'Some Error Message';
+
+  Dispatcher := TLSPDispatcher.Create(nil);
+
+  notification := TTestNotification.Create(nil);
+  //function TLSPDispatcher.ExecuteMethod(const AClassName, AMethodName: TJSONStringType;
+  //  Params, ID: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
+
+  data := specialize TLSPStreaming<TShowMessageParams>.ToJSON(params);
+  writeln(data.AsJSON);
+  data := Dispatcher.Execute(data);
+  if data <> nil then
+    writeln(data.AsJSON);
+end;
 
 var
   Dispatcher: TLSPDispatcher;
@@ -44,6 +79,9 @@ var
   ShowMessage: TShowMessageNotification;
   VerboseDebugging: boolean = false;
 begin
+  //TestNotifications;
+  //halt;
+
   Dispatcher := TLSPDispatcher.Create(nil);
   TJSONData.CompressedJSON := True;
   SetTextLineEnding(Input, #13#10);

@@ -428,7 +428,8 @@ type
   end;
 
   {
-    TODO: I think we can actually use TLSPNotification (see TInitialized)
+    NOTE(ryan): I couldn't figure out how to do this using the normal
+    JSON RPC system and had to roll my own just to get it working for now
   }
 
   { TAbstractMessage }

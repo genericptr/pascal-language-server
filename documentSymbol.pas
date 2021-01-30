@@ -439,6 +439,8 @@ var
   Path: String;
   JSON: TJSONSerializedArray;
 begin
+  if Modified then
+    exit(true);
   Database := SymbolManager.Database;
   Path := Code.FileName;
   Result := false;
@@ -450,10 +452,6 @@ begin
         begin
           Database.TouchFile(Path);
           Result := true;
-        end
-      else
-        begin
-          Result := False;
         end;
     end
   else
@@ -1247,16 +1245,24 @@ begin
   // get the main code in case we're dealing with includes
   Code := CodeToolBoss.FindFile(Path);
   //Code := CodeToolBoss.GetMainCode(Code);
-  writeln('CodeBuffer: ', Code.Filename);
   if Code = nil then
     exit(nil);
 
   FileName := GetFileKey(Code.FileName);
   Entry := TSymbolTableEntry(SymbolTable.Find(FileName));
 
+  {
+    ack! we're checking if the entry was modified (locally)
+    but then inside making the actual file mode check
+    we need to unify these checks into one place
+
+    1) did the file date change against the database date (ie. changed externally)
+    2) is the code buffer modified? see TCodeBuffer methods instead of keeping our own
+
+  }
   // the symtable entry was explicitly modified so it needs to be reloaded
-  if Entry.Modified then
-    Reload(Path, True);
+  //if Entry.Modified then
+    Reload(Path, False);
 
   if Entry <> nil then
     Result := TJSONSerializedArray.Create(Entry.RawJSON)
@@ -1289,11 +1295,6 @@ var
 begin
   StartTime := Now;
   //Code := CodeToolBoss.GetMainCode(Code);
-  //if CompareCodeBuffers(MainCode, Code) <> 0 then
-  //  begin
-  //    writeln(stderr, 'main code is not current code.');
-  //    exit;
-  //  end;
   
   // check if the file mod dates have changed
   Entry := GetEntry(Code);
@@ -1321,7 +1322,7 @@ begin
 
   Entry.SerializeSymbols;
 
-  writeln(StdErr, 'reloaded ', Code.FileName, ' in ', MilliSecondsBetween(Now,StartTime),'ms');
+  writeln(StdErr, 'Reloaded ', Code.FileName, ' in ', MilliSecondsBetween(Now,StartTime),'ms');
   Flush(StdErr);
 end;
 

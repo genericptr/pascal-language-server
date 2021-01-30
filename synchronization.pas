@@ -150,7 +150,7 @@ procedure TDidOpenTextDocument.Process(var Params : TDidOpenTextDocumentParams);
 var
   URI: TURI;
   Path: String;
-  Code, MainCode: TCodeBuffer;
+  Code: TCodeBuffer;
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
@@ -167,12 +167,10 @@ begin with Params do
       
     CheckSyntax(Code);
 
+    //if SymbolManager <> nil then
+    //  SymbolManager.FileModified(Code);
     if SymbolManager <> nil then
-      begin
-        MainCode := CodeToolBoss.GetMainCode(Code);
-        if MainCode <> nil then
-          SymbolManager.Reload(MainCode, True);
-      end;
+      SymbolManager.Reload(Code, True);
   end;
 end;
 
@@ -186,6 +184,8 @@ begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    if SymbolManager <> nil then
+      SymbolManager.FileModified(Code);
     CheckSyntax(Code);
     ClearDiagnostics(Code);
   end;
@@ -212,7 +212,7 @@ end;
 procedure TDidChangeTextDocument.Process(var Params : TDidChangeTextDocumentParams);
 var
   URI: TURI;
-  Code, MainCode: TCodeBuffer;
+  Code: TCodeBuffer;
   Change: TCollectionItem;
   Range: TRange;
   StartPos, EndPos: integer;
@@ -226,7 +226,7 @@ begin with Params do
       begin
         // note(ryan): can't get this working yet
         // and I'm not even sure if it's worth it
-        Range := TTextDocumentContentChangeEvent(Change).range;
+        {Range := TTextDocumentContentChangeEvent(Change).range;
         if Range <> nil then
           begin
             //Code.LineColToPosition(Range.start.line + 1, Range.start.character + 1, StartPos);
@@ -234,15 +234,11 @@ begin with Params do
             writeln(StdErr, 'insert: ', StartPos,' -> ',EndPos, ' text=',TTextDocumentContentChangeEvent(Change).text);
             //Code.Replace(StartPos, EndPos - StartPos, TTextDocumentContentChangeEvent(Change).text);
           end
-        else
-          Code.Source := TTextDocumentContentChangeEvent(Change).text;
+        else}
+        Code.Source := TTextDocumentContentChangeEvent(Change).text;
 
-        if SymbolManager <> nil then
-          begin
-            MainCode := CodeToolBoss.GetMainCode(Code);
-            if MainCode <> nil then
-              SymbolManager.FileModified(MainCode);
-          end;
+        //if SymbolManager <> nil then
+        //  SymbolManager.FileModified(Code);
       end;
       //writeln(StdErr, 'Synched text in ', MilliSecondsBetween(Now, StartTime),'ms');
       //Flush(StdErr);

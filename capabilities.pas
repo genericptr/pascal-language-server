@@ -155,6 +155,7 @@ begin
 
   hoverProvider := true;
   declarationProvider := true;
+  definitionProvider := true;
   implementationProvider := true;
   referencesProvider := true;
   // todo: disabling this until we can figure out how to highlight

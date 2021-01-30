@@ -48,6 +48,7 @@ type
     fCodeToolsConfig: String;
     fMaximumCompletions: Integer;
     fOverloadPolicy: TOverloadPolicy;
+    fConfig: String;
   published
     // Path to the main program file for resolving references
     // if not available the path of the current document will be used
@@ -86,6 +87,8 @@ type
     property showSyntaxErrors: Boolean read fBooleans[9] write fBooleans[9];
     // ignores completion items like "begin" and "var" which may interfer with IDE snippets
     property ignoreTextCompletions: Boolean read fBooleans[10] write fBooleans[10];
+    // config file or directory to read settings from (will support multiple formats)
+    property config: String read fConfig write fConfig;
 
     function CanProvideWorkspaceSymbols: boolean;
   public

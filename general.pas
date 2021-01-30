@@ -20,12 +20,15 @@
 unit general;
 
 {$mode objfpc}{$H+}
+{$modeswitch arrayoperators}
 
 interface
 
 uses
-  Classes,
-  CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
+  {$ifdef FreePascalMake}
+  FPMConfig,
+  {$endif}
+  Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
   lsp, basic, capabilities, documentSymbol, settings;
 
 type
@@ -224,6 +227,68 @@ const
     Flush(stderr);
   end;
 
+  function FindAllFiles(path: string): TStringArray;
+  var
+    info: TSearchRec;
+  begin
+    if not DirectoryExists(path) then
+      raise Exception.Create('Directory "'+path+'"" doesn''t exist');
+    path := path+DirectorySeparator+'*';
+    result := [];
+    if FindFirst(path, faAnyFile, info) = 0 then
+      begin
+        repeat
+          result += [info.name];
+        until FindNext(info) <> 0;
+        FindClose(info);
+      end;
+  end;
+
+  { Find all sub directories which contain Pascal source files }
+  procedure FindPascalSourceDirectories(RootPath: String; var Results: TStringArray);
+  var
+    Files: TStringArray;
+    Name,
+    Path,
+    Extension: String;
+    Found: Boolean;
+  begin
+    Files := FindAllFiles(RootPath);
+    Found := false;
+    for Name in Files do
+      begin
+        if (Name = '.') or (Name = '..') then
+          continue;
+        Extension := ExtractFileExt(name);
+        if (Extension = '.pas') or (Extension = '.pp') or (Extension = '.inc') then
+          begin
+            if not Found then
+              Results += [RootPath];
+            Found := true;
+          end
+        else
+          begin
+            Path := RootPath+DirectorySeparator+Name;
+            if DirectoryExists(Path) then
+              FindPascalSourceDirectories(Path, Results);
+          end;
+      end;
+  end;
+
+  {$ifdef FreePascalMake}
+  function LoadFromFPM(ConfigFile: String): Boolean;
+  var
+    Path, Flag: String;
+    Config: TFPMConfig;
+  begin
+    config := TFPMConfig.Create(ConfigFile);
+    ServerSettings.&program := config.GetProgramFile;
+    for flag in config.GetOptionsFlags do
+      ServerSettings.FPCOptions.Add(flag);
+    config.Free;
+  end;
+  {$endif}
+
 var
   CodeToolsOptions: TCodeToolsOptions;
   Option, Path: String;
@@ -234,6 +299,7 @@ var
   UnitPathTemplate: TDefineTemplate;
   ServerCapabilities: TServerCapabilities;
   Macros: TMacroMap;
+  Paths: TStringArray;
 begin with Params do
   begin
     CodeToolsOptions := TCodeToolsOptions.Create;
@@ -250,6 +316,12 @@ begin with Params do
     Macros.Add('root', ParseURI(rootUri).path);
 
     ServerSettings.ReplaceMacros(Macros);
+
+    // attempt to load settings from FPM config file
+    {$ifdef FreePascalMake}
+    if initializationOptions.config <> '' then
+      LoadFromFPM(initializationOptions.config);
+    {$endif}
 
     // load the symbol manager if it's enabled
     if ServerSettings.documentSymbols or ServerSettings.workspaceSymbols then
@@ -285,22 +357,31 @@ begin with Params do
         // include workspace paths as search paths
         if ServerSettings.includeWorkspaceFoldersAsUnitPaths or
           ServerSettings.includeWorkspaceFoldersAsIncludePaths then
-          for Item in workspaceFolders do
-            begin
-              URI := ParseURI(TWorkspaceFolder(Item).uri);
-              Path := URI.Path + URI.Document;
-              
-              if ServerSettings.includeWorkspaceFoldersAsUnitPaths then
-                begin
-                  initializationOptions.FPCOptions.Add('-Fu'+Path);
-                  initializationOptions.FPCOptions.Add('-Fi'+Path);
-                end;
+          begin
+            Paths := [];
 
-              // if the server supports workspace symbols then
-              // cane the workspace folder for symbols
-              if ServerCapabilities.workspaceSymbolProvider then
-                SymbolManager.Scan(Path, false);
-            end;
+            for Item in workspaceFolders do
+              begin
+                URI := ParseURI(TWorkspaceFolder(Item).uri);
+                FindPascalSourceDirectories(URI.Path + URI.Document, Paths);
+              end;
+            
+            for Path in Paths do
+              begin
+
+                // add directory as search paths
+                if ServerSettings.includeWorkspaceFoldersAsUnitPaths then
+                  begin
+                    initializationOptions.FPCOptions.Add('-Fu'+Path);
+                    initializationOptions.FPCOptions.Add('-Fi'+Path);
+                  end;
+
+                // if the server supports workspace symbols then
+                // scan the workspace folder for symbols
+                if ServerCapabilities.workspaceSymbolProvider then
+                  SymbolManager.Scan(Path, false);
+              end;
+          end;
 
         for Option in initializationOptions.FPCOptions do
           begin
