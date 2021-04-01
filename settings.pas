@@ -177,13 +177,14 @@ begin
   includeWorkspaceFoldersAsUnitPaths := true;
   includeWorkspaceFoldersAsIncludePaths := true;
   documentSymbols := true;
-  showSyntaxErrors := true;
   ignoreTextCompletions := true;
-  
-  checkSyntax := false;
   workspaceSymbols := false;
-  publishDiagnostics := false;
   minimalisticCompletions := false;
+  
+  // errors/diagnostics
+  checkSyntax := false;
+  publishDiagnostics := false;
+  showSyntaxErrors := false;
 end;
 
 end.

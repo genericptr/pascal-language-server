@@ -276,16 +276,37 @@ const
   end;
 
   {$ifdef FreePascalMake}
-  function LoadFromFPM(ConfigFile: String): Boolean;
+  function LoadFromFPM(ConfigFile: String; CodeToolsOptions: TCodeToolsOptions): Boolean;
   var
     Path, Flag: String;
     Config: TFPMConfig;
   begin
-    config := TFPMConfig.Create(ConfigFile);
-    ServerSettings.&program := config.GetProgramFile;
-    for flag in config.GetOptionsFlags do
-      ServerSettings.FPCOptions.Add(flag);
-    config.Free;
+    // set the working directory based on the config file
+    if DirectoryExists(ConfigFile) then
+      ChDir(ConfigFile)
+    else if FileExists(ConfigFile) then
+      ChDir(ExtractFileDir(ConfigFile))
+    else
+      exit(false);
+
+    Getdir(0, Path);
+    writeln(StdErr, '► Loading from FPM: ', Path);
+
+    // set the CodeTools project directory to match
+    CodeToolsOptions.ProjectDir := Path;
+
+    try
+      config := TFPMConfig.Create(Path);
+    finally
+      ServerSettings.&program := config.GetProgramFile;
+      for flag in config.GetCodeToolOptions do
+        ServerSettings.FPCOptions.Add(flag);
+      config.Free;
+    end;
+
+
+
+    result := true;
   end;
   {$endif}
 
@@ -317,10 +338,27 @@ begin with Params do
 
     ServerSettings.ReplaceMacros(Macros);
 
-    // attempt to load settings from FPM config file
+    // set the project directory based on root URI path
+    if rootUri <> '' then
+      CodeToolsOptions.ProjectDir := ParseURI(rootUri).Path;
+
+    // print the root URI so we know which workspace folder is default
+    writeln(StdErr, '► RootURI: ', CodeToolsOptions.ProjectDir);
+
     {$ifdef FreePascalMake}
-    if initializationOptions.config <> '' then
-      LoadFromFPM(initializationOptions.config);
+    { attempt to load settings from FPM config file or search in the
+      default workspace if there is there is only one available.
+      We can't search multiple workspaces because they may contain
+      config files also but there is no guarentee the workspaces will
+      arrive in order to the language server, so we can make no assumptions
+      based on ambigous ordering. }
+    if ((initializationOptions.config <> '') and LoadFromFPM(initializationOptions.config, CodeToolsOptions)) or
+      ((workspaceFolders.Count = 1) and LoadFromFPM(ParseURI(rootUri).Path, CodeToolsOptions)) then
+      begin
+        // disable other settings which may interfer with FPM
+        ServerSettings.includeWorkspaceFoldersAsUnitPaths := false;
+        ServerSettings.includeWorkspaceFoldersAsIncludePaths := false;
+      end;
     {$endif}
 
     // load the symbol manager if it's enabled
@@ -403,9 +441,6 @@ begin with Params do
                 ServerSettings.&program := '';
               end;
           end;
-
-        if rootUri <> '' then
-          ProjectDir := ParseURI(rootUri).Path;
 
         ShowConfigStatus(CodeToolsOptions);
       end;
