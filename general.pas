@@ -290,21 +290,24 @@ const
       exit(false);
 
     Getdir(0, Path);
-    writeln(StdErr, '► Loading from FPM: ', Path);
-
-    // set the CodeTools project directory to match
-    CodeToolsOptions.ProjectDir := Path;
 
     try
       config := TFPMConfig.Create(Path);
-    finally
+      
+      writeln(StdErr, '► Loading from FPM: ', Path);
+      // set the CodeTools project directory to match
+      CodeToolsOptions.ProjectDir := Path;
+
       ServerSettings.&program := config.GetProgramFile;
       for flag in config.GetCodeToolOptions do
         ServerSettings.FPCOptions.Add(flag);
       config.Free;
+    except
     end;
 
-
+    try
+    finally
+    end;
 
     result := true;
   end;
@@ -340,10 +343,14 @@ begin with Params do
 
     // set the project directory based on root URI path
     if rootUri <> '' then
-      CodeToolsOptions.ProjectDir := ParseURI(rootUri).Path;
+      begin
+        URI := ParseURI(rootUri);
+        CodeToolsOptions.ProjectDir := URI.Path + URI.Document;
+      end;
 
     // print the root URI so we know which workspace folder is default
-    writeln(StdErr, '► RootURI: ', CodeToolsOptions.ProjectDir);
+    writeln(StdErr, '► RootURI: ', rootUri);
+    writeln(StdErr, '► ProjectDir: ', CodeToolsOptions.ProjectDir);
 
     {$ifdef FreePascalMake}
     { attempt to load settings from FPM config file or search in the
@@ -353,7 +360,7 @@ begin with Params do
       arrive in order to the language server, so we can make no assumptions
       based on ambigous ordering. }
     if ((initializationOptions.config <> '') and LoadFromFPM(initializationOptions.config, CodeToolsOptions)) or
-      ((workspaceFolders.Count = 1) and LoadFromFPM(ParseURI(rootUri).Path, CodeToolsOptions)) then
+      ((workspaceFolders.Count = 1) and LoadFromFPM(CodeToolsOptions.ProjectDir, CodeToolsOptions)) then
       begin
         // disable other settings which may interfer with FPM
         ServerSettings.includeWorkspaceFoldersAsUnitPaths := false;
