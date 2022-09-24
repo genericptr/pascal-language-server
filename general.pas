@@ -162,6 +162,7 @@ begin
   workspaceFolders := TWorkspaceFolderItems.Create;
 end;
 
+
 destructor TInitializeParams.Destroy; 
 begin
   // note: it's a hack for now but we don't want to free initializationOptions and clientInfo
@@ -281,13 +282,15 @@ const
     Path, Flag: String;
     Config: TFPMConfig;
   begin
+    result := false;
+
     // set the working directory based on the config file
     if DirectoryExists(ConfigFile) then
       ChDir(ConfigFile)
     else if FileExists(ConfigFile) then
       ChDir(ExtractFileDir(ConfigFile))
     else
-      exit(false);
+      exit;
 
     Getdir(0, Path);
 
@@ -298,18 +301,29 @@ const
       // set the CodeTools project directory to match
       CodeToolsOptions.ProjectDir := Path;
 
+      // add the FPM config by default as unit/include paths
+      // since it's implied these location will be available to FPM
+      ServerSettings.FPCOptions.Add('-Fu'+Path);
+      ServerSettings.FPCOptions.Add('-Fi'+Path);
+
+      // TODO: set these config options based on FPM also
+      // FPCPath: /usr/local/bin/fpc
+      // FPCSrcDir: /usr/local/share/fpcsrc
+      // TargetOS: darwin
+      // TargetProcessor: x86_64
+      //CodeToolsOptions.FPCPath := config.GetCompilerPath;
+
       ServerSettings.&program := config.GetProgramFile;
       for flag in config.GetCodeToolOptions do
         ServerSettings.FPCOptions.Add(flag);
+
       config.Free;
+
+      result := true;
     except
+      on E: Exception do
+        writeln(StdErr, '🔴 FPM Error: '+E.Message);
     end;
-
-    try
-    finally
-    end;
-
-    result := true;
   end;
   {$endif}
 
@@ -352,6 +366,32 @@ begin with Params do
     writeln(StdErr, '► RootURI: ', rootUri);
     writeln(StdErr, '► ProjectDir: ', CodeToolsOptions.ProjectDir);
 
+    // set some built-in defaults based on platform
+    {$ifdef DARWIN}
+    CodeToolsOptions.FPCPath := '/usr/local/bin/fpc';
+    CodeToolsOptions.FPCSrcDir := '/usr/local/share/fpcsrc';
+    CodeToolsOptions.LazarusSrcDir := '/usr/local/share/lazsrc';
+    CodeToolsOptions.TargetOS := 'darwin';
+    
+    // https://www.freepascal.org/docs-html/prog/progap7.html#x316-331000G
+    {$ifdef CPUX86_64}
+    CodeToolsOptions.TargetProcessor := 'x86_64';
+    {$endif}
+
+    {$ifdef CPUAARCH64}
+    CodeToolsOptions.TargetProcessor := 'AARCH64';
+    {$endif}
+
+    {$endif}
+
+    {$ifdef MSWINDOWS}
+    {$endif}
+
+    {$ifdef LINUX}
+    {$endif}
+
+    //InitWithEnvironmentVariables;
+
     {$ifdef FreePascalMake}
     { attempt to load settings from FPM config file or search in the
       default workspace if there is there is only one available.
@@ -377,20 +417,6 @@ begin with Params do
     re := TRegExpr.Create('^(-(Fu|Fi)+)(.*)$');
     with CodeToolsOptions do
       begin
-        // set some built-in defaults based on platform
-        {$ifdef DARWIN}
-        FPCPath := '/usr/local/bin/fpc';
-        FPCSrcDir := '/usr/local/share/fpcsrc';
-        {$endif}
-
-        {$ifdef MSWINDOWS}
-        {$endif}
-
-        {$ifdef LINUX}
-        {$endif}
-
-        InitWithEnvironmentVariables;
-
         // attempt to load optional config file
         Path := ExpandFileName(initializationOptions.CodeToolsConfig);
         if FileExists(Path) then
