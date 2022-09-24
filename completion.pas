@@ -397,7 +397,7 @@ begin with Params do
 
     try
       if CodeToolBoss.GatherIdentifiers(Code, X + 1, Y + 1) then
-        begin    
+        begin
           Count := CodeToolBoss.IdentifierList.GetFilteredCount;
           GatherTime := Now;
           IdentContext := '';

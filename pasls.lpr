@@ -26,7 +26,7 @@ uses
   SysUtils, fpjson, jsonparser, jsonscanner,
 
   { LSP }
-  lsp, general, 
+  lsp, general,
 
   { Protocols }
   basic, synchronization, completion, gotoDeclaration, gotoDefinition, 
@@ -81,7 +81,6 @@ var
 begin
   //TestNotifications;
   //halt;
-
   Dispatcher := TLSPDispatcher.Create(nil);
   TJSONData.CompressedJSON := True;
   SetTextLineEnding(Input, #13#10);
@@ -108,9 +107,9 @@ begin
       Read(Content[I]);
       Inc(I);
     end;
-    
+
     Request := TJSONParser.Create(Content, DefaultOptions).Parse;
-    
+
     // log request payload
     if VerboseDebugging then
       begin
