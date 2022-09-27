@@ -174,8 +174,6 @@ type
     RawJSON: String;
     Flags: TSymbolFlags;
     OverloadCount: integer;
-    //location: TLocation;
-    //containerName: String;
     function Path: String;
     function IsGlobal: boolean;
     property FullName: String read GetFullName;
@@ -467,6 +465,10 @@ begin
   Symbol.kind := Kind;
   Symbol.location := TLocation.Create(FileName, Line - 1, Column - 1, RangeLen);
 
+  { TODO: In the latest version of LSP they claim container name is supported 
+    so consider adding some context for the hierarchy }
+  //Symbol.containerName := 'Interface > TClass > Function';
+
   result := Symbol;
 end;
 
@@ -558,7 +560,7 @@ end;
 
 function TSymbolExtractor.AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind): TSymbol;
 begin
-  AddSymbol(Node, Kind, GetIdentifierAtPos(Tool, Node.StartPos, true, true));
+  result := AddSymbol(Node, Kind, GetIdentifierAtPos(Tool, Node.StartPos, true, true));
 end;
 
 function TSymbolExtractor.AddSymbol(Node: TCodeTreeNode; Kind: TSymbolKind; Name: String; Container: String): TSymbol;
@@ -696,7 +698,7 @@ end;
 procedure TSymbolExtractor.ExtractProcedure(ParentNode, Node: TCodeTreeNode);
 var
   Child: TCodeTreeNode;
-  Name, OrigName: ShortString;
+  Name: ShortString;
   Symbol: TSymbol;
 begin
   PrintNodeDebug(Node);
@@ -706,18 +708,17 @@ begin
   else
     Name := Tool.ExtractProcName(Node, []);
 
-  OrigName := Name;
   Symbol := TSymbol(OverloadMap.Find(Name));
   if Symbol <> nil then
     begin
-      // TODO: when newest LSP version is released on package control
-      // we can include the container name to be implementation
-      // and at least make this an option
+      { TODO: when newest LSP version is released on package control
+        we can include the container name to be implementation
+        and at least make this an option
+        if the overloaded name is found in the implementation section
+        then just ignore it so we have only function in the list }
+      //if CodeSection = ctnImplementation then
+      //  exit;
 
-      // if the overloaded name is found in the implementation section
-      // then just ignore it so we have only function in the list
-      if CodeSection = ctnImplementation then
-        exit;
       Inc(Symbol.overloadCount);
       case ServerSettings.overloadPolicy of
         TOverloadPolicy.Duplicates:
@@ -1316,7 +1317,7 @@ begin
 
   // now that we have a symbol table entry we can extract
   // relevant symbols from the node tree
-  Extractor := TSymbolExtractor.Create(Entry, Code, Tool);  
+  Extractor := TSymbolExtractor.Create(Entry, Code, Tool);
   Extractor.ExtractCodeSection(Tool.Tree.Root);
   Extractor.Free;
 
