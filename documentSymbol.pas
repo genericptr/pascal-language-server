@@ -31,32 +31,33 @@ uses
 
 type
   TSymbolKind = (
-    SymbolKindFile = 1,
-    SymbolKindModule = 2,
-    SymbolKindNamespace = 3,
-    SymbolKindPackage = 4,
-    SymbolKindClass = 5,
-    SymbolKindMethod = 6,
-    SymbolKindProperty = 7,
-    SymbolKindField = 8,
-    SymbolKindConstructor = 9,
-    SymbolKindEnum = 10,
-    SymbolKindInterface = 11,
-    SymbolKindFunction = 12,
-    SymbolKindVariable = 13,
-    SymbolKindConstant = 14,
-    SymbolKindString = 15,
-    SymbolKindNumber = 16,
-    SymbolKindBoolean = 17,
-    SymbolKindArray = 18,
-    SymbolKindObject = 19,
-    SymbolKindKey = 20,
-    SymbolKindNull = 21,
-    SymbolKindEnumMember = 22,
-    SymbolKindStruct = 23,
-    SymbolKindEvent = 24,
-    SymbolKindOperator = 25,
-    SymbolKindTypeParameter = 26
+    __UNUSED__,
+    _File,
+    _Module,
+    _Namespace,
+    _Package,
+    _Class,
+    _Method,
+    _Property,
+    _Field,
+    _Constructor,
+    _Enum,
+    _Interface,
+    _Function,
+    _Variable,
+    _Constant,
+    _String,
+    _Number,
+    _Boolean,
+    _Array,
+    _Object,
+    _Key,
+    _Null,
+    _EnumMember,
+    _Struct,
+    _Event,
+    _Operator,
+    _TypeParameter
   );
 
   { TDocumentSymbol }
@@ -309,63 +310,63 @@ uses
 function SymbolKindToString(kind: TSymbolKind): ShortString;
 begin
   case kind of
-    SymbolKindFile: result := 'File';
-    SymbolKindModule: result := 'Module';
-    SymbolKindNamespace: result := 'Namespace';
-    SymbolKindPackage: result := 'Package';
-    SymbolKindClass: result := 'Class';
-    SymbolKindMethod: result := 'Method';
-    SymbolKindProperty: result := 'Property';
-    SymbolKindField: result := 'Field';
-    SymbolKindConstructor: result := 'Constructor';
-    SymbolKindEnum: result := 'Enum';
-    SymbolKindInterface: result := 'Interface';
-    SymbolKindFunction: result := 'Function';
-    SymbolKindVariable: result := 'Variable';
-    SymbolKindConstant: result := 'Constant';
-    SymbolKindString: result := 'String';
-    SymbolKindNumber: result := 'Number';
-    SymbolKindBoolean: result := 'Boolean';
-    SymbolKindArray: result := 'Array';
-    SymbolKindObject: result := 'Object';
-    SymbolKindKey: result := 'Key';
-    SymbolKindNull: result := 'Null';
-    SymbolKindEnumMember: result := 'EnumMember';
-    SymbolKindStruct: result := 'Struct';
-    SymbolKindEvent: result := 'Event';
-    SymbolKindOperator: result := 'Operator';
-    SymbolKindTypeParameter: result := 'TypeParameter'
+    TSymbolKind._File: result := 'File';
+    TSymbolKind._Module: result := 'Module';
+    TSymbolKind._Namespace: result := 'Namespace';
+    TSymbolKind._Package: result := 'Package';
+    TSymbolKind._Class: result := 'Class';
+    TSymbolKind._Method: result := 'Method';
+    TSymbolKind._Property: result := 'Property';
+    TSymbolKind._Field: result := 'Field';
+    TSymbolKind._Constructor: result := 'Constructor';
+    TSymbolKind._Enum: result := 'Enum';
+    TSymbolKind._Interface: result := 'Interface';
+    TSymbolKind._Function: result := 'Function';
+    TSymbolKind._Variable: result := 'Variable';
+    TSymbolKind._Constant: result := 'Constant';
+    TSymbolKind._String: result := 'String';
+    TSymbolKind._Number: result := 'Number';
+    TSymbolKind._Boolean: result := 'Boolean';
+    TSymbolKind._Array: result := 'Array';
+    TSymbolKind._Object: result := 'Object';
+    TSymbolKind._Key: result := 'Key';
+    TSymbolKind._Null: result := 'Null';
+    TSymbolKind._EnumMember: result := 'EnumMember';
+    TSymbolKind._Struct: result := 'Struct';
+    TSymbolKind._Event: result := 'Event';
+    TSymbolKind._Operator: result := 'Operator';
+    TSymbolKind._TypeParameter: result := 'TypeParameter'
   end;
 end;
 
 function SymbolKindFromString(kind: ShortString): TSymbolKind;
 begin
-  if (kind = 'File') then result := SymbolKindFile
-  else if (kind = 'Module') then result := SymbolKindModule
-  else if (kind = 'Namespace') then result := SymbolKindNamespace
-  else if (kind = 'Package') then result := SymbolKindPackage
-  else if (kind = 'Class') then result := SymbolKindClass
-  else if (kind = 'Method') then result := SymbolKindMethod
-  else if (kind = 'Property') then result := SymbolKindProperty
-  else if (kind = 'Field') then result := SymbolKindField
-  else if (kind = 'Constructor') then result := SymbolKindConstructor
-  else if (kind = 'Enum') then result := SymbolKindEnum
-  else if (kind = 'Interface') then result := SymbolKindInterface
-  else if (kind = 'Function') then result := SymbolKindFunction
-  else if (kind = 'Variable') then result := SymbolKindVariable
-  else if (kind = 'Constant') then result := SymbolKindConstant
-  else if (kind = 'String') then result := SymbolKindString
-  else if (kind = 'Number') then result := SymbolKindNumber
-  else if (kind = 'Boolean') then result := SymbolKindBoolean
-  else if (kind = 'Array') then result := SymbolKindArray
-  else if (kind = 'Object') then result := SymbolKindObject
-  else if (kind = 'Key') then result := SymbolKindKey
-  else if (kind = 'Null') then result := SymbolKindNull
-  else if (kind = 'EnumMember') then result := SymbolKindEnumMember
-  else if (kind = 'Struct') then result := SymbolKindStruct
-  else if (kind = 'Event') then result := SymbolKindEvent
-  else if (kind = 'Operator') then result := SymbolKindOperator
-  else if (kind = 'TypeParameter') then result := SymbolKindTypeParameter
+  if (kind = 'File') then result := TSymbolKind._File
+  else if (kind = 'Module') then result := TSymbolKind._Module
+  else if (kind = 'Namespace') then result := TSymbolKind._Namespace
+  else if (kind = 'Package') then result := TSymbolKind._Package
+  else if (kind = 'Class') then result := TSymbolKind._Class
+  else if (kind = 'Method') then result := TSymbolKind._Method
+  else if (kind = 'Property') then result := TSymbolKind._Property
+  else if (kind = 'Field') then result := TSymbolKind._Field
+  else if (kind = 'Constructor') then result := TSymbolKind._Constructor
+  else if (kind = 'Enum') then result := TSymbolKind._Enum
+  else if (kind = 'Interface') then result := TSymbolKind._Interface
+  else if (kind = 'Function') then result := TSymbolKind._Function
+  else if (kind = 'Variable') then result := TSymbolKind._Variable
+  else if (kind = 'Constant') then result := TSymbolKind._Constant
+  else if (kind = 'String') then result := TSymbolKind._String
+  else if (kind = 'Number') then result := TSymbolKind._Number
+  else if (kind = 'Boolean') then result := TSymbolKind._Boolean
+  else if (kind = 'Array') then result := TSymbolKind._Array
+  else if (kind = 'Object') then result := TSymbolKind._Object
+  else if (kind = 'Key') then result := TSymbolKind._Key
+  else if (kind = 'Null') then result := TSymbolKind._Null
+  else if (kind = 'EnumMember') then result := TSymbolKind._EnumMember
+  else if (kind = 'Struct') then result := TSymbolKind._Struct
+  else if (kind = 'Event') then result := TSymbolKind._Event
+  else if (kind = 'Operator') then result := TSymbolKind._Operator
+  else if (kind = 'TypeParameter') then result := TSymbolKind._TypeParameter
 end;
 
 function GetFileKey(Path: String): ShortString;
@@ -618,7 +619,7 @@ begin
           end;
         ctnProcedure:
           begin
-            AddSymbol(Node, SymbolKindMethod, Tool.ExtractProcName(Node, []));
+            AddSymbol(Node, TSymbolKind._Method, Tool.ExtractProcName(Node, []));
           end;
         ctnClassPublic,ctnClassPublished,ctnClassPrivate,ctnClassProtected,
         ctnClassRequired,ctnClassOptional:
@@ -632,7 +633,7 @@ begin
               while Child <> nil do
                 begin
                   PrintNodeDebug(Child);
-                  AddSymbol(Node, SymbolKindMethod, TypeName+'.'+Tool.ExtractProcName(Child, []));
+                  AddSymbol(Node, TSymbolKind._Method, TypeName+'.'+Tool.ExtractProcName(Child, []));
                   Child := Child.NextBrother;
                 end;
             end;
@@ -653,16 +654,16 @@ begin
       case Node.Desc of
         ctnClass,ctnClassHelper,ctnRecordHelper,ctnTypeHelper:
           begin
-            AddSymbol(TypeDefNode, SymbolKindClass);
+            AddSymbol(TypeDefNode, TSymbolKind._Class);
           end;
         ctnObject,ctnRecordType:
           begin
-            AddSymbol(TypeDefNode, SymbolKindStruct);
+            AddSymbol(TypeDefNode, TSymbolKind._Struct);
           end;
         ctnObjCClass,ctnObjCCategory,ctnObjCProtocol:
           begin
             // todo: ignore forward defs!
-            AddSymbol(TypeDefNode, SymbolKindClass);
+            AddSymbol(TypeDefNode, TSymbolKind._Class);
             Inc(IndentLevel);
             ExtractObjCClassMethods(TypeDefNode, Node.FirstChild);
             Dec(IndentLevel);
@@ -671,23 +672,23 @@ begin
           begin
             // todo: is this a class/record???
             PrintNodeDebug(Node.FirstChild, true);
-            AddSymbol(TypeDefNode, SymbolKindClass);
+            AddSymbol(TypeDefNode, TSymbolKind._Class);
           end;
         ctnEnumerationType:
           begin
-            AddSymbol(TypeDefNode, SymbolKindEnum);
+            AddSymbol(TypeDefNode, TSymbolKind._Enum);
             Child := Node.FirstChild;
             while Child <> nil do
               begin
                 PrintNodeDebug(Child);
                 // todo: make an option to show enum members in doc symbols
-                //AddSymbol(Child, SymbolKindEnumMember, TypeName+'.'+GetIdentifierAtPos(Child.StartPos, true, true));
+                //AddSymbol(Child, TSymbolKind._EnumMember, TypeName+'.'+GetIdentifierAtPos(Child.StartPos, true, true));
                 Child := Child.NextBrother;
               end;
           end;
         otherwise
           begin
-            AddSymbol(TypeDefNode, SymbolKindTypeParameter);
+            AddSymbol(TypeDefNode, TSymbolKind._TypeParameter);
           end;
       end;
 
@@ -730,7 +731,7 @@ begin
       end;
     end;
 
-  Symbol := AddSymbol(Node, SymbolKindFunction, Name);
+  Symbol := AddSymbol(Node, TSymbolKind._Function, Name);
   OverloadMap.Add(Symbol.name, Symbol);
 
   // recurse into procedures to find nested procedures
@@ -781,9 +782,9 @@ begin
         begin
           case Node.Desc of
             ctnInterface:
-              AddSymbol(Node, SymbolKindNamespace, kSymbolName_Interface);
+              AddSymbol(Node, TSymbolKind._Namespace, kSymbolName_Interface);
             ctnImplementation:
-              AddSymbol(Node, SymbolKindNamespace, kSymbolName_Implementation);
+              AddSymbol(Node, TSymbolKind._Namespace, kSymbolName_Implementation);
           end;
           CodeSection := Node.Desc;
           Inc(IndentLevel);
@@ -803,7 +804,7 @@ begin
         //    Child := Node.FirstChild;
         //    while Child <> nil do
         //      begin
-        //        AddSymbol(Child, SymbolKindConstant);
+        //        AddSymbol(Child, TSymbolKind._Constant);
         //        PrintNodeDebug(Child);
         //        Child := Child.NextBrother;
         //      end;

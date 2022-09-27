@@ -32,9 +32,10 @@ const
   kSymbolName_Implementation = '==== IMPLEMENTATION ====';
 
 type
-  TOverloadPolicy = ( Duplicates = 1,  // duplicate function names appear in the list
-                      Ignore = 2,      // after the original definition ignore others
-                      Suffix = 3       // add a suffix which denotes the overload count
+  TOverloadPolicy = ( __UNUSED__,
+                      Duplicates,  // duplicate function names appear in the list
+                      Ignore,      // after the original definition ignore others
+                      Suffix       // add a suffix which denotes the overload count
                       );
 
   TMacroMap = specialize TFPGMap<ShortString, String>;

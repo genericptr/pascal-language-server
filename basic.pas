@@ -323,10 +323,11 @@ type
   { TDiagnostic }
 
 
-  TDiagnosticSeverity = ( Error = 1,
-                          Warning = 2,
-                          Information = 3,
-                          Hint = 4
+  TDiagnosticSeverity = ( __UNUSED__,
+                          Error,
+                          Warning,
+                          Information,
+                          Hint
                           );
 
   TDiagnosticTag = ( // Unused or unnecessary code.

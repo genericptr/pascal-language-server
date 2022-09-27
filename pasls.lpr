@@ -38,14 +38,13 @@ const
 
 type
   TTestNotification = class(specialize TLSPNotification<TShowMessageParams>)
-    procedure Process(var Params : TShowMessageParams); override;
+    procedure Process(var Params: TShowMessageParams); override;
   end;
 
-procedure TTestNotification.Process(var Params : TShowMessageParams);
+procedure TTestNotification.Process(var Params: TShowMessageParams);
 begin
   writeln('got params: ', Params.ClassName)
 end;
-
 
 procedure TestNotifications;
 var

@@ -31,12 +31,13 @@ uses
 
 type
   TDocumentHighlightKind = (
+      __UNUSED__,
       // A textual occurrence.
-      Text = 1,
+      Text,
       // Read-access of a symbol, like reading a variable.
-      Read = 2,
+      Read,
       // Write-access of a symbol, like writing to a variable.
-      Write = 3
+      Write
     );
 
   { TDocumentHighlight }

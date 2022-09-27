@@ -35,16 +35,17 @@ type
 
   // How a completion was triggered
   TCompletionTriggerKind = (
+    __UNUSED__,
     // Completion was triggered by typing an identifier (24x7 code
     // complete), manual invocation (e.g Ctrl+Space) or via API.
-    Invoked = 1,
+    Invoked,
     // Completion was triggered by a trigger character specified by
     // the `triggerCharacters` properties of the
     // `CompletionRegistrationOptions`.
-    TriggerCharacter = 2,
+    TriggerCharacter,
     // Completion was re-triggered as the current completion list is
     // incomplete.
-    TriggerForIncompleteCompletions = 3);
+    TriggerForIncompleteCompletions);
 
   { TCompletionContext }
 
@@ -81,15 +82,17 @@ type
   // Defines whether the insert text in a completion item should be
   // interpreted as plain text or a snippet.
   TInsertTextFormat = (
+    __UNUSED__,
     // The primary text to be inserted is treated as a plain string.
-    PlainText = 1,
+    PlainText,
     // The primary text to be inserted is treated as a snippet.
     //
     // A snippet can define tab stops and placeholders with `$1`, `$2`
     // and `${3:foo}`. `$0` defines the final tab stop, it defaults to
     // the end of the snippet. Placeholders with equal identifiers are
     // linked, that is typing in one will update others too.
-    Snippet = 2);
+    Snippet
+  );
 
   { TCompletionItemTag }
 
@@ -107,31 +110,33 @@ type
 
   // The kind of a completion entry.
   TCompletionItemKind = (
-    TextItem = 1,
-    MethodItem = 2,
-    FunctionItem = 3,
-    ConstructorItem = 4,
-    FieldItem = 5,
-    VariableItem = 6,
-    ClassItem = 7,
-    InterfaceItem = 8,
-    ModuleItem = 9,
-    PropertyItem = 10,
-    UnitItem = 11,
-    ValueItem = 12,
-    EnumItem = 13,
-    KeywordItem = 14,
-    SnippetItem = 15,
-    ColorItem = 16,
-    FileItem = 17,
-    ReferenceItem = 18,
-    FolderItem = 19,
-    EnumMemberItem = 20,
-    ConstantItem = 21,
-    StructItem = 22,
-    EventItem = 23,
-    OperatorItem = 24,
-    TypeParameterItem = 25);
+    __UNUSED__,
+    TextItem,
+    MethodItem,
+    FunctionItem,
+    ConstructorItem,
+    FieldItem,
+    VariableItem,
+    ClassItem,
+    InterfaceItem,
+    ModuleItem,
+    PropertyItem,
+    UnitItem,
+    ValueItem,
+    EnumItem,
+    KeywordItem,
+    SnippetItem,
+    ColorItem,
+    FileItem,
+    ReferenceItem,
+    FolderItem,
+    EnumMemberItem,
+    ConstantItem,
+    StructItem,
+    EventItem,
+    OperatorItem,
+    TypeParameterItem
+  );
 
   { TCompletionItem }
 

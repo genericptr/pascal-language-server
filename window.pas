@@ -36,14 +36,11 @@ type
   { TMessageType }
 
   TMessageType = (
-    // An error message.
-    Error = 1,
-    // A warning message.
-    Warning = 2,
-    // An information message.
-    Info = 3,
-    // A log message.
-    Log = 4
+    __UNUSED__,
+    Error,   // An error message.
+    Warning, // A warning message.
+    Info,    // An information message.
+    Log      // A log message.
   );
 
   { TShowMessageParams }
