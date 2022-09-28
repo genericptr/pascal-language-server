@@ -18,15 +18,14 @@ The implementation is still incomplete.
    - implementation
    - references
    -  signatureHelp
-   - documentSymbol
-     - Only `SymbolInformation` is implemented
+   - documentSymbol (only `SymbolInformation`)
    - documentHighlight
    - completion
  - window
    - showMessage
  - workspace
    - symbol
-- diagnostics
+- diagnostics (incomplete)
 
 ### Initialization Options
 
