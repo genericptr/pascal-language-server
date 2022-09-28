@@ -69,7 +69,9 @@ type
     class function Process(AProcess: specialize TLSPProcess<T, U>; const Params: TJSONData): TJSONData; static;
   end;
 
-  { TLSPRequest }
+  { TLSPRequest
+    A request message to describe a request between the client and the server. 
+    Every processed request must send a response back to the sender of the request. }
 
   generic TLSPRequest<T, U: TPersistent> = class(TCustomJSONRPCHandler)
   protected
@@ -77,7 +79,9 @@ type
     function Process(var Params : T): U; virtual; abstract;
   end;
 
-  { TLSPNotification }
+  { TLSPNotification
+    A notification message. A processed notification message must not send a response back. 
+    They work like events. }
 
   generic TLSPNotification<T: TPersistent> = class(TCustomJSONRPCHandler)
   protected
@@ -294,6 +298,9 @@ var
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   Process(Input);
+  // TODO: the result was missing originally but I don't know what to pass.
+  // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#notificationMessage
+  result := nil{TJSONNull.Create};
   Input.Free;
 end;
 

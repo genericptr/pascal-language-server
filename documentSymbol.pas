@@ -335,7 +335,9 @@ begin
     TSymbolKind._Struct: result := 'Struct';
     TSymbolKind._Event: result := 'Event';
     TSymbolKind._Operator: result := 'Operator';
-    TSymbolKind._TypeParameter: result := 'TypeParameter'
+    TSymbolKind._TypeParameter: result := 'TypeParameter';
+    otherwise
+      result := '???';
   end;
 end;
 
@@ -466,7 +468,7 @@ begin
   Symbol.kind := Kind;
   Symbol.location := TLocation.Create(FileName, Line - 1, Column - 1, RangeLen);
 
-  { TODO: In the latest version of LSP they claim container name is supported 
+  { TODO: In the latest version of LSP container name is supported 
     so consider adding some context for the hierarchy }
   //Symbol.containerName := 'Interface > TClass > Function';
 
@@ -728,6 +730,8 @@ begin
           Name := Name+'$'+IntToStr(Symbol.OverloadCount);
         TOverloadPolicy.Ignore:
           exit;
+        otherwise
+          ;
       end;
     end;
 
