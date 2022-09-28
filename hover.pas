@@ -56,22 +56,6 @@ uses
 
 { THoverRequest }
 
-function ReadFile(path: ansistring): ansistring;
-var
-  f: File;
-  list: TStringList;
-begin
-  try
-    list := TStringList.Create;
-    list.LoadFromFile(path);
-    result := list.Text;
-  except
-    on E:Exception do
-      writeln(path+': ', E.Message);
-  end;
-  list.Free;
-end;
-
 function THoverRequest.Process(var Params: TTextDocumentPositionParams): THoverResponse;
 var
   URI: TURI;
@@ -100,17 +84,12 @@ begin with Params do
     end;
 
     // https://facelessuser.github.io/sublime-markdown-popups/
-
-    // todo: doesn't support pascal syntax!
-    // note: other user says it works for him, pascal syntax is in app bundle
-    // import mdpopups;mdpopups.show_popup(view, '```pascal\nvar x = 1\n```')
-
-    //Hint := ReadFile('/Users/ryanjoseph/Developer/Projects/FPC/pascal-language-server/README.md');
     //Hint:='```json'+#10+'"initializationOptions": [1,2,3]'+#10+'```';
     //Hint:='```pascal'+#10+'type TDebug = record'+#10+'```';
+    Hint:='```pascal'+#10+Hint+#10+'```';
 
     Result := THoverResponse.Create;
-    Result.contents := TMarkupContent.Create(Hint,true);
+    Result.contents := TMarkupContent.Create(Hint, false);
     Result.range := TRange.Create(Y, X);
   end;
 end;
