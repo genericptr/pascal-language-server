@@ -46,6 +46,7 @@ var
   Content: String;
   Request, Response: TJSONData;
 begin
+  writeln('▶️ ', method);
   Content := '{"jsonrpc": "2.0","id": '+LastMessageID.ToString+', "method": "'+method+'","params": '+params+'}';
   Inc(LastMessageID);
 
@@ -105,6 +106,13 @@ var
   ShowMessage: TShowMessageNotification;
   VerboseDebugging: boolean = false;
 begin
+  // Show help for the server
+  if ParamStr(1) = '-h' then
+    begin
+      writeln('Pascal Language Server [',{$INCLUDE %DATE%},']');
+      Halt;
+    end;
+
   {$if FPC_FULLVERSION>=30301}
   ExecuteCommandLineMessages;
   {$endif}
