@@ -1119,6 +1119,7 @@ function TSymbolManager.FindWorkspaceSymbols(Query: String): TJSONSerializedArra
 // note: there is a bug in Sublime Text which requires the workspace
 // symbols command to send a query string so we define a wildcard
 // to replace an empty query (which should return all symbols)
+// TODO: fixed in https://github.com/sublimelsp/LSP/issues/1008.
 const
   WILDCARD_QUERY = '*';
 begin
