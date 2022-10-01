@@ -25,7 +25,8 @@ unit options;
 interface
 
 uses
-  Classes;
+  SysUtils, Classes, 
+  basic, workDoneProgress;
 
 type
 
@@ -134,7 +135,39 @@ type
     property resolveProvider: Boolean read fResolveProvider write fResolveProvider;
   end;
 
+  { TWorkDoneProgressOptions }
+  
+  TWorkDoneProgressOptions = class(TPersistent)
+  private
+    fworkDoneProgress: TOptionalBoolean;
+  published
+    property workDoneProgress: TOptionalBoolean read fworkDoneProgress write fworkDoneProgress;
+  end;
+
+  { TExecuteCommandOptions }
+
+  TExecuteCommandOptions = class(TWorkDoneProgressOptions)
+  private
+    fCommands: TStrings;
+  published
+    // The commands to be executed on the server
+    property commands: TStrings read fCommands write fCommands;
+  public
+    constructor Create(_commands: TStringArray = []);
+  end;
+
 implementation
+
+{ TExecuteCommandOptions }
+
+constructor TExecuteCommandOptions.Create(_commands: TStringArray);
+var
+  command: String;
+begin
+  commands := TStringList.Create;
+  for command in _commands do
+    commands.Add(command);
+end;
 
 { TSaveOptions }
 

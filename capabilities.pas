@@ -80,8 +80,6 @@ type
   { TTextDocumentClientCapabilities }
 
   TTextDocumentClientCapabilities = class(TPersistent)
-  private
-  published
   end;
 
   { TClientCapabilities }
@@ -112,6 +110,7 @@ type
     fDocumentSymbolProvider: boolean;
     fWorkspaceSymbolProvider: boolean;
     fSignatureHelpProvider: TSignatureHelpOptions;
+    fExecuteCommandOptions: TExecuteCommandOptions;
   public
     constructor Create(settings: TServerSettings);
   published
@@ -128,6 +127,7 @@ type
     property documentSymbolProvider: boolean read fDocumentSymbolProvider write fDocumentSymbolProvider;
     property workspaceSymbolProvider: boolean read fWorkspaceSymbolProvider write fWorkspaceSymbolProvider;
     property signatureHelpProvider: TSignatureHelpOptions read fSignatureHelpProvider write fSignatureHelpProvider;
+    property executeCommandProvider: TExecuteCommandOptions read fExecuteCommandOptions write fExecuteCommandOptions;
   end;
 
 implementation
@@ -162,6 +162,9 @@ begin
   // todo: disabling this until we can figure out how to highlight
   // only begin/end keywords. too annoying right now.
   documentHighlightProvider := false;
+  executeCommandProvider := TExecuteCommandOptions.Create([
+    'pasls.do_stuff'
+  ]);
 
   documentSymbolProvider := Assigned(SymbolManager);
   workspaceSymbolProvider := settings.CanProvideWorkspaceSymbols;

@@ -236,7 +236,7 @@ type
 
   { TTextDocumentEdit }
 
-  TTextDocumentEdit = class(TPersistent)
+  TTextDocumentEdit = class(TCollectionItem)
   private
     fTextDocument: TVersionedTextDocumentIdentifier;
     fEdits: TTextEdits;
@@ -246,6 +246,8 @@ type
     // The edits to be applied.
     property edits: TTextEdits read fEdits write fEdits;
   end;
+
+  TTextDocumentEdits = specialize TGenericCollection<TTextDocumentEdit>;
 
   { TTextDocumentItem }
 
@@ -647,3 +649,4 @@ begin
 end;
 
 end.
+  

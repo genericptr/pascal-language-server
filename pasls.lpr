@@ -44,23 +44,23 @@ var
 procedure SendMessage(dispatcher: TLSPDispatcher; method, params: String);
 var
   Content: String;
-  Request, Response: TJSONData;
+  Request: TJSONData = nil;
+  Response: TJSONData = nil;
 begin
   writeln('▶️ ', method);
   Content := '{"jsonrpc": "2.0","id": '+LastMessageID.ToString+', "method": "'+method+'","params": '+params+'}';
   Inc(LastMessageID);
 
   Request := TJSONParser.Create(Content, DefaultOptions).Parse;
-
   Response := Dispatcher.Execute(Request);
   if Assigned(Response) then
     begin
+      writeln('◀️ response: ');
       writeln(Response.FormatJSON);
       Response.Free;
     end;
 
-  Request.Free;
-  Dispatcher.Free;
+  FreeAndNil(Request);
 end;
 
 procedure ExecuteCommandLineMessages;
