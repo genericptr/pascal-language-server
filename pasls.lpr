@@ -62,7 +62,7 @@ begin
   Dispatcher.Free;
 end;
 
-procedure RunCommandsFromParams;
+procedure ExecuteCommandLineMessages;
 var
   i: integer;
   method, path: String;
@@ -106,7 +106,7 @@ var
   VerboseDebugging: boolean = false;
 begin
   {$if FPC_FULLVERSION>=30301}
-  RunCommandsFromParams;
+  ExecuteCommandLineMessages;
   {$endif}
 
   Dispatcher := TLSPDispatcher.Create(nil);
