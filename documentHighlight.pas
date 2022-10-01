@@ -32,12 +32,9 @@ uses
 type
   TDocumentHighlightKind = (
       __UNUSED__,
-      // A textual occurrence.
-      Text,
-      // Read-access of a symbol, like reading a variable.
-      Read,
-      // Write-access of a symbol, like writing to a variable.
-      Write
+      Text, // A textual occurrence.
+      Read, // Read-access of a symbol, like reading a variable.
+      Write // Write-access of a symbol, like writing to a variable.
     );
 
   { TDocumentHighlight }
