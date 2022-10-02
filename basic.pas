@@ -234,6 +234,8 @@ type
     // The string to be inserted. For delete operations use an empty
     // string.
     property newText: String read fNewText write fNewText;
+  public
+    destructor Destroy; override;
   end;
 
   TTextEdits = specialize TGenericCollection<TTextEdit>;
@@ -381,18 +383,14 @@ type
   published
     // The range at which the message applies.
     property range: TRange read fRange write fRange;
-
     // The diagnostic's severity. Can be omitted. If omitted it is up to the
     // client to interpret diagnostics as error, warning, info or hint.
     property severity: TDiagnosticSeverity read fSeverity write fSeverity;
-
     // The diagnostic's code, which might appear in the user interface.
     property code: integer read fCode write fCode;
-
     // A human-readable string describing the source of this
     // diagnostic, e.g. 'typescript' or 'super lint'.
     property source: string read fSource write fSource;
-
     // The diagnostic's message.
     property message: string read fMessage write fMessage;
 
@@ -409,7 +407,16 @@ type
 
   TDiagnosticItems = specialize TGenericCollection<TDiagnostic>;
 
-  { TCommand }
+  { TCommand
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#command
+
+    Represents a reference to a command. 
+    Provides a title which will be used to represent a command in the UI. 
+    Commands are identified by a string identifier. 
+    The recommended way to handle commands is to implement their execution on the server 
+    side if the client and server provides the corresponding capabilities. 
+    Alternatively the tool extension code could handle the command. 
+    The protocol currently doesn’t specify a set of well-known commands. }
 
   TCommand = class(TPersistent)
   private
@@ -421,7 +428,7 @@ type
     property title: string read fTitle write fTitle;
     // The identifier of the actual command handler.
     property command: string read fCommand write fCommand;
-    // Arguments that the command handler should be  invoked with.
+    // Arguments that the command handler should be invoked with.
     property arguments: TStrings read fArguments write fArguments;
   public
     procedure AfterConstruction; override;
@@ -523,11 +530,51 @@ const
 
 function PathToURI(path: String): TDocumentUri;
 
+{ Optional Operators }
+
+operator :=(right: Boolean): TOptionalAny;
+operator :=(right: Integer): TOptionalAny;
+operator :=(right: String): TOptionalAny;
+
+operator :=(right: Boolean): TOptionalBoolean;
+operator :=(right: Integer): TOptionalInteger;
+operator :=(right: String): TOptionalString;
+
 implementation
 uses
   fpjson, lsp;
 
 { Utilities }
+
+operator :=(right: Boolean): TOptionalAny;
+begin
+  result := TOptionalAny.Create(right);
+end;
+
+operator :=(right: Integer): TOptionalAny;
+begin
+  result := TOptionalAny.Create(right);
+end;
+
+operator :=(right: String): TOptionalAny;
+begin
+  result := TOptionalAny.Create(right);
+end;
+
+operator :=(right: Boolean): TOptionalBoolean;
+begin
+  result := TOptionalBoolean.Create(right);
+end;
+
+operator :=(right: Integer): TOptionalInteger;
+begin
+  result := TOptionalInteger.Create(right);
+end;
+
+operator :=(right: String): TOptionalString;
+begin
+  result := TOptionalString.Create(right);
+end;
 
 function PathToURI(path: String): TDocumentUri;
 begin
@@ -546,6 +593,15 @@ end;
 destructor TWorkspaceEdit.Destroy;
 begin
   documentChanges.Free;
+
+  inherited;
+end;
+
+{ TTextEdit }
+
+destructor TTextEdit.Destroy;
+begin
+  FreeAndNil(fRange);
 
   inherited;
 end;
