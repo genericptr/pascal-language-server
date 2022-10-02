@@ -231,10 +231,9 @@ type
 
   TCompletionItems = specialize TGenericCollection<TCompletionItem>;
 
-  { TCompletionList }
+  { TCompletionList
+    Represents a collection of completion items to be presented in the editor. }
 
-  // Represents a collection of [completion items](#CompletionItem) to
-  // be presented in the editor.
   TCompletionList = class(TPersistent)
   private
     fIsIncomplete: Boolean;

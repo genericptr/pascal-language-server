@@ -25,7 +25,6 @@ unit basic;
 {$scopedenums on}
 
 interface
-
 uses
   Classes, SysUtils;
 
@@ -132,6 +131,8 @@ type
     constructor Create(line, column: integer); overload;
     constructor Create(line, column, len: integer); overload;
     constructor Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
+
+    function ToString: String;
   end;
 
   { TLocation }
@@ -692,6 +693,11 @@ constructor TRange.Create(startLine, startColumn: integer; endLine, endColumn: i
 begin
   fStart := TPosition.Create(startLine, startColumn);
   fEnd := TPosition.Create(endLine, endColumn);
+end;
+
+function TRange.ToString: String;
+begin
+  result := 'start: ['+Start.line.ToString+':'+start.character.ToString+'], end:'+&end.line.ToString+':'+&end.character.ToString+']';
 end;
 
 { TMarkupContent }

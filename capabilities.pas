@@ -110,7 +110,8 @@ type
     fDocumentSymbolProvider: boolean;
     fWorkspaceSymbolProvider: boolean;
     fSignatureHelpProvider: TSignatureHelpOptions;
-    fExecuteCommandOptions: TExecuteCommandOptions;
+    fExecuteCommandProvider: TExecuteCommandOptions;
+    fInlayHintProvider: TInlayHintOptions;
   public
     constructor Create(settings: TServerSettings);
   published
@@ -127,7 +128,8 @@ type
     property documentSymbolProvider: boolean read fDocumentSymbolProvider write fDocumentSymbolProvider;
     property workspaceSymbolProvider: boolean read fWorkspaceSymbolProvider write fWorkspaceSymbolProvider;
     property signatureHelpProvider: TSignatureHelpOptions read fSignatureHelpProvider write fSignatureHelpProvider;
-    property executeCommandProvider: TExecuteCommandOptions read fExecuteCommandOptions write fExecuteCommandOptions;
+    property executeCommandProvider: TExecuteCommandOptions read fExecuteCommandProvider write fExecuteCommandProvider;
+    property inlayHintProvider: TInlayHintOptions read fInlayHintProvider write fInlayHintProvider;
   end;
 
 implementation
@@ -165,6 +167,7 @@ begin
   executeCommandProvider := TExecuteCommandOptions.Create([
     'pasls.do_stuff'
   ]);
+  inlayHintProvider := TInlayHintOptions.Create;
 
   documentSymbolProvider := Assigned(SymbolManager);
   workspaceSymbolProvider := settings.CanProvideWorkspaceSymbols;
