@@ -84,8 +84,7 @@ begin with Params do
     end;
 
     // https://facelessuser.github.io/sublime-markdown-popups/
-    //Hint:='```json'+#10+'"initializationOptions": [1,2,3]'+#10+'```';
-    //Hint:='```pascal'+#10+'type TDebug = record'+#10+'```';
+    // Wrap hint in markdown code
     Hint:='```pascal'+#10+Hint+#10+'```';
 
     Result := THoverResponse.Create;
