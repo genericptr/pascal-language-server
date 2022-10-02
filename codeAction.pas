@@ -96,9 +96,9 @@ type
 
   TCodeActionItems = specialize TGenericCollection<TCodeAction>;
 
-  { TCodeActionContext }
-
-  { Contains additional diagnostic information about the context in which
+  { TCodeActionContext
+    
+    Contains additional diagnostic information about the context in which
     a code action is run. }
 
   TCodeActionContext = class(TPersistent)
