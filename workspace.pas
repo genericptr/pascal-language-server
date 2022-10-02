@@ -103,6 +103,51 @@ type
     procedure Process(var Params: TDidChangeConfigurationParams); override;
   end;
 
+  { TApplyWorkspaceEditParams }
+
+  TApplyWorkspaceEditParams = class(TPersistent)
+  private
+    fLabel: TOptionalString;
+    fEdit: TWorkspaceEdit;
+  published
+    // An optional label of the workspace edit. This label is
+    // presented in the user interface for example on an undo
+    // stack to undo the workspace edit.
+    property &label: TOptionalString read fLabel write fLabel;
+    //  The edits to apply.
+    property edit: TWorkspaceEdit read fEdit write fEdit;
+  end;
+
+  { TApplyWorkspaceEditResult
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#applyWorkspaceEditResult }
+
+  TApplyWorkspaceEditResult = class(TPersistent)
+  private
+    fApplied: boolean;
+    fFailureReason: TOptionalString;
+    fFailedChange: TOptionalNumber;
+  published
+    // Indicates whether the edit was applied or not.
+    property applied: Boolean read fApplied write fApplied;
+    // An optional textual description for why the edit was not applied.
+    // This may be used by the server for diagnostic logging or to provide
+    // a suitable error for a request that triggered the edit.
+    property failureReason: TOptionalString read fFailureReason write fFailureReason;
+    // Depending on the client's failure handling strategy `failedChange`
+    // might contain the index of the change that failed. This property is
+    // only available if the client signals a `failureHandling` strategy
+    // in its client capabilities.
+    property failedChange: TOptionalNumber read fFailedChange write fFailedChange;
+  end;
+
+  { TWorkspaceApplyEditRequest
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspace_applyEdit
+    
+    The `workspace/applyEdit` request is sent from the server to the client to 
+    modify resource on the client side. }
+
+  TWorkspaceApplyEditRequest = class(specialize TLSPOutgoingRequest<TApplyWorkspaceEditParams, TApplyWorkspaceEditResult>);
+
 implementation
 uses
   SysUtils, DateUtils;

@@ -71,6 +71,8 @@ type
   end;
 
   { TLSPRequest
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#requestMessage
+
     A request message to describe a request between the client and the server. 
     Every processed request must send a response back to the sender of the request. }
 
@@ -80,7 +82,19 @@ type
     function Process(var Params : T): U; virtual; abstract;
   end;
 
+  { TLSPOutgoingRequest
+    A request from the server to the client }
+
+  generic TLSPOutgoingRequest<T: TPersistent; U: TPersistent> = class
+  private class var
+    OutgoingRequestIndex: Integer;
+  public
+    class procedure Execute(Params: T; Method: String);
+  end;
+
   { TLSPNotification
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#notificationMessage
+
     A notification message. A processed notification message must not send a response back. 
     They work like events. }
 
@@ -135,6 +149,8 @@ function LSPHandlerManager: TCustomJSONRPCHandlerManager;
 function IsResponseValid(Response: TJSONData): boolean;
 
 implementation
+
+{ Utilities }
 
 function IsResponseValid(Response: TJSONData): boolean;
 begin
@@ -280,15 +296,57 @@ var
   Output: TObject;
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
+
   Output := Process(Input);
-  // todo: is there a better way to do this?
-  // if the request output is nil then return an empty object to represent nil
-  // returning TJSONNull gives an error from the RPC layer, which we don't want
-  if not Assigned(Output) then Output := TPersistent.Create;
+  if not Assigned(Output)
+    then Output := TPersistent.Create;
+
   Result := specialize TLSPStreaming<U>.ToJSON(Output);
-  if not Assigned(Result) then Result := TJSONNull.Create;
+  if not Assigned(Result) then
+    Result := TJSONNull.Create;
+
   Input.Free;
   Output.Free;
+end;
+
+{ TLSPOutgoingRequest }
+
+class procedure TLSPOutgoingRequest.Execute(Params: T; Method: String);
+var
+  Request: TLSPOutgoingRequest;
+  Message: TRequestMessage;
+  ID: TGUID;
+begin
+  Message := TRequestMessage.Create;
+  Message.id := '_'+OutgoingRequestIndex.ToString;
+  Inc(OutgoingRequestIndex);
+  Message.params := Params;
+  Message.method := Method;
+  Message.Send;
+
+  // TODO: how do we get the response now? it comes back like this. we would need to parse the ID
+  // from the input stream and then find it in a queue of awaiting responses
+  // pascal-language-server: ➡️ {"id":"_0","result":{"applied":true},"jsonrpc":"2.0"}
+  // :: >>> pascal-language-server _0: {'applied': True}
+  (*
+    interface ResponseMessage extends Message {
+      /**
+       * The request id.
+       */
+      id: integer | string | null;
+
+      /**
+       * The result of a request. This member is REQUIRED on success.
+       * This member MUST NOT exist if there was an error invoking the method.
+       */
+      result?: string | number | boolean | object | null;
+
+      /**
+       * The error object in case a request fails.
+       */
+      error?: ResponseError;
+    }
+  *)
 end;
 
 { TLSPNotification }
@@ -299,10 +357,9 @@ var
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   Process(Input);
-  // TODO: the result was missing originally but I don't know what to pass.
-  // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#notificationMessage
-  result := nil{TJSONNull.Create};
   Input.Free;
+
+  result := nil;
 end;
 
 { TLSPDispatcher }
