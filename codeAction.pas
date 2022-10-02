@@ -39,56 +39,23 @@ type
 
   TCodeActionKind = record
   public const
-
     // Empty kind.
     Empty = '';
-
     // Base kind for quickfix actions: 'quickfix'.
     QuickFix = 'quickfix';
-
     // Base kind for refactoring actions: 'refactor'.
     Refactor = 'refactor';
-
     // Base kind for refactoring extraction actions: 'refactor.extract'.
-    // 
-    // Example extract actions:
-    // 
-    // - Extract method
-    // - Extract function
-    // - Extract variable
-    // - Extract interface from class
-    // - ...
     RefactorExtract = 'refactor.extract';
-
     // Base kind for refactoring inline actions: 'refactor.inline'.
-    // 
-    // Example inline actions:
-    // 
-    // - Inline function
-    // - Inline variable
-    // - Inline constant
-    // - ...
     RefactorInline = 'refactor.inline';
-
     // Base kind for refactoring rewrite actions: 'refactor.rewrite'.
-    // 
-    // Example rewrite actions:
-    // 
-    // - Convert JavaScript function to class
-    // - Add or remove parameter
-    // - Encapsulate field
-    // - Make method static
-    // - Move method to base class
-    // - ...
     RefactorRewrite = 'refactor.rewrite';
-
     // Base kind for source actions: `source`.
     // Source code actions apply to the entire file.
     Source = 'source';
-
     // Base kind for an organize imports source action: `source.organizeImports`.
     SourceOrganizeImports = 'source.organizeImports';
-
   private
     value: string;
   end;
@@ -168,7 +135,17 @@ type
     property context: TCodeActionContext read fContext write fContext;
   end;
 
-  { TCodeActionRequest }
+  { TCodeActionRequest
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_codeAction
+
+    The code action request is sent from the client to the server to compute commands for a 
+    given text document and range. These commands are typically code fixes to either fix 
+    problems or to beautify/refactor code. The result of a textDocument/codeAction request 
+    is an array of Command literals which are typically presented in the user interface. 
+    To ensure that a server is useful in many clients the commands specified in a code actions 
+    should be handled by the server and not by the client (see workspace/executeCommand and 
+    ServerCapabilities.executeCommandProvider). If the client supports providing edits with a 
+    code action then that mode should be used. }
   
   TCodeActionRequest = class(specialize TLSPRequest<TCodeActionParams, TCodeActionItems>)
     function Process(var Params: TCodeActionParams): TCodeActionItems; override;
