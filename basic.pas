@@ -81,10 +81,10 @@ type
     property Value: T read GetValue write SetValue;
   end;
 
-
   TOptionalBoolean = specialize TOptionalVariant<Boolean>;
   TOptionalString = specialize TOptionalVariant<String>;
   TOptionalInteger = specialize TOptionalVariant<Integer>;
+  TOptionalAny = specialize TOptionalVariant<Variant>; // any type except structures (objects or arrays)
   TOptionalNumber = TOptionalInteger;
 
   { TGenericCollection }
@@ -198,11 +198,15 @@ type
     property uri: TDocumentUri read fUri write fUri;
   end;
 
-  { TVersionedTextDocumentIdentifier }
+  { TVersionedTextDocumentIdentifier
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#versionedTextDocumentIdentifier
+
+    An identifier to denote a specific version of a text document. 
+    This information usually flows from the client to the server. }
 
   TVersionedTextDocumentIdentifier = class(TTextDocumentIdentifier)
   private
-    fVersion: string;
+    fVersion: TOptionalInteger;
   published
     // The version number of this document. If a versioned text
     // document identifier is sent from the server to the client and
@@ -214,7 +218,7 @@ type
     // The version number of a document will increase after each
     // change, including undo/redo. The number doesn't need to be
     // consecutive.
-    property version: string read fVersion write fVersion;
+    property version: TOptionalInteger read fVersion write fVersion;
   end;
 
   { TTextEdit }
@@ -222,14 +226,14 @@ type
   TTextEdit = class(TCollectionItem)
   private
     fRange: TRange;
-    fNewText: string;
+    fNewText: String;
   published
     // The range of the text document to be manipulated. To insert
     // text into a document create a range where start === end.
     property range: TRange read fRange write fRange;
     // The string to be inserted. For delete operations use an empty
     // string.
-    property newText: string read fNewText write fNewText;
+    property newText: String read fNewText write fNewText;
   end;
 
   TTextEdits = specialize TGenericCollection<TTextEdit>;
@@ -245,6 +249,9 @@ type
     property textDocument: TVersionedTextDocumentIdentifier read fTextDocument write fTextDocument;
     // The edits to be applied.
     property edits: TTextEdits read fEdits write fEdits;
+  public
+    procedure AfterConstruction; override;
+    destructor Destroy; override;
   end;
 
   TTextDocumentEdits = specialize TGenericCollection<TTextDocumentEdit>;
@@ -420,25 +427,10 @@ type
     procedure AfterConstruction; override;
   end;
 
-  { TWorkspaceEdit }
+  { TAbstractMessage
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#abstractMessage
 
-  { A workspace edit represents changes to many resources managed in the workspace. 
-    The edit should either provide changes or documentChanges. 
-    If the client can handle versioned document edits and if documentChanges are present, 
-    the latter are preferred over changes. }
-
-  TWorkspaceEdit = class (TPersistent)
-    // TODO: not implemented!
-  end;
-
-  {
-    NOTE(ryan): I couldn't figure out how to do this using the normal
-    JSON RPC system and had to roll my own just to get it working for now
-  }
-
-  { TAbstractMessage }
-
-  { A general message as defined by JSON-RPC. The language server 
+    A general message as defined by JSON-RPC. The language server 
     protocol always uses “2.0” as the jsonrpc version. }
 
   TAbstractMessage = class(TPersistent)
@@ -447,11 +439,34 @@ type
     function GetJSONRPC: String;
   published
     property jsonrpc: String read GetJSONRPC;
+  public
+    procedure Send;
   end;
 
-  { TNotificationMessage }
+  { TRequestMessage
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#requestMessage
 
-  { A notification message. A processed notification message 
+    A request message to describe a request between the client and the server. 
+    Every processed request must send a response back to the sender of the request. }
+
+  TRequestMessage = class(TAbstractMessage)
+  protected
+    fID: TOptionalAny; // integer | string
+    fMethod: string;
+    fParams: TPersistent;
+  published
+    // The request id.
+    property id: TOptionalAny read fID write fID;
+    // The method to be invoked.
+    property method: string read fMethod write fMethod;
+    // The notification's params.
+    property params: TPersistent read fParams write fParams;
+  end;
+
+  { TNotificationMessage
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#notificationMessage
+
+    A notification message. A processed notification message 
     must not send a response back. They work like events. }
 
   TNotificationMessage = class(TAbstractMessage)
@@ -462,10 +477,43 @@ type
     // The method to be invoked.
     property method: string read fMethod write fMethod;
     // The notification's params.
-    // params?: Array<any> | object;
     property params: TPersistent read fParams write fParams;
+  end;
+
+  { TWorkspaceEdit
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspaceEdit
+
+    A workspace edit represents changes to many resources managed in the workspace. 
+    The edit should either provide changes or documentChanges. 
+    If the client can handle versioned document edits and if documentChanges are present, 
+    the latter are preferred over changes. }
+  
+  TWorkspaceEdit = class(TPersistent)
+  private
+    fChanges: TCollection;
+    fDocumentChanges: TTextDocumentEdits;
+  published
+    // Holds changes to existing resources.
+    property changes: TCollection read fChanges write fChanges;
+    // Depending on the client capability
+    // `workspace.workspaceEdit.resourceOperations` document changes are either
+    // an array of `TextDocumentEdit`s to express changes to n different text
+    // documents where each text document edit addresses a specific version of
+    // a text document. Or it can contain above `TextDocumentEdit`s mixed with
+    // create, rename and delete file / folder operations.
+    // 
+    // Whether a client supports versioned document edits is expressed via
+    // `workspace.workspaceEdit.documentChanges` client capability.
+    // 
+    // If a client neither supports `documentChanges` nor
+    // `workspace.workspaceEdit.resourceOperations` then only plain `TextEdit`s
+    // using the `changes` property are supported.
+    // 
+    // TextDocumentEdit[] | (TextDocumentEdit | CreateFile | RenameFile | DeleteFile)[]
+    property documentChanges: TTextDocumentEdits read fDocumentChanges write fDocumentChanges;
   public
-    procedure Send;
+    procedure AfterConstruction; override;
+    destructor Destroy; override;
   end;
 
 const
@@ -486,6 +534,38 @@ begin
   result := 'file://'+path;
 end;
 
+{ TWorkspaceEdit }
+
+procedure TWorkspaceEdit.AfterConstruction;
+begin
+  inherited;
+
+  documentChanges := TTextDocumentEdits.Create;
+end;
+
+destructor TWorkspaceEdit.Destroy;
+begin
+  documentChanges.Free;
+
+  inherited;
+end;
+
+{ TTextDocumentEdit }
+
+procedure TTextDocumentEdit.AfterConstruction;
+begin
+  inherited;
+
+  edits := TTextEdits.Create;
+end;
+
+destructor TTextDocumentEdit.Destroy;
+begin
+  edits.Free;
+
+  inherited;
+end;
+
 { TAbstractMessage }
 
 function TAbstractMessage.GetJSONRPC: String;
@@ -493,14 +573,12 @@ begin
   result := '2.0';
 end;
 
-{ TNotificationMessage }
-
-procedure TNotificationMessage.Send;
+procedure TAbstractMessage.Send;
 var
   Data: TJSONData;
   Content: String;
 begin
-  Data := specialize TLSPStreaming<TNotificationMessage>.ToJSON(self);
+  Data := specialize TLSPStreaming<TAbstractMessage>.ToJSON(self);
   if Data <> nil then
     begin
       Content := Data.AsJSON;
