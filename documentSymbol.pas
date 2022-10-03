@@ -1105,7 +1105,6 @@ begin
   Result := fDatabase;
 end;
 
-
 procedure TSymbolManager.RemoveFile(FileName: String);
 var
   Index: integer;
