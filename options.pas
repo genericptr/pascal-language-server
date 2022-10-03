@@ -156,6 +156,16 @@ type
     constructor Create(_commands: TStringArray = []);
   end;
 
+  { TInlayHintOptions }
+
+  TInlayHintOptions = class(TWorkDoneProgressOptions)
+  private
+    fResolveProvider: TOptionalBoolean;
+  published
+    // The server provides support to resolve additional information for an inlay hint item.
+    property resolveProvider: TOptionalBoolean read fResolveProvider write fResolveProvider;
+  end;
+
 implementation
 
 { TExecuteCommandOptions }
