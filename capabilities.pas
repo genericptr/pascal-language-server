@@ -167,7 +167,9 @@ begin
   executeCommandProvider := TExecuteCommandOptions.Create([
     'pasls.do_stuff'
   ]);
-  inlayHintProvider := TInlayHintOptions.Create;
+  // todo: inlay hints may be difficult to implement in ST since they send
+  // the entire document range for every change and expect us to respond to that.
+  inlayHintProvider := nil;//TInlayHintOptions.Create;
 
   documentSymbolProvider := Assigned(SymbolManager);
   workspaceSymbolProvider := settings.CanProvideWorkspaceSymbols;

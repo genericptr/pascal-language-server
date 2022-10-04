@@ -133,10 +133,13 @@ end;
 { TInlayHintRequest }
 
 function TInlayHintRequest.Process(var Params: TInlayHintParams): TInlayHints;
+var
+  hint: TInlayHint;
 begin with Params do
-  //writeln(StdErr, '▶️ got inlay hints: ', range.ToString);
-  //Flush(StdErr);
-
+  //hint := TInlayHint(result.Add);
+  //hint.position := TPosition.Create(0, 0);
+  //hint.&label := 'number';
+  //hint.tooltip := 'paramter name tooltip';
   result := TInlayHints.Create;
 end;
 
