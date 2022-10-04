@@ -26,9 +26,19 @@ unit basic;
 
 interface
 uses
+  FPJSON,
   Classes, SysUtils;
 
 type
+  // { LSPObject | LSPArray | string | integer | uinteger | decimal | boolean | null }
+  TAny = class(TPersistent)
+  private
+    fValue: Variant;
+  public
+    property value: Variant read fValue write fValue;
+  end;
+
+  TAnyArray = array of Variant;
 
   { TOptional }
 
@@ -113,7 +123,7 @@ type
     // defaults back to the line length.
     property character: Integer read fCharacter write fCharacter;
   public
-    constructor Create(l, c: integer);
+    constructor Create(l, c: integer); overload;
   end;
 
   { TRange }
@@ -543,7 +553,7 @@ operator :=(right: String): TOptionalString;
 
 implementation
 uses
-  fpjson, lsp;
+  lsp;
 
 { Utilities }
 

@@ -172,29 +172,36 @@ var
   OptionalObject: TOptionalObjectBase;
 begin
   if not Assigned(AObject) then
-  begin
-    // TODO: why are we doing this? this streams the optional with value "null"
-    //Result := inherited StreamClassProperty(AObject);
-    result := nil;
-    Exit;
-  end;
+    begin
+      result := nil;
+      Exit;
+    end;
   C := AObject.ClassType;
   if C.InheritsFrom(TOptionalVariantBase) then
-  begin
-    OptionalVariant := TOptionalVariantBase(AObject);
-    if OptionalVariant.HasValue then
-      Result := StreamVariant(OptionalVariant.Value)
-    else Result := nil
-  end
+    begin
+      OptionalVariant := TOptionalVariantBase(AObject);
+      if OptionalVariant.HasValue then
+        Result := StreamVariant(OptionalVariant.Value)
+      else
+        Result := nil
+    end
+  else if C.InheritsFrom(TAny) then
+    begin
+      Result := StreamVariant(TAny(AObject).Value);
+    end
   else if C.InheritsFrom(TOptionalObjectBase) then
-  begin
-    OptionalObject := TOptionalObjectBase(AObject);
-    if OptionalObject.HasValue then
-      if OptionalObject.Value = nil then Result := TJSONNull.Create
-      else Result := ObjectToJSON(OptionalObject.Value)
-    else Result := nil
-  end
-  else Result := inherited StreamClassProperty(AObject)
+    begin
+      OptionalObject := TOptionalObjectBase(AObject);
+      if OptionalObject.HasValue then
+        if OptionalObject.Value = nil then
+          Result := TJSONNull.Create
+        else
+          Result := ObjectToJSON(OptionalObject.Value)
+      else
+        Result := nil
+    end
+  else
+    Result := inherited StreamClassProperty(AObject)
 end;
 
 { TLSPDeStreamer }
@@ -203,33 +210,69 @@ procedure TLSPDeStreamer.DoRestoreProperty(AObject: TObject; PropInfo: PPropInfo
 var
   C: TClass;
   Optional: TObject;
+  Any: TAny;
   OptionalVariant: TOptionalVariantBase;
   OptionalObject: TOptionalObjectBase;
+  ElementType: PTypeInfo;
+  VariantArray: array of variant;
+  PropArray: TJSONArray;
+  I: Integer;
 begin
-  if PropInfo^.PropType^.Kind = tkClass then
-  begin
-    C := GetTypeData(PropInfo^.PropType)^.ClassType;
-    if C.InheritsFrom(TOptionalVariantBase) then
+  if (PropInfo^.PropType^.Kind = tkDynArray) and (PropData is TJSONArray) then
     begin
-      Optional := C.Create;
-      OptionalVariant := TOptionalVariantBase(Optional);
-      SetObjectProp(AObject, PropInfo, Optional);
-      OptionalVariant.Value := JSONToVariant(PropData);
-    end
-    else if C.InheritsFrom(TOptionalObjectBase) then
-    begin
-      Optional := C.Create;
-      OptionalObject := TOptionalObjectBase(Optional);
-      SetObjectProp(AObject, PropInfo, Optional);
-      if PropData.JSONType = jtNull then OptionalObject.Value := nil
-      else
-      begin
-        OptionalObject.Value := OptionalObject.ValueClass.Create;
-        JSONToObject(PropData as TJSONObject, OptionalObject.Value);
+      ElementType := GetTypeData(PropInfo^.PropType)^.ElType;
+      PropArray := TJSONArray(PropData);
+
+      case ElementType^.Kind of
+        tkVariant:
+          begin
+            SetLength(VariantArray, PropArray.Count);
+            for I := 0 to PropArray.Count - 1 do
+              VariantArray[I] := PropArray[I].Value;
+            SetDynArrayProp(AObject, PropInfo, Pointer(VariantArray));
+          end;
+        otherwise
+          // TODO: support more types
+          ;
       end;
     end
-    else inherited DoRestoreProperty(AObject, PropInfo, PropData)
-  end
+  else if PropInfo^.PropType^.Kind = tkClass then
+    begin
+      C := GetTypeData(PropInfo^.PropType)^.ClassType;
+      if C.InheritsFrom(TOptionalVariantBase) then
+        begin
+          Optional := C.Create;
+          OptionalVariant := TOptionalVariantBase(Optional);
+          SetObjectProp(AObject, PropInfo, Optional);
+          OptionalVariant.Value := JSONToVariant(PropData);
+        end
+      else if C.InheritsFrom(TOptionalObjectBase) then
+        begin
+          Optional := C.Create;
+          OptionalObject := TOptionalObjectBase(Optional);
+          SetObjectProp(AObject, PropInfo, Optional);
+          if PropData.JSONType = jtNull then
+            OptionalObject.Value := nil
+          else
+            begin
+              OptionalObject.Value := OptionalObject.ValueClass.Create;
+              JSONToObject(PropData as TJSONObject, OptionalObject.Value);
+            end;
+        end
+      else if C.InheritsFrom(TAny) then
+        begin
+          Any := TAny(C.Create);
+          Any.value := JSONToVariant(PropData);
+          SetObjectProp(AObject, PropInfo, Any);
+        end
+      else if C.InheritsFrom(TJSONData) then
+        begin
+          // Clone raw JSON data
+          SetObjectProp(AObject, PropInfo, TJSONData(PropData.Clone));
+        end
+      else
+        inherited DoRestoreProperty(AObject, PropInfo, PropData)
+    end
   else
     inherited DoRestoreProperty(AObject, PropInfo, PropData)
 end;
