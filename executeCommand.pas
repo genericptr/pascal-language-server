@@ -26,11 +26,6 @@ uses
   SysUtils, Classes, FPJSON,
   lsp, basic, workDoneProgress;
 
-
-type
-  // TODO: this can't support objects and arrays so we need a new type
-  TLSPAny = String; { LSPObject | LSPArray | string | integer | uinteger | decimal | boolean | null }
-
 type
   { TExecuteCommandParams
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#executeCommandParams
@@ -41,14 +36,13 @@ type
   TExecuteCommandParams = class(TWorkDoneProgressParams)
     private
       fCommand: String;
-      fArguments: TStrings;
+      fArguments: TJSONArray;
     published
       // The identifier of the actual command handler.
       property command: String read fCommand write fCommand;
       // Arguments that the command should be invoked with.
-      property arguments: TStrings read fArguments write fArguments;
+      property arguments: TJSONArray read fArguments write fArguments;
     public
-      procedure AfterConstruction; override;
       destructor Destroy; override;
   end;
 
@@ -72,29 +66,31 @@ type
 
 implementation
 uses
-  workspace;
-
-procedure TExecuteCommandParams.AfterConstruction;
-begin
-  inherited;
-
-  arguments := TStringList.Create;
-end;
+  commands;
 
 destructor TExecuteCommandParams.Destroy;
 begin
-  arguments.Free;
+  FreeAndNil(fArguments);
 
   inherited;
 end;
 
 function TExecuteCommandRequest.Process(var Params: TExecuteCommandParams): TPersistent;
+var
+  documentURI: TDocumentUri;
+  position: TPosition;
 begin with Params do
   begin
-    // TODO: we need a real command dispatch and commands.pas to hold them
+    result := nil;
+
     case command of
-      'pasls.do_stuff': 
-        ;//ApplyEdit(arguments[0]);
+      'pasls.completeCode': 
+        begin
+          documentURI := arguments.Strings[0];
+          position := specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[1].AsJSON);
+          CompleteCode(documentURI, position.line, position.character);
+          position.Free;
+        end;
     end;
   end;
 end;

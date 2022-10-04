@@ -129,7 +129,6 @@ begin
   inherited;
 end;
 
-
 { TInlayHintRequest }
 
 function TInlayHintRequest.Process(var Params: TInlayHintParams): TInlayHints;
