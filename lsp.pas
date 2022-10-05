@@ -188,10 +188,6 @@ begin
       else
         Result := nil
     end
-  else if C.InheritsFrom(TAny) then
-    begin
-      Result := StreamVariant(TAny(AObject).Value);
-    end
   else if C.InheritsFrom(TOptionalObjectBase) then
     begin
       OptionalObject := TOptionalObjectBase(AObject);
@@ -215,7 +211,6 @@ var
   Optional: TObject;
   OptionalVariant: TOptionalVariantBase;
   OptionalObject: TOptionalObjectBase;
-  Any: TAny;
   ElementType: PTypeInfo;
   PropArray: TJSONArray;
   I: Integer;
@@ -291,12 +286,6 @@ begin
               OptionalObject.Value := OptionalObject.ValueClass.Create;
               JSONToObject(PropData as TJSONObject, OptionalObject.Value);
             end;
-        end
-      else if C.InheritsFrom(TAny) then
-        begin
-          Any := TAny(C.Create);
-          Any.value := JSONToVariant(PropData);
-          SetObjectProp(AObject, PropInfo, Any);
         end
       else if C.InheritsFrom(TJSONData) then
         begin

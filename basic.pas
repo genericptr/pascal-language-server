@@ -30,14 +30,6 @@ uses
   Classes, SysUtils;
 
 type
-  // { LSPObject | LSPArray | string | integer | uinteger | decimal | boolean | null }
-  TAny = class(TPersistent)
-  private
-    fValue: Variant;
-  public
-    property value: Variant read fValue write fValue;
-  end;
-
   TAnyArray = array of Variant;
 
   { TOptional }
