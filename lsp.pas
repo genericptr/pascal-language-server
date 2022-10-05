@@ -23,9 +23,12 @@ unit lsp;
 {$mode objfpc}{$H+}
 
 interface
-
 uses
-  Classes, SysUtils, TypInfo, fpjson, fpjsonrtti, fpjsonrpc,
+  { RTL }
+  Classes, SysUtils, TypInfo, 
+  { JSON-RPC }
+  fpjson, fpjsonrtti, fpjsonrpc,
+  { Pasls }
   basic;
 
 type
@@ -210,17 +213,28 @@ procedure TLSPDeStreamer.DoRestoreProperty(AObject: TObject; PropInfo: PPropInfo
 var
   C: TClass;
   Optional: TObject;
-  Any: TAny;
   OptionalVariant: TOptionalVariantBase;
   OptionalObject: TOptionalObjectBase;
+  Any: TAny;
   ElementType: PTypeInfo;
-  VariantArray: array of variant;
   PropArray: TJSONArray;
   I: Integer;
+var
+  VariantArray: array of variant;
+  ObjectArray: array of TObject;
 begin
   if (PropInfo^.PropType^.Kind = tkDynArray) and (PropData is TJSONArray) then
     begin
+      // Class kinds are in ElType2 (not sure why)
       ElementType := GetTypeData(PropInfo^.PropType)^.ElType;
+      if ElementType = nil then
+        ElementType := GetTypeData(PropInfo^.PropType)^.ElType2;
+
+      // Something went wrong, bail!
+      if ElementType = nil then
+        // TODO: raise LSPException
+        exit;
+
       PropArray := TJSONArray(PropData);
 
       case ElementType^.Kind of
@@ -231,9 +245,28 @@ begin
               VariantArray[I] := PropArray[I].Value;
             SetDynArrayProp(AObject, PropInfo, Pointer(VariantArray));
           end;
+        tkClass:
+          begin
+            C:=GetTypeData(ElementType)^.ClassType;
+            // Invalid class type
+            if not C.InheritsFrom(TPersistent) then
+              // TODO: raise LSPException
+              exit;
+
+            SetLength(ObjectArray, PropArray.Count);
+
+            for I := 0 to PropArray.Count - 1 do
+              if PropArray[I] is TJSONObject then
+                begin
+                  ObjectArray[I] := C.Create;
+                  JSONToObject(TJSONObject(PropArray[I]), ObjectArray[I]);
+                end
+              else
+                ; // TODO: raise LSPException (must be object in payload!)
+            SetDynArrayProp(AObject, PropInfo, Pointer(ObjectArray));
+          end;
         otherwise
-          // TODO: support more types
-          ;
+          ; // TODO: support more types
       end;
     end
   else if PropInfo^.PropType^.Kind = tkClass then
@@ -314,6 +347,8 @@ end;
 
 class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;
 begin
+  // TODO: intercept here for dynamic arrays
+
   if AObject.InheritsFrom(TCollection) then
     Result := Streamer.StreamCollection(TCollection(AObject))
   else
@@ -366,30 +401,6 @@ begin
   Message.params := Params;
   Message.method := Method;
   Message.Send;
-
-  // TODO: how do we get the response now? it comes back like this. we would need to parse the ID
-  // from the input stream and then find it in a queue of awaiting responses
-  // pascal-language-server: ➡️ {"id":"_0","result":{"applied":true},"jsonrpc":"2.0"}
-  // :: >>> pascal-language-server _0: {'applied': True}
-  (*
-    interface ResponseMessage extends Message {
-      /**
-       * The request id.
-       */
-      id: integer | string | null;
-
-      /**
-       * The result of a request. This member is REQUIRED on success.
-       * This member MUST NOT exist if there was an error invoking the method.
-       */
-      result?: string | number | boolean | object | null;
-
-      /**
-       * The error object in case a request fails.
-       */
-      error?: ResponseError;
-    }
-  *)
 end;
 
 { TLSPNotification }
