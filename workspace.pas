@@ -25,7 +25,7 @@ interface
 
 uses
   Classes, fpjson, fpjsonrpc,
-  lsp, basic, general, documentSymbol, settings;
+  lsp, basic, general, documentSymbol, settings, symbols;
 
 type
   

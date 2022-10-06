@@ -30,7 +30,7 @@ uses
   FPMConfig,
   {$endif}
   Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
-  lsp, basic, capabilities, documentSymbol, settings;
+  lsp, basic, capabilities, documentSymbol, settings, symbols;
 
 type
 

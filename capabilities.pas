@@ -23,9 +23,9 @@ unit capabilities;
 {$mode objfpc}{$H+}
 
 interface
-
 uses
-  Classes, options, documentSymbol, settings;
+  Classes, 
+  options, documentSymbol, settings, symbols;
 
 type
 
