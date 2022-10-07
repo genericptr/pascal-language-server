@@ -58,7 +58,8 @@ type
   end;
 
   { TDocumentHighlightRequest
-
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_documentHighlight
+    
     The document highlight request is sent from the client to the server to resolve a 
     document highlights for a given text document position. For programming languages 
     this usually highlights all references to the symbol scoped to this file. 
