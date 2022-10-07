@@ -365,10 +365,16 @@ begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
 
   Output := Process(Input);
-  if not Assigned(Output)
-    then Output := TPersistent.Create;
+
+  if Output = nil then
+    begin
+      Result := TJSONNull.Create;
+      Input.Free;
+      exit;
+    end;
 
   Result := specialize TLSPStreaming<U>.ToJSON(Output);
+  
   if not Assigned(Result) then
     Result := TJSONNull.Create;
 
