@@ -307,13 +307,6 @@ const
       ServerSettings.FPCOptions.Add('-Fu'+Path);
       ServerSettings.FPCOptions.Add('-Fi'+Path);
 
-      // TODO: set these config options based on FPM also
-      // FPCPath: /usr/local/bin/fpc
-      // FPCSrcDir: /usr/local/share/fpcsrc
-      // TargetOS: darwin
-      // TargetProcessor: x86_64
-      //CodeToolsOptions.FPCPath := config.GetCompilerPath;
-
       ServerSettings.&program := config.GetProgramFile;
       for flag in config.GetCodeToolOptions do
         ServerSettings.FPCOptions.Add(flag);
