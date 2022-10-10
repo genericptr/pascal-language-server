@@ -27,7 +27,7 @@ interface
 
 uses
   {$ifdef FreePascalMake}
-  FPMConfig,
+  FPMConfig, FPMUtils,
   {$endif}
   Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
   lsp, basic, capabilities, documentSymbol, settings, symbols;
@@ -322,8 +322,10 @@ const
 
       result := true;
     except
-      on E: Exception do
+      on E: EFPMError do
         writeln(StdErr, '🔴 FPM Error: '+E.Message);
+      on E: EFPMNotFound do
+        // nothing was found so exit and use other config options
     end;
   end;
   {$endif}
