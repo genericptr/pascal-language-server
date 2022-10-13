@@ -21,10 +21,12 @@ The implementation is still incomplete.
    - documentSymbol (only `SymbolInformation`)
    - documentHighlight
    - completion
+   - inlayHint
  - window
    - showMessage
  - workspace
    - symbol
+   - executeCommand
 - diagnostics (incomplete)
 
 ### Initialization Options
