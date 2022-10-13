@@ -307,7 +307,7 @@ const
       ServerSettings.FPCOptions.Add('-Fu'+Path);
       ServerSettings.FPCOptions.Add('-Fi'+Path);
 
-      ServerSettings.&program := config.GetProgramFile;
+      ServerSettings.&program := config.target.ProgramFile;
       for flag in config.GetCodeToolOptions do
         ServerSettings.FPCOptions.Add(flag);
 
@@ -385,8 +385,6 @@ begin with Params do
 
     {$ifdef LINUX}
     {$endif}
-
-    //InitWithEnvironmentVariables;
 
     {$ifdef FreePascalMake}
     { attempt to load settings from FPM config file or search in the
