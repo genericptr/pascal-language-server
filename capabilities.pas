@@ -161,14 +161,10 @@ begin
   definitionProvider := true;
   implementationProvider := true;
   referencesProvider := true;
-  // todo: disabling this until we can figure out how to highlight
-  // only begin/end keywords. too annoying right now.
   documentHighlightProvider := false;
   executeCommandProvider := TExecuteCommandOptions.Create([
-    'pasls.do_stuff'
+    'pasls.completeCode'
   ]);
-  // todo: inlay hints may be difficult to implement in ST since they send
-  // the entire document range for every change and expect us to respond to that.
   inlayHintProvider := nil;//TInlayHintOptions.Create;
 
   documentSymbolProvider := Assigned(SymbolManager);
