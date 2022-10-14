@@ -59,7 +59,7 @@ type
 
   { TDocumentHighlightRequest
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_documentHighlight
-    
+
     The document highlight request is sent from the client to the server to resolve a 
     document highlights for a given text document position. For programming languages 
     this usually highlights all references to the symbol scoped to this file. 
@@ -73,6 +73,18 @@ type
   end;
 
 implementation
+uses
+  LinkScanner;
+
+function GetIdentifierRangeAtPos(Code: TCodeBuffer; X, Y: Integer): TRange;
+var
+  Line: String;
+  IdentStart, IdentEnd: Integer;
+begin
+  Line := Code.GetLine(Y);
+  GetIdentStartEndAtPosition(Line, X, IdentStart, IdentEnd);
+  result := TRange.Create(Y, IdentStart - 1, Y, IdentEnd - 1);
+end;
 
 function TDocumentHighlightRequest.Process(var Params: TDocumentHighlightParams): TDocumentHighlightItems;
 var
@@ -87,18 +99,34 @@ begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
-    X := position.character;
-    Y := position.line;
-    Result := nil;
-    
-    if CodeToolBoss.FindBlockCounterPart(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine) then
+    X := position.character + 1;
+    Y := position.line + 1;
+
+    if CodeToolBoss.FindBlockCounterPart(Code, X, Y, NewCode, NewX, NewY, NewTopLine) then
       begin
-        if Result = nil then
-          Result := TDocumentHighlightItems.Create;
-        Item := TDocumentHighlight(Result.Add);
-        Item.kind := TDocumentHighlightKind.Text;
-        Item.range := TRange.Create(NewY - 1, NewX - 1, Y, X);
-      end;
+        Result := TDocumentHighlightItems.Create;
+
+        // Show start/end indentifier if the range spans more than 1 line
+        if NewY - Y <> 0 then
+          begin
+            Item := TDocumentHighlight(Result.Add);
+            Item.kind := TDocumentHighlightKind.Text;
+            item.range := GetIdentifierRangeAtPos(NewCode, NewX, NewY - 1);
+
+            Item := TDocumentHighlight(Result.Add);
+            Item.kind := TDocumentHighlightKind.Text;
+            item.range := GetIdentifierRangeAtPos(NewCode, X, Y - 1);
+          end
+        else
+          begin
+            // TODO: make this an option to show single line ranges?
+            //Item := TDocumentHighlight(Result.Add);
+            //Item.kind := TDocumentHighlightKind.Text;
+            //Item.range := TRange.Create(NewY - 1, NewX - 1, Y - 1, X - 1);
+          end;
+      end
+    else
+      result := nil;
   end;
 end;
 

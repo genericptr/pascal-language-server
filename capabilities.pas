@@ -161,7 +161,7 @@ begin
   definitionProvider := true;
   implementationProvider := true;
   referencesProvider := true;
-  documentHighlightProvider := false;
+  documentHighlightProvider := true;
   executeCommandProvider := TExecuteCommandOptions.Create([
     'pasls.completeCode'
   ]);
