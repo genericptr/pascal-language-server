@@ -76,6 +76,8 @@ var
   URI: TURI;
   NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: Integer;
 begin
+  // https://wiki.lazarus.freepascal.org/Lazarus_IDE_Tools#Code_Completion
+
   with CodeToolBoss.SourceChangeCache.BeautifyCodeOptions do
     begin
      ClassHeaderComments:=false;
@@ -83,8 +85,6 @@ begin
      ForwardProcBodyInsertPolicy:=fpipInFrontOfMethods;
     end;
 
-  // https://wiki.lazarus.freepascal.org/Lazarus_IDE_Tools#Code_Completion
-  CodeToolBoss.CurCodeTool.Beautifier := nil;
   URI :=  ParseURI(documentURI);
   //Code := CodeToolBoss.LoadFile(URI.path + URI.Document, false, false);
   Path := URI.path + URI.Document;
