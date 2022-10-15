@@ -73,8 +73,6 @@ type
     procedure Clear(fileName: string);
   end;
 
-{ Code Tools Error Handling }
-
 procedure CheckSyntax(Code: TCodeBuffer);
 procedure PublishDiagnostic(UserMessage: String = '');
 procedure ClearDiagnostics(Code: TCodeBuffer);
