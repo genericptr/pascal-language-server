@@ -25,9 +25,12 @@ unit codeUtils;
 interface
 
 uses
-  SysUtils, Classes, fpjson,
-  CodeTree, PascalReaderTool, PascalParserTool, IdentCompletionTool;
-
+  { RTL }
+  SysUtils, Classes, FPJSON,
+  { CodeTools }
+  CodeCache, CodeTree, PascalReaderTool, PascalParserTool, IdentCompletionTool, BasicCodeTools,
+  { Pasls }
+  basic;
 
 type
   
@@ -63,6 +66,7 @@ type
 
 { Functions }
 function GetIdentifierAtPos(Tool: TPascalReaderTool; StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false; IncludeOps: Boolean = false): String;
+function GetIdentifierRangeAtPos(Code: TCodeBuffer; X, Y: Integer): TRange;
 function FindIdentifierClass(Identifier: TIdentifierListItem): ShortString;
 function IsNodeObjectMember(Node: TCodeTreeNode): Boolean;
 function IdentifierContext(Identifier: TIdentifierListItem; out DetailString: ShortString; out ObjectMember: boolean): ShortString;
@@ -73,6 +77,16 @@ function ParseParamList(RawList: String; AsSnippet: boolean): String; overload;
 function ConvertBytesToHumanReadable(bytes: cardinal): ShortString;
 
 implementation
+
+function GetIdentifierRangeAtPos(Code: TCodeBuffer; X, Y: Integer): TRange;
+var
+  Line: String;
+  IdentStart, IdentEnd: Integer;
+begin
+  Line := Code.GetLine(Y);
+  GetIdentStartEndAtPosition(Line, X, IdentStart, IdentEnd);
+  result := TRange.Create(Y, IdentStart - 1, Y, IdentEnd - 1);
+end;
 
 function FindIdentifierClass(Identifier: TIdentifierListItem): ShortString;
 var

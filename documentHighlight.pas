@@ -73,18 +73,6 @@ type
   end;
 
 implementation
-uses
-  LinkScanner;
-
-function GetIdentifierRangeAtPos(Code: TCodeBuffer; X, Y: Integer): TRange;
-var
-  Line: String;
-  IdentStart, IdentEnd: Integer;
-begin
-  Line := Code.GetLine(Y);
-  GetIdentStartEndAtPosition(Line, X, IdentStart, IdentEnd);
-  result := TRange.Create(Y, IdentStart - 1, Y, IdentEnd - 1);
-end;
 
 function TDocumentHighlightRequest.Process(var Params: TDocumentHighlightParams): TDocumentHighlightItems;
 var
