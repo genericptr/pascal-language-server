@@ -25,7 +25,7 @@ unit lsp;
 interface
 uses
   { RTL }
-  Classes, SysUtils, TypInfo, 
+  Classes, SysUtils, TypInfo, RTTIUtils, Contnrs,
   { JSON-RPC }
   fpjson, fpjsonrtti, fpjsonrpc,
   { Pasls }
@@ -38,6 +38,8 @@ type
   TLSPStreamer = class(TJSONStreamer)
   protected
     function StreamClassProperty(const AObject: TObject): TJSONData; override;
+    function ObjectToJSON(Const AObject: TObject): TJSONObject;
+    function StreamProperty(Const AObject: TObject; PropertyInfo: PPropInfo): TJSONData;
   end;
 
   { TLSPDeStreamer }
@@ -59,9 +61,13 @@ type
                               DataName: TJSONStringType; var AValue: TObject); static;
   public
     class constructor Create;
-    class function ToObject(const JSON: TJSONData): T; static;
-    class function ToObject(const JSON: TJSONStringType): T;
-    class function ToJSON(AObject: TObject): TJSONData; static;
+
+    class function ToObject(const JSON: TJSONData): T; overload;
+    class function ToObject(const JSON: TJSONStringType): T; overload;
+
+    class function ToJSON(AObject: TObject): TJSONData; overload;
+    class function ToJSON(AArray: array of TObject): TJSONData; overload;
+    class function ToJSON(AArray: array of Variant): TJSONData; overload;
   end;
 
   { TLSPProcessor }
@@ -203,6 +209,112 @@ begin
     Result := inherited StreamClassProperty(AObject)
 end;
 
+{ NOTE: This is copied from `fpjsonrtti.pas` until the library supports streaming dynamic arrays }
+function TLSPStreamer.ObjectToJSON(Const AObject: TObject): TJSONObject;
+Var
+  PIL : TPropInfoList;
+  PD : TJSONData;
+  I : Integer;
+begin
+  Result:=Nil;
+  If (AObject=Nil) then
+    Exit;
+  Result:=TJSONObject.Create;
+  try
+    If Assigned(BeforeStreamObject) then
+      BeforeStreamObject(Self,AObject,Result);
+    If AObject is TStrings then
+      Result.Add('Strings',StreamTStrings(Tstrings(AObject)))
+    else If AObject is TCollection then
+      Result.Add('Items',StreamCollection(TCollection(AObject)))
+    else If AObject is TObjectList then
+      Result.Add('Objects',StreamObjectList(TObjectList(AObject)))
+    else if (jsoStreamTlist in Options) and (AObject is TList) then
+      Result.Add('Objects', StreamTList(TList(AObject)))
+    else
+      begin
+      PIL:=TPropInfoList.Create(AObject,tkProperties);
+      try
+        For I:=0 to PIL.Count-1 do
+          begin
+          PD:=StreamProperty(AObject,PIL.Items[i]);
+            If (PD<>Nil) then begin
+              if jsoLowerPropertyNames in Options then
+                Result.Add(LowerCase(PIL.Items[I]^.Name),PD)
+              else
+            Result.Add(PIL.Items[I]^.Name,PD);
+          end;
+          end;
+      finally
+        FReeAndNil(Pil);
+      end;
+      // TODO: StreamChildren is private so we can't support it
+      If (jsoStreamChildren in Options) and (AObject is TComponent) then
+        begin
+          //Result.Add(ChildProperty,StreamChildren(TComponent(AObject)));
+          writeln(StdErr, '🔴 jsoStreamChildren not supported');
+          Flush(StdErr);
+          Halt(-1);
+        end;
+      If Assigned(AfterStreamObject) then
+        AfterStreamObject(Self,AObject,Result);
+      end;
+  except
+    FreeAndNil(Result);
+    Raise;
+  end;
+end;
+
+function TLSPStreamer.StreamProperty(Const AObject: TObject; PropertyInfo: PPropInfo): TJSONData;
+type
+  TVariantArray = array of Variant;
+  TObjectArray = array of TObject;
+var
+  PropArray: TJSONArray;
+  ElementType: PTypeInfo;
+  VariantArray: TVariantArray;
+  ObjectArray: TObjectArray;
+  i: integer;
+begin
+  Result := nil;
+
+  if PropertyInfo^.PropType^.Kind = tkDynArray then
+    begin
+      // Class kinds are in ElType2 (not sure why)
+      ElementType := GetTypeData(PropertyInfo^.PropType)^.ElType;
+      if ElementType = nil then
+        ElementType := GetTypeData(PropertyInfo^.PropType)^.ElType2;
+
+      // Something went wrong, bail!
+      if ElementType = nil then
+        // TODO: raise LSPException
+        exit;
+
+      PropArray := TJSONArray.Create;
+
+      case ElementType^.Kind of
+        tkVariant:
+          begin
+            VariantArray := TVariantArray(GetDynArrayProp(AObject, PropertyInfo));
+            for i := 0 to High(VariantArray) do
+              PropArray.Add(StreamVariant(VariantArray[i]));
+            Result := PropArray;
+          end;
+        tkClass:
+          begin
+            ObjectArray := TObjectArray(GetDynArrayProp(AObject, PropertyInfo));
+            for i := 0 to High(ObjectArray) do
+              PropArray.Add(StreamClassProperty(ObjectArray[i]));
+            result := PropArray;
+          end;
+        otherwise
+          ; // TODO: support more types
+      end;
+    end
+  else
+    Result := inherited StreamProperty(AObject, PropertyInfo);
+end;
+
 { TLSPDeStreamer }
 
 procedure TLSPDeStreamer.DoRestoreProperty(AObject: TObject; PropInfo: PPropInfo; PropData: TJSONData);
@@ -336,12 +448,32 @@ end;
 
 class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;
 begin
-  // TODO: intercept here for dynamic arrays
-
   if AObject.InheritsFrom(TCollection) then
     Result := Streamer.StreamCollection(TCollection(AObject))
   else
     Result := Streamer.ObjectToJSON(AObject);
+end;
+
+class function TLSPStreaming.ToJSON(AArray: array of TObject): TJSONData;
+var
+  AObject: TObject;
+  JArray: TJSONArray;
+begin
+  JArray := TJSONArray.Create;
+  for AObject in AArray do
+    JArray.Add(Streamer.ObjectToJSON(AObject));
+  result := JArray;
+end;
+
+class function TLSPStreaming.ToJSON(AArray: array of Variant): TJSONData;
+var
+  Data: Variant;
+  JArray: TJSONArray;
+begin
+  JArray := TJSONArray.Create;
+  for Data in AArray do
+    JArray.Add(Streamer.StreamVariant(Data));
+  result := JArray;
 end;
 
 { TLSPProcessor }
