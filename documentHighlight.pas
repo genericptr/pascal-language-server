@@ -23,11 +23,13 @@ unit documentHighlight;
 {$scopedenums on}
 
 interface
-
 uses
+  { RTL }
   Classes, 
+  { CodeTools }
   URIParser, CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
-  lsp, basic;
+  { Pasls }
+  lsp, basic, codeUtils;
 
 type
   TDocumentHighlightKind = (
