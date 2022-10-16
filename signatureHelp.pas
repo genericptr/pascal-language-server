@@ -82,7 +82,11 @@ type
 
   TSignatureInformationCollection = specialize TGenericCollection<TSignatureInformation>;
 
-  { TSignatureHelp }
+  { TSignatureHelp
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#signatureHelp
+    
+    Signature help represents the signature of something callable.
+    There can be multiple signature but only one active and only one active parameter. }
 
   TSignatureHelp = class(TPersistent)
   private
@@ -113,11 +117,13 @@ type
 
   end;
 
-  { TSignatureHelp }
+  { TSignatureHelpRequest
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_signatureHelp
 
-  { Signature help represents the signature of something
-   callable. There can be multiple signature but only one
-   active and only one active parameter. }
+    Signature help represents the signature of something
+    callable. There can be multiple signature but only one
+    active and only one active parameter. }
+
   TSignatureHelpRequest = class(specialize TLSPRequest<TTextDocumentPositionParams, TSignatureHelp>)
     function Process(var Params: TTextDocumentPositionParams): TSignatureHelp; override;
   end;

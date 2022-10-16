@@ -28,9 +28,6 @@ uses
   CodeToolManager, CodeCache,
   lsp, basic;
 
-// https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#window_showMessage
-
-
 type
   
   { TMessageType }
@@ -56,8 +53,10 @@ type
     property message: string read fMessage write fMessage;
   end;
 
-  { TShowMessageNotification }
-  { The show message notification is sent from a server to a client to ask 
+  { TShowMessageNotification
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#window_showMessage
+    
+    The show message notification is sent from a server to a client to ask 
     the client to display a particular message in the user interface. }
 
   TShowMessageNotification = class(TNotificationMessage)
@@ -86,16 +85,6 @@ type
     property actions: TMessageActionItems read fActions write fActions;
   end;
 
-
-  { The show message request is sent from a server to a client to ask the 
-    client to display a particular message in the user interface. In addition 
-    to the show message notification the request allows to pass actions 
-    and to wait for an answer from the client. }
-
-  //TShowMessageRequest = class(specialize TLSPRequest<TShowMessageRequstParams, TMessageActionItem>)
-  //  function Process(var Params: TShowMessageRequstParams): TMessageActionItem; override;
-  //end;
-
 implementation
 
 { TShowMessageNotification }
@@ -113,12 +102,5 @@ begin
   params.Free;
   inherited;
 end;
-
-{ TShowMessageRequest }
-
-//function TShowMessageRequest.Process(var Params: TShowMessageRequstParams): TMessageActionItem;
-//begin
-//  result := nil
-//end;
 
 end.
