@@ -52,7 +52,10 @@ type
 
   { TLSPStreaming }
 
-  generic TLSPStreaming<T: TPersistent> = class
+  generic TLSPStreaming<T> = class
+  type
+    TObjectArray = array of TObject;
+    PObject = ^TObject;
   private
     class var Streamer: TLSPStreamer;
     class var DeStreamer: TLSPDeStreamer;
@@ -61,13 +64,10 @@ type
                               DataName: TJSONStringType; var AValue: TObject); static;
   public
     class constructor Create;
-
     class function ToObject(const JSON: TJSONData): T; overload;
     class function ToObject(const JSON: TJSONStringType): T; overload;
-
     class function ToJSON(AObject: TObject): TJSONData; overload;
     class function ToJSON(AArray: array of TObject): TJSONData; overload;
-    class function ToJSON(AArray: array of Variant): TJSONData; overload;
   end;
 
   { TLSPProcessor }
@@ -85,7 +85,7 @@ type
     A request message to describe a request between the client and the server. 
     Every processed request must send a response back to the sender of the request. }
 
-  generic TLSPRequest<T, U: TPersistent> = class(TCustomJSONRPCHandler)
+  generic TLSPRequest<T: TPersistent; U> = class(TCustomJSONRPCHandler)
   protected
     function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
     function Process(var Params : T): U; virtual; abstract;
@@ -252,7 +252,7 @@ begin
       If (jsoStreamChildren in Options) and (AObject is TComponent) then
         begin
           //Result.Add(ChildProperty,StreamChildren(TComponent(AObject)));
-          writeln(StdErr, '🔴 jsoStreamChildren not supported');
+          writeln(StdErr, 'jsoStreamChildren not supported');
           Flush(StdErr);
           Halt(-1);
         end;
@@ -285,11 +285,6 @@ begin
       if ElementType = nil then
         ElementType := GetTypeData(PropertyInfo^.PropType)^.ElType2;
 
-      // Something went wrong, bail!
-      if ElementType = nil then
-        // TODO: raise LSPException
-        exit;
-
       PropArray := TJSONArray.Create;
 
       case ElementType^.Kind of
@@ -308,7 +303,7 @@ begin
             result := PropArray;
           end;
         otherwise
-          ; // TODO: support more types
+          raise EUnknownErrorCode.Create('Dynamic array element type "'+Integer(ElementType^.Kind).ToString+'" is not supported for responses.');
       end;
     end
   else
@@ -337,11 +332,6 @@ begin
       if ElementType = nil then
         ElementType := GetTypeData(PropInfo^.PropType)^.ElType2;
 
-      // Something went wrong, bail!
-      if ElementType = nil then
-        // TODO: raise LSPException
-        exit;
-
       PropArray := TJSONArray(PropData);
 
       case ElementType^.Kind of
@@ -354,14 +344,9 @@ begin
           end;
         tkClass:
           begin
-            C:=GetTypeData(ElementType)^.ClassType;
-            // Invalid class type
-            if not C.InheritsFrom(TPersistent) then
-              // TODO: raise LSPException
-              exit;
+            C := GetTypeData(ElementType)^.ClassType;
 
             SetLength(ObjectArray, PropArray.Count);
-
             for I := 0 to PropArray.Count - 1 do
               if PropArray[I] is TJSONObject then
                 begin
@@ -369,11 +354,12 @@ begin
                   JSONToObject(TJSONObject(PropArray[I]), ObjectArray[I]);
                 end
               else
-                ; // TODO: raise LSPException (must be object in payload!)
+                raise EUnknownErrorCode.Create('Dynamic array element class must be TJSONObject.');
+
             SetDynArrayProp(AObject, PropInfo, Pointer(ObjectArray));
           end;
         otherwise
-          ; // TODO: support more types
+          raise EUnknownErrorCode.Create('Dynamic array element type "'+Integer(ElementType^.Kind).ToString+'" is not supported for responses.');
       end;
     end
   else if PropInfo^.PropType^.Kind = tkClass then
@@ -437,13 +423,13 @@ end;
 class function TLSPStreaming.ToObject(const JSON: TJSONData): T;
 begin
   Result := T.Create;
-  DeStreamer.JSONToObject(JSON as TJSONObject, Result);
+  DeStreamer.JSONToObject(JSON as TJSONObject, PObject(@Result)^);
 end;
 
 class function TLSPStreaming.ToObject(const JSON: TJSONStringType): T;
 begin
   Result := T.Create;
-  DeStreamer.JSONToObject(JSON, Result);
+  DeStreamer.JSONToObject(JSON, PObject(@Result)^);
 end;
 
 class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;
@@ -465,17 +451,6 @@ begin
   result := JArray;
 end;
 
-class function TLSPStreaming.ToJSON(AArray: array of Variant): TJSONData;
-var
-  Data: Variant;
-  JArray: TJSONArray;
-begin
-  JArray := TJSONArray.Create;
-  for Data in AArray do
-    JArray.Add(Streamer.StreamVariant(Data));
-  result := JArray;
-end;
-
 { TLSPProcessor }
 
 class function TLSPProcessor.Process(AProcess: specialize TLSPProcess<T, U>; const Params: TJSONData): TJSONData;
@@ -490,12 +465,20 @@ end;
 { TLSPRequest }
 
 function TLSPRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
+type
+  TObjectArray = array of TObject;
+  PObjectArray = ^TObjectArray;
+  PObject = ^TObject;
 var
   Input: T;
-  Output: TObject;
+  Output: U;
+  Streamer: TLSPStreamer;
+  ObjectArray: TObjectArray;
+  AObject: TObject;
+  ArrayTypeInfo: PTypeInfo;
+  ElementType: PTypeInfo;
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
-
   Output := Process(Input);
 
   if Output = nil then
@@ -505,13 +488,35 @@ begin
       exit;
     end;
 
-  Result := specialize TLSPStreaming<U>.ToJSON(Output);
+  Streamer := TLSPStreamer.Create(nil);
+  Streamer.Options := Streamer.Options + [jsoEnumeratedAsInteger, jsoSetEnumeratedAsInteger, jsoTStringsAsArray];
+
+  if GetTypeKind(U) = tkDynArray then
+    begin
+      ArrayTypeInfo := PTypeInfo(TypeInfo(U));
+
+      // Class kinds are in ElType2 (not sure why)
+      ElementType := GetTypeData(ArrayTypeInfo)^.ElType;
+      if ElementType = nil then
+        ElementType := GetTypeData(ArrayTypeInfo)^.ElType2;
+
+      case ElementType^.Kind of
+        tkClass:
+          Result := specialize TLSPStreaming<U>.ToJSON(PObjectArray(@Output)^);
+        otherwise
+          raise EUnknownErrorCode.Create('Dynamic array element type "'+Integer(ElementType^.Kind).ToString+'" is not supported for responses.');
+      end;
+    end
+  else
+    begin
+      Result := specialize TLSPStreaming<U>.ToJSON(PObject(@Output)^);
+      PObject(@Output)^.Free;
+    end;
   
-  if not Assigned(Result) then
+  if Result = nil then
     Result := TJSONNull.Create;
 
   Input.Free;
-  Output.Free;
 end;
 
 { TLSPOutgoingRequest }
@@ -593,4 +598,3 @@ begin
 end;
 
 end.
-
