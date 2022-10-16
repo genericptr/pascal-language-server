@@ -23,7 +23,7 @@ program pasls;
 
 uses
   { RTL }
-  SysUtils, fpjson, jsonparser, jsonscanner,
+  SysUtils, Classes, fpjson, jsonparser, jsonscanner,
 
   { LSP }
   lsp, general,
@@ -31,7 +31,11 @@ uses
   { Protocols }
   basic, synchronization, completion, gotoDeclaration, gotoDefinition, 
   gotoImplementation, hover, signatureHelp, references, codeAction, 
-  documentHighlight, documentSymbol, workspace, window, executeCommand;
+  documentHighlight, documentSymbol, workspace, window, executeCommand,
+  inlayHint,
+
+  { Pasls }
+  memUtils;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';
@@ -93,6 +97,8 @@ begin
           SendMessage(dispatcher, method, GetFileAsString(path));
           Inc(i, 2);
         end;
+
+      DrainAutoReleasePool;
       Halt;
     end;
 end;
@@ -101,7 +107,7 @@ end;
 var
   Dispatcher: TLSPDispatcher;
   Header, Name, Value, Content: string;
-  I, Length: Integer;
+  I, ContentLength: Integer;
   Request, Response: TJSONData;
   ShowMessage: TShowMessageNotification;
   VerboseDebugging: boolean = false;
@@ -131,14 +137,14 @@ begin
           Name := Copy(Header, 1, I - 1);
           Delete(Header, 1, i);
           Value := Trim(Header);
-          if Name = 'Content-Length' then Length := StrToInt(Value);
+          if Name = 'Content-Length' then ContentLength := StrToInt(Value);
           ReadLn(Header);
         end;
 
       Content := '';
-      SetLength(Content, Length);
+      SetLength(Content, ContentLength);
       I := 1;
-      while I <= Length do
+      while I <= ContentLength do
         begin
           Read(Content[I]);
           Inc(I);
@@ -180,5 +186,7 @@ begin
         end;
 
       Request.Free;
+
+      DrainAutoReleasePool;
     end;
 end.

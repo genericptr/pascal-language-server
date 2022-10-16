@@ -175,7 +175,6 @@ begin
   StartTime := Now;
   Result := SymbolManager.FindWorkspaceSymbols(Input.query);
   Flush(stderr);
-  Input.Free;
 
   if not Assigned(Result) then
     Result := TJSONNull.Create;

@@ -247,7 +247,6 @@ begin
   Result := SymbolManager.FindDocumentSymbols(Path);
   if not Assigned(Result) then
     Result := TJSONNull.Create;
-  Input.Free;
 end;
 
 initialization

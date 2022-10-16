@@ -29,7 +29,7 @@ uses
   { JSON-RPC }
   fpjson, fpjsonrtti, fpjsonrpc,
   { Pasls }
-  basic;
+  basic, memUtils;
 
 type
 
@@ -424,12 +424,14 @@ class function TLSPStreaming.ToObject(const JSON: TJSONData): T;
 begin
   Result := T.Create;
   DeStreamer.JSONToObject(JSON as TJSONObject, PObject(@Result)^);
+  PObject(@Result)^.AutoRelease;
 end;
 
 class function TLSPStreaming.ToObject(const JSON: TJSONStringType): T;
 begin
   Result := T.Create;
   DeStreamer.JSONToObject(JSON, PObject(@Result)^);
+  PObject(@Result)^.AutoRelease;
 end;
 
 class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;
@@ -459,7 +461,6 @@ var
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   Result := specialize TLSPStreaming<U>.ToJSON(AProcess(Input));
-  Input.Free;
 end;
 
 { TLSPRequest }
@@ -484,7 +485,6 @@ begin
   if Output = nil then
     begin
       Result := TJSONNull.Create;
-      Input.Free;
       exit;
     end;
 
@@ -502,7 +502,13 @@ begin
 
       case ElementType^.Kind of
         tkClass:
-          Result := specialize TLSPStreaming<U>.ToJSON(PObjectArray(@Output)^);
+          begin
+            Result := specialize TLSPStreaming<U>.ToJSON(PObjectArray(@Output)^);
+
+            // Free all objects
+            for AObject in PObjectArray(@Output)^ do
+              AObject.Free;
+          end;
         otherwise
           raise EUnknownErrorCode.Create('Dynamic array element type "'+Integer(ElementType^.Kind).ToString+'" is not supported for responses.');
       end;
@@ -515,8 +521,6 @@ begin
   
   if Result = nil then
     Result := TJSONNull.Create;
-
-  Input.Free;
 end;
 
 { TLSPOutgoingRequest }
@@ -543,7 +547,6 @@ var
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   Process(Input);
-  Input.Free;
 
   result := nil;
 end;

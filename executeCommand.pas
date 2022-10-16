@@ -89,7 +89,6 @@ begin with Params do
           documentURI := arguments.Strings[0];
           position := specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[1].AsJSON);
           CompleteCode(documentURI, position.line, position.character);
-          position.Free;
         end;
     end;
   end;
