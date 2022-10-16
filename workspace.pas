@@ -156,16 +156,12 @@ uses
 
 procedure TDidChangeConfiguration.Process(var Params: TDidChangeConfigurationParams);
 begin
-  // todo: this messages comes AFTER the initializationOptions
 end;
 
 { TDidChangeWorkspaceFolders }
 
 procedure TDidChangeWorkspaceFolders.Process(var Params : TDidChangeWorkspaceFoldersParams);
-begin with Params do
-  begin
-    // TODO: ST3 is not sending this message reliably but it will be ready in ST4
-  end;
+begin
 end;
 
 { TWorkspaceSymbolRequest }
@@ -178,8 +174,6 @@ begin
   Input := specialize TLSPStreaming<TWorkspaceSymbolParams>.ToObject(Params);
   StartTime := Now;
   Result := SymbolManager.FindWorkspaceSymbols(Input.query);
-  //writeln(stderr,'workspace/symbol payload=', ConvertBytesToHumanReadable(Length(Result.AsJson)), ' in ', MilliSecondsBetween(Now,StartTime), 'ms');
-  //writeln(stderr, Result.AsJson);
   Flush(stderr);
   Input.Free;
 

@@ -917,35 +917,19 @@ begin
 end;
 
 function TSymbolManager.FindWorkspaceSymbols(Query: String): TJSONSerializedArray;
-// note: there is a bug in Sublime Text which requires the workspace
-// symbols command to send a query string so we define a wildcard
-// to replace an empty query (which should return all symbols)
-// TODO: fixed in https://github.com/sublimelsp/LSP/issues/1008.
-const
-  WILDCARD_QUERY = '*';
 begin
-  if (Database <> nil) and (Query <> '') {and (Query <> WILDCARD_QUERY)} then
-    begin
-      if Query = WILDCARD_QUERY then
-        Query := '';
-      result := Database.FindSymbols(Query);
-    end
+  if Database <> nil then
+    result := Database.FindSymbols(Query)
   else
     result := CollectSerializedSymbols;
 end;
 
-{
-  note: a full database query of 3MB takes 20ms so what does this really get us??
-}
 function TSymbolManager.CollectSerializedSymbols: TJSONSerializedArray;
 var
   i, j: integer;
   Entry: TSymbolTableEntry;
   Contents: TLongString;
 begin
-  writeln(stderr, 'collecting serialized symbols...');
-  Flush(stderr);
-
   Contents.Clear;
   Contents.Add('[');
 

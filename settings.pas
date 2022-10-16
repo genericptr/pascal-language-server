@@ -179,7 +179,7 @@ begin
   includeWorkspaceFoldersAsIncludePaths := true;
   documentSymbols := true;
   ignoreTextCompletions := true;
-  workspaceSymbols := false;
+  workspaceSymbols := true;
   minimalisticCompletions := false;
   
   // errors/diagnostics
