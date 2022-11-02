@@ -386,6 +386,15 @@ begin with Params do
     {$ifdef LINUX}
     {$endif}
 
+    { LSP clients (like VS Code: https://github.com/genericptr/pasls-vscode ,
+      Emacs: https://github.com/arjanadriaanse/lsp-pascal ) pass critical parameters
+      as environment variables:
+      PP, FPCDIR, LAZARUSDIR, FPCTARGET, FPCTARGETCPU.
+      And TCodeToolsOptions.InitWithEnvironmentVariables reads them.
+      The CodeTools configuration doesn't work without defining them,
+      you will get error "TFPCUnitToSrcCache.GetConfigCache missing CompilerFilename". }
+    CodeToolsOptions.InitWithEnvironmentVariables;
+
     {$ifdef FreePascalMake}
     { attempt to load settings from FPM config file or search in the
       default workspace if there is there is only one available.
