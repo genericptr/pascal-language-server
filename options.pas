@@ -153,7 +153,7 @@ type
     // The commands to be executed on the server
     property commands: TStrings read fCommands write fCommands;
   public
-    constructor Create(_commands: TStringArray = []);
+    constructor Create(_commands: TStringArray);
   end;
 
   { TInlayHintOptions }
