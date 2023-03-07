@@ -32,6 +32,9 @@ uses
   basic, memUtils;
 
 type
+  TObjectArray = array of TObject;
+  PObjectArray = ^TObjectArray;
+  PObject = ^TObject;
 
   { TLSPStreamer }
 
@@ -466,10 +469,6 @@ end;
 { TLSPRequest }
 
 function TLSPRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
-type
-  TObjectArray = array of TObject;
-  PObjectArray = ^TObjectArray;
-  PObject = ^TObject;
 var
   Input: T;
   Output: U;
