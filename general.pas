@@ -184,6 +184,7 @@ const
 
   procedure ShowConfigStatus(CodeToolsOptions: TCodeToolsOptions); 
   begin
+    writeln(StdErr, kStatusPrefix+'Server: ',{$INCLUDE %DATE%});
     writeln(StdErr, kStatusPrefix+'Client: ', Params.clientInfo.name, ' ', Params.clientInfo.version);
 
     writeln(StdErr, kStatusPrefix+'FPCPath: ', CodeToolsOptions.FPCPath);
