@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Package Version="5">
+    <Name Value="lspprotocol"/>
+    <Type Value="RunAndDesignTime"/>
+    <Author Value="Ryan Joseph, Arjan Adriaans, Michael Van Canneyt"/>
+    <CompilerOptions>
+      <Version Value="11"/>
+      <SearchPaths>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)/"/>
+      </SearchPaths>
+    </CompilerOptions>
+    <Description Value="Object Pascal - Language Server Protocol implementation"/>
+    <License Value="LGPL V3"/>
+    <Version Major="1"/>
+    <Files>
+      <Item>
+        <Filename Value="codeaction.pas"/>
+        <UnitName Value="codeAction"/>
+      </Item>
+      <Item>
+        <Filename Value="codeutils.pas"/>
+        <UnitName Value="codeUtils"/>
+      </Item>
+      <Item>
+        <Filename Value="commands.pas"/>
+        <UnitName Value="commands"/>
+      </Item>
+      <Item>
+        <Filename Value="diagnostics.pas"/>
+        <UnitName Value="diagnostics"/>
+      </Item>
+      <Item>
+        <Filename Value="documenthighlight.pas"/>
+        <UnitName Value="documentHighlight"/>
+      </Item>
+      <Item>
+        <Filename Value="documentsymbol.pas"/>
+        <UnitName Value="documentSymbol"/>
+      </Item>
+      <Item>
+        <Filename Value="executecommand.pas"/>
+        <UnitName Value="executeCommand"/>
+      </Item>
+      <Item>
+        <Filename Value="gotodeclaration.pas"/>
+        <UnitName Value="gotoDeclaration"/>
+      </Item>
+      <Item>
+        <Filename Value="gotodefinition.pas"/>
+        <UnitName Value="gotoDefinition"/>
+      </Item>
+      <Item>
+        <Filename Value="gotoimplementation.pas"/>
+        <UnitName Value="gotoImplementation"/>
+      </Item>
+      <Item>
+        <Filename Value="hover.pas"/>
+        <UnitName Value="hover"/>
+      </Item>
+      <Item>
+        <Filename Value="inlayhint.pas"/>
+        <UnitName Value="inlayHint"/>
+      </Item>
+      <Item>
+        <Filename Value="memutils.pas"/>
+        <UnitName Value="memUtils"/>
+      </Item>
+      <Item>
+        <Filename Value="basic.pas"/>
+        <UnitName Value="basic"/>
+      </Item>
+      <Item>
+        <Filename Value="capabilities.pas"/>
+        <UnitName Value="capabilities"/>
+      </Item>
+      <Item>
+        <Filename Value="completion.pas"/>
+        <UnitName Value="completion"/>
+      </Item>
+      <Item>
+        <Filename Value="general.pas"/>
+        <UnitName Value="general"/>
+      </Item>
+      <Item>
+        <Filename Value="lsp.pas"/>
+        <UnitName Value="lsp"/>
+      </Item>
+      <Item>
+        <Filename Value="options.pas"/>
+        <UnitName Value="options"/>
+      </Item>
+      <Item>
+        <Filename Value="references.pas"/>
+        <UnitName Value="references"/>
+      </Item>
+      <Item>
+        <Filename Value="settings.pas"/>
+        <UnitName Value="settings"/>
+      </Item>
+      <Item>
+        <Filename Value="signaturehelp.pas"/>
+        <UnitName Value="signatureHelp"/>
+      </Item>
+      <Item>
+        <Filename Value="symbols.pas"/>
+        <UnitName Value="symbols"/>
+      </Item>
+      <Item>
+        <Filename Value="synchronization.pas"/>
+        <UnitName Value="synchronization"/>
+      </Item>
+      <Item>
+        <Filename Value="window.pas"/>
+        <UnitName Value="window"/>
+      </Item>
+      <Item>
+        <Filename Value="workdoneprogress.pas"/>
+        <UnitName Value="workDoneProgress"/>
+      </Item>
+      <Item>
+        <Filename Value="workspace.pas"/>
+        <UnitName Value="workspace"/>
+      </Item>
+    </Files>
+    <RequiredPkgs>
+      <Item>
+        <PackageName Value="CodeTools"/>
+      </Item>
+      <Item>
+        <PackageName Value="FCL"/>
+      </Item>
+    </RequiredPkgs>
+    <UsageOptions>
+      <UnitPath Value="$(PkgOutDir)"/>
+    </UsageOptions>
+    <PublishOptions>
+      <Version Value="2"/>
+      <UseFileFilters Value="True"/>
+    </PublishOptions>
+  </Package>
+</CONFIG>

@@ -25,11 +25,10 @@ uses
   { RTL }
   SysUtils, Classes, fpjson, jsonparser, jsonscanner,
 
-  { LSP }
-  lsp, general,
+  LSP,
 
   { Protocols }
-  basic, synchronization, completion, gotoDeclaration, gotoDefinition, 
+  gotoDeclaration, gotoDefinition,
   gotoImplementation, hover, signatureHelp, references, codeAction, 
   documentHighlight, documentSymbol, workspace, window, executeCommand,
   inlayHint,
@@ -40,8 +39,6 @@ uses
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';
 
-{$macro on}
-{$if FPC_FULLVERSION>=30301}
 var
   LastMessageID: LongInt = 0;
 
@@ -102,7 +99,7 @@ begin
       Halt;
     end;
 end;
-{$endif}
+
 
 var
   Dispatcher: TLSPDispatcher;
@@ -118,9 +115,9 @@ begin
       Halt;
     end;
 
-  {$if FPC_FULLVERSION>=30301}
+
   ExecuteCommandLineMessages;
-  {$endif}
+
 
   Dispatcher := TLSPDispatcher.Create(nil);
   TJSONData.CompressedJSON := True;

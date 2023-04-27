@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="11"/>
+    <Version Value="12"/>
     <General>
       <Flags>
         <MainUnitHasCreateFormStatements Value="False"/>
+        <CompatibilityMode Value="True"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <MainUnit Value="0"/>
       <Title Value="pasls"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
@@ -42,52 +42,26 @@
     </PublishOptions>
     <RunParams>
       <FormatVersion Value="2"/>
-      <Modes Count="0"/>
     </RunParams>
-    <RequiredPackages Count="3">
+    <RequiredPackages Count="4">
       <Item1>
-        <PackageName Value="CodeTools"/>
+        <PackageName Value="lspprotocol"/>
       </Item1>
       <Item2>
-        <PackageName Value="WebLaz"/>
+        <PackageName Value="CodeTools"/>
       </Item2>
       <Item3>
-        <PackageName Value="FCL"/>
+        <PackageName Value="WebLaz"/>
       </Item3>
+      <Item4>
+        <PackageName Value="FCL"/>
+      </Item4>
     </RequiredPackages>
-    <Units Count="8">
+    <Units Count="1">
       <Unit0>
         <Filename Value="pasls.lpr"/>
         <IsPartOfProject Value="True"/>
       </Unit0>
-      <Unit1>
-        <Filename Value="general.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit1>
-      <Unit2>
-        <Filename Value="lsp.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit2>
-      <Unit3>
-        <Filename Value="synchronization.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit3>
-      <Unit4>
-        <Filename Value="capabilities.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit4>
-      <Unit5>
-        <Filename Value="options.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit5>
-      <Unit6>
-        <Filename Value="completion.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit6>
-      <Unit7>
-        <Filename Value="basic.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit7>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -110,17 +84,8 @@
       </Checks>
       <VerifyObjMethodCallValidity Value="True"/>
     </CodeGeneration>
-    <Linking>
-      <!-- <Debugging>
-        <DebugInfoType Value="dsDwarf2Set"/>
-        <UseHeaptrc Value="True"/>
-        <TrashVariables Value="True"/>
-        <UseExternalDbgSyms Value="True"/>
-      </Debugging> -->
-    </Linking>
     <Other>
       <Verbosity>
-        <ShowWarn Value="True"/>
         <ShowNotes Value="False"/>
         <ShowHints Value="False"/>
       </Verbosity>
