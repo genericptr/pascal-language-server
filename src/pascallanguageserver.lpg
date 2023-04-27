@@ -2,9 +2,10 @@
 <CONFIG>
   <ProjectGroup FileVersion="2">
     <Targets>
-      <Target FileName="../pasls.lpi">
+      <Target FileName="protocol/lspprotocol.lpk"/>
+      <Target FileName="standard/pasls.lpi">
         <BuildModes>
-          <Mode Name="Debug"/>
+          <Mode Name="Debug" Compile="True"/>
           <Mode Name="Release"/>
         </BuildModes>
       </Target>
