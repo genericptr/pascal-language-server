@@ -382,10 +382,15 @@ begin with Params do
     {$endif}
 
     {$ifdef MSWINDOWS}
+    CodeToolsOptions.TargetOS := 'windows';
     {$endif}
 
     {$ifdef LINUX}
+    CodeToolsOptions.TargetOS := 'linux';
     {$endif}
+
+    // Override default settings with environment variables
+    CodeToolsOptions.InitWithEnvironmentVariables;
 
     {$ifdef FreePascalMake}
     { attempt to load settings from FPM config file or search in the

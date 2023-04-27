@@ -109,7 +109,6 @@ var
   Header, Name, Value, Content: string;
   I, ContentLength: Integer;
   Request, Response: TJSONData;
-  ShowMessage: TShowMessageNotification;
   VerboseDebugging: boolean = false;
 begin
   // Show help for the server
