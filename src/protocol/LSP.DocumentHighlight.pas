@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit documentHighlight;
+unit LSP.DocumentHighlight;
 
 {$mode objfpc}{$H+}
 {$scopedenums on}
@@ -26,10 +26,12 @@ interface
 uses
   { RTL }
   Classes, 
-  { CodeTools }
+  { Code Tools }
   URIParser, CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
-  { Pasls }
-  lsp, basic, codeUtils;
+  { Protocol }
+  LSP.Base, LSP.Basic,
+  { Other }
+  CodeUtils;
 
 type
   TDocumentHighlightKind = (

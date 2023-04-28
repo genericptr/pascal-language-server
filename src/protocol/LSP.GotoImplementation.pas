@@ -17,60 +17,49 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit gotoDefinition;
+unit LSP.GotoImplementation;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  Classes, URIParser, CodeToolManager, CodeCache, BasicCodeTools,
-  lsp, basic;
+  { RTL }
+  Classes, URIParser, 
+  { Code Tools }
+  CodeToolManager, CodeCache, BasicCodeTools,
+  { Protocol }
+  LSP.Base, LSP.Basic;
 
 type
   
-  { TGotoDefinition }
+  { TGotoImplementation }
   
-  TGotoDefinition = class(specialize TLSPRequest<TTextDocumentPositionParams, TLocation>)
+  TGotoImplementation = class(specialize TLSPRequest<TTextDocumentPositionParams, TLocation>)
     function Process(var Params: TTextDocumentPositionParams): TLocation; override;
   end;
 
 implementation
 uses
-  diagnostics;
+  LSP.Diagnostics;
   
-function TGotoDefinition.Process(var Params: TTextDocumentPositionParams): TLocation;
+function TGotoImplementation.Process(var Params: TTextDocumentPositionParams): TLocation;
 var
   URI: TURI;
   Code: TCodeBuffer;
   NewCode: TCodeBuffer;
   X, Y: Integer;
   NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: integer;
+  RevertableJump: boolean;
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     X := position.character;
     Y := position.line;
-    { 
-      NOTE: currently goto definition is supported as goto declaration
-      
-      There is a definition for the following identifiers:
-        
-        - Methods
 
-      There is no definition for the following identifiers:
-  
-        - Function forwards
-        - Functions in the interface section
-        - External functions
-        - Class forwards
-        - External ObjC classes
-
-        https://www.cprogramming.com/declare_vs_define.html
-        https://stackoverflow.com/questions/1410563/what-is-the-difference-between-a-definition-and-a-declaration
-    }
-    if CodeToolBoss.FindDeclaration(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine) then
+    if CodeToolBoss.JumpToMethod(Code, X + 1, Y + 1, 
+      NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine, RevertableJump) then
       begin
         Result := TLocation.Create;
         Result.URI := PathToURI(NewCode.Filename);
@@ -78,13 +67,13 @@ begin with Params do
       end
     else
       begin
-        Result := nil;
         PublishDiagnostic;
+        Result := nil;
       end;
   end;
 end;
 
 initialization
-  LSPHandlerManager.RegisterHandler('textDocument/definition', TGotoDefinition);
+  LSPHandlerManager.RegisterHandler('textDocument/implementation', TGotoImplementation);
 end.
 

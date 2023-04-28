@@ -18,15 +18,17 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit options;
+unit LSP.Options;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  SysUtils, Classes, 
-  basic, workDoneProgress;
+  { RTL }
+  SysUtils, Classes,
+  { Protocol }
+  LSP.Basic, LSP.WorkDoneProgress;
 
 type
 

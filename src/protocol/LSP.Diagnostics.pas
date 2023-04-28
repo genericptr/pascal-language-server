@@ -17,16 +17,19 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit diagnostics;
+unit LSP.Diagnostics;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
+  { RTL }
   Classes, 
+  { Code Tools }
   CodeToolManager, CodeCache,
-  lsp, basic, window;
+  { Protocol }
+  LSP.Base, LSP.Basic, LSP.Window;
 
 type
 
@@ -79,7 +82,7 @@ procedure ClearDiagnostics(Code: TCodeBuffer);
 
 implementation
 uses
-  SysUtils, settings;
+  SysUtils, Settings;
 
 { Publish the last code tools error as a diagnostics }
 procedure PublishDiagnostic(UserMessage: String = '');

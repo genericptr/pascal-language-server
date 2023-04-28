@@ -17,14 +17,16 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit executeCommand;
+unit LSP.ExecuteCommand;
 
 {$mode objfpc}{$H+}
 
 interface
 uses
+  { RTL }
   SysUtils, Classes, FPJSON,
-  lsp, basic, workDoneProgress;
+  { Protocol }
+  LSP.Base, LSP.Basic, LSP.WorkDoneProgress;
 
 type
   { TExecuteCommandParams
@@ -66,7 +68,7 @@ type
 
 implementation
 uses
-  commands;
+  Commands;
 
 destructor TExecuteCommandParams.Destroy;
 begin

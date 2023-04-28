@@ -24,18 +24,12 @@ program pasls;
 
 uses
   { RTL }
-  SysUtils, Classes, fpjson, jsonparser, jsonscanner,
-
-  LSP,
-
-  { Protocols }
-  gotoDeclaration, gotoDefinition,
-  gotoImplementation, hover, signatureHelp, references, codeAction, 
-  documentHighlight, documentSymbol, workspace, window, executeCommand,
-  inlayHint,
-
-  { Pasls }
-  memUtils;
+  SysUtils, Classes, FPJson, JSONParser, JSONScanner, MemUtils,
+  { Protocol }
+  LSP.Basic, LSP.GotoDeclaration, LSP.GotoDefinition,
+  LSP.GotoImplementation, LSP.Hover, LSP.SignatureHelp, LSP.References, LSP.CodeAction, 
+  LSP.DocumentHighlight, LSP.DocumentSymbol, LSP.Workspace, LSP.Window, LSP.ExecuteCommand,
+  LSP.InlayHint;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';

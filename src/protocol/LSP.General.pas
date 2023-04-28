@@ -18,7 +18,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit general;
+unit LSP.General;
 
 {$mode objfpc}{$H+}
 {$modeswitch arrayoperators}
@@ -29,8 +29,14 @@ uses
   {$ifdef FreePascalMake}
   FPMConfig, FPMUtils,
   {$endif}
-  Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
-  lsp, basic, capabilities, documentSymbol, settings, symbols, lazconfig;
+  { RTL }
+  Classes, URIParser, LazUTF8, 
+  { Code Tools }
+  CodeToolManager, CodeToolsConfig, 
+  { Protocol }
+  LSP.Base, LSP.Basic, LSP.Capabilities, LSP.DocumentSymbol,
+  { Utils }
+  Settings, Symbols, LazConfig;
 
 type
 

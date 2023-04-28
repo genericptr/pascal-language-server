@@ -18,7 +18,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit basic;
+unit LSP.Basic;
 
 {$mode objfpc}{$H+}
 {$modeswitch advancedrecords}
@@ -26,7 +26,7 @@ unit basic;
 
 interface
 uses
-  FPJSON,
+  FPJson,
   Classes, SysUtils;
 
 type
@@ -545,7 +545,7 @@ operator :=(right: String): TOptionalString;
 
 implementation
 uses
-  lsp;
+  LSP.Base;
 
 { Utilities }
 

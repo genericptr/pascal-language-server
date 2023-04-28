@@ -18,18 +18,18 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit lsp;
+unit LSP.Base;
 
 {$mode objfpc}{$H+}
 
 interface
 uses
   { RTL }
-  Classes, SysUtils, TypInfo, RTTIUtils, Contnrs,  types,
+  Classes, SysUtils, TypInfo, RTTIUtils, Contnrs, Types,
   { JSON-RPC }
   fpjson, fpjsonrtti, fpjsonrpc,
   { Pasls }
-  basic, memUtils;
+  LSP.Basic;
 
 type
   TObjectArray = Array of TObject;
@@ -158,6 +158,8 @@ function LSPHandlerManager: TCustomJSONRPCHandlerManager;
 function IsResponseValid(Response: TJSONData): boolean;
 
 implementation
+uses
+  memUtils;
 
 { Utilities }
 

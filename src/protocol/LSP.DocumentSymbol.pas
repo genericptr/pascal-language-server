@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit documentSymbol;
+unit LSP.DocumentSymbol;
 
 {$mode objfpc}{$H+}
 {define SYMBOL_DEBUG}
@@ -25,9 +25,14 @@ unit documentSymbol;
 interface
 
 uses
-  Classes, Contnrs, URIParser, fpjson, fpjsonrpc, SQLite3,
+  { RTL }
+  Classes, Contnrs, URIParser, FPJson, FPJsonRPC, SQLite3,
+  { Code Tools }
   CodeToolManager, CodeCache, CodeTree, LinkScanner,
-  lsp, basic, codeUtils;
+  { Protocol }
+  LSP.Base, LSP.Basic, 
+  { Other }
+  CodeUtils;
 
 type
   TSymbolKind = (
@@ -164,10 +169,13 @@ function SymbolKindFromString(kind: ShortString): TSymbolKind;
 
 implementation
 uses
+  { RTL }
   SysUtils, FileUtil, DateUtils, fpjsonrtti, 
+  { Code Tools }
   CodeToolsConfig, IdentCompletionTool, CodeAtom,
   BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
-  settings, diagnostics, symbols;
+  { Protocol }
+  LSP.Diagnostics, Symbols, Settings;
 
 function SymbolKindToString(kind: TSymbolKind): ShortString;
 begin

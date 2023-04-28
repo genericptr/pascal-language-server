@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit codeAction;
+unit LSP.CodeAction;
 
 {$mode objfpc}{$H+}
 {$modeswitch advancedrecords}
@@ -25,8 +25,10 @@ unit codeAction;
 interface
 
 uses
+  { RTL }
   Classes, URIParser, 
-  lsp, basic;
+  { Protocol }
+  LSP.Base, LSP.Basic;
 
 type
   

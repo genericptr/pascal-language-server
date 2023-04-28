@@ -18,14 +18,16 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit capabilities;
+unit LSP.Capabilities;
 
 {$mode objfpc}{$H+}
 
 interface
 uses
+  { RTL }
   Classes, 
-  options, documentSymbol, settings, symbols;
+  { Protocol }
+  LSP.Options, LSP.DocumentSymbol, Settings, Symbols;
 
 type
 

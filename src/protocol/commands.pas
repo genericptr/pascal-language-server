@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit commands;
+unit Commands;
 
 {$mode objfpc}{$H+}
 
@@ -26,7 +26,7 @@ uses
   { RTL }
   SysUtils, Classes, URIParser, FPJSON,
   { LSP }
-  basic;
+  LSP.Basic;
 
 procedure CompleteCode(documentURI: TDocumentUri; line, column: integer);
 
@@ -36,8 +36,8 @@ uses
   CodeToolManager, CodeToolsConfig, CodeCache, IdentCompletionTool, 
   BasicCodeTools, CodeTree, FindDeclarationTool, PascalParserTool,
   SourceChanger,
-  { Pasls }
-  workspace;
+  { Protocols }
+  LSP.Workspace;
 
 procedure ApplyEdit(documentURI, Text: String; range: TRange);
 var

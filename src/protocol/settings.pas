@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit settings;
+unit Settings;
 
 {$mode objfpc}{$H+}
 {$scopedenums on}

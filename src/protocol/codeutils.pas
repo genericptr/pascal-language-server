@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit codeUtils;
+unit CodeUtils;
 
 {$mode objfpc}{$H+}
 {$modeswitch advancedrecords}
@@ -30,7 +30,7 @@ uses
   { CodeTools }
   CodeCache, CodeTree, PascalReaderTool, PascalParserTool, IdentCompletionTool, BasicCodeTools,
   { Pasls }
-  basic;
+  LSP.Basic;
 
 type
   

@@ -17,15 +17,17 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit gotoDeclaration;
+unit LSP.GotoDeclaration;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
+  { RTL }
   Classes, URIParser, CodeToolManager, CodeCache, BasicCodeTools,
-  lsp, basic;
+  { Protocol }
+  LSP.Base, LSP.Basic;
 
 type
   
@@ -37,7 +39,7 @@ type
 
 implementation
 uses
-  diagnostics;
+  LSP.Diagnostics;
   
 function TGotoDeclaraction.Process(var Params: TTextDocumentPositionParams): TLocation;
 var

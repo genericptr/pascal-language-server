@@ -21,7 +21,6 @@ The implementation is still incomplete.
    - documentSymbol (only `SymbolInformation`)
    - documentHighlight
    - completion
-   - inlayHint (incomplete)
  - window
    - showMessage
  - workspace

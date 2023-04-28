@@ -20,7 +20,7 @@
 {$mode objfpc}
 {$modeswitch autoderef}
 
-unit memUtils;
+unit MemUtils;
 interface
 uses
   Math, Types, SysUtils, FGL;

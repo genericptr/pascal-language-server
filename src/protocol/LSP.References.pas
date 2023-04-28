@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit references;
+unit LSP.References;
 
 {$mode objfpc}{$H+}
 
@@ -26,12 +26,12 @@ interface
 uses
   { RTL }
   SysUtils, Classes, 
-  { CodeTools }
+  { Code Tools }
   URIParser, CodeToolManager, CodeCache, CTUnitGraph,
   { LazUtils }
   LazFileUtils, Laz_AVL_Tree,
-  { LSP }
-  lsp, basic, general;
+  { Protocol }
+  LSP.Base, LSP.Basic, LSP.General;
 
 type
 
@@ -67,7 +67,7 @@ procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: T
 
 implementation
 uses
-  settings, diagnostics;
+  Settings, LSP.Diagnostics;
   
 procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
 var

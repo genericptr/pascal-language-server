@@ -17,16 +17,21 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit symbols;
+unit Symbols;
 
 {$mode objfpc}{$H+}
 {define SYMBOL_DEBUG}
 
 interface
 uses
+  { RTL }
   Classes, Contnrs, URIParser, fpjson, fpjsonrpc, SQLite3,
+  { Code Tools }
   CodeToolManager, CodeCache, CodeTree, LinkScanner,
-  lsp, basic, codeUtils, documentSymbol;
+  { Protocols }
+  LSP.Base, LSP.Basic, LSP.DocumentSymbol,
+  { Other }
+  CodeUtils;
 
 type
 
@@ -168,10 +173,13 @@ var
 
 implementation
 uses
+  { RTL }
   SysUtils, FileUtil, DateUtils, fpjsonrtti, 
+  { Code Tools }
   CodeToolsConfig, IdentCompletionTool, CodeAtom,
   BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
-  settings, diagnostics;
+  { Protocol }
+  LSP.diagnostics, Settings;
 
 function GetFileKey(Path: String): ShortString;
 begin

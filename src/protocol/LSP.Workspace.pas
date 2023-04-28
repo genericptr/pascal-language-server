@@ -17,15 +17,18 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit workspace;
+unit LSP.Workspace;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
+  { RTL }
   Classes, fpjson, fpjsonrpc,
-  lsp, basic, general, documentSymbol, settings, symbols;
+  { Protocol }
+  LSP.Base, LSP.Basic, LSP.General, LSP.DocumentSymbol, 
+  Settings, Symbols;
 
 type
   

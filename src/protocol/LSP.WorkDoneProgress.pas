@@ -17,15 +17,17 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit workDoneProgress;
+unit LSP.WorkDoneProgress;
 
 {$mode objfpc}{$H+}
 {$scopedenums on}
 
 interface
 uses
+  { RTL }
   Classes,
-  basic;
+  { Protocol }
+  LSP.Basic;
 
 type
   TProgressToken = String; { integer | string }

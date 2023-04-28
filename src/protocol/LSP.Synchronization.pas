@@ -18,7 +18,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit synchronization;
+unit LSP.Synchronization;
 
 {$mode objfpc}{$H+}
 

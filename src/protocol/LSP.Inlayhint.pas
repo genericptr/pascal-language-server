@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit inlayHint;
+unit LSP.InlayHint;
 
 {$mode objfpc}{$H+}
 {$scopedenums on}

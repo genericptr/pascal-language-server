@@ -17,15 +17,19 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit hover;
+unit LSP.Hover;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  Classes, URIParser, CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools,
-  lsp, basic;
+  { RTL }
+  Classes, URIParser, 
+  { Code Tools }
+  CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools,
+  { Protocol }
+  LSP.Base, LSP.Basic;
 
 type
   
@@ -52,7 +56,8 @@ type
 
 implementation
 uses
-  SysUtils, diagnostics;
+  SysUtils, 
+  LSP.Diagnostics;
 
 { THoverRequest }
 

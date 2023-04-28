@@ -17,15 +17,19 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit signatureHelp;
+unit LSP.SignatureHelp;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  Classes, URIParser, CodeToolManager, CodeCache, IdentCompletionTool,
-  lsp, basic;
+  { RTL }
+  Classes, URIParser, 
+  { Code Tools }
+  CodeToolManager, CodeCache, IdentCompletionTool,
+  { Protocol }
+  LSP.Base, LSP.Basic;
 
 type
 
@@ -130,8 +134,12 @@ type
 
 implementation
 uses
-  SysUtils, FindDeclarationTool, CodeTree, PascalParserTool,
-  codeUtils, diagnostics;
+  { RTL }
+  SysUtils, CodeUtils, 
+  { Code Tools}
+  FindDeclarationTool, CodeTree, PascalParserTool,
+  { Protocol }
+  LSP.Diagnostics;
 
 { TSignatureHelpRequest }
 
