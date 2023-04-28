@@ -30,7 +30,7 @@ uses
   FPMConfig, FPMUtils,
   {$endif}
   Classes, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
-  lsp, basic, capabilities, documentSymbol, settings, symbols;
+  lsp, basic, capabilities, documentSymbol, settings, symbols, lazconfig;
 
 type
 
@@ -156,7 +156,7 @@ begin
 
   if clientInfo = nil then
     clientInfo := TClientInfo.Create;
-    
+  
   if initializationOptions = nil then
     initializationOptions := TInitializationOptions.Create;
 
@@ -330,8 +330,6 @@ var
   URI: TURI;
   Item: TCollectionItem;
   re: TRegExpr;
-  DirectoryTemplate,
-  UnitPathTemplate: TDefineTemplate;
   ServerCapabilities: TServerCapabilities;
   Macros: TMacroMap;
   Paths: TStringArray;
@@ -339,9 +337,6 @@ begin with Params do
   begin
     CodeToolsOptions := TCodeToolsOptions.Create;
 
-    // TODO: we need to copy this or implement ref counting
-    // once we figure out how memory is going to work with
-    // the JSON-RPC streaming model
     ServerSettings := initializationOptions;
     settings.ClientInfo := clientInfo;
 
@@ -363,14 +358,18 @@ begin with Params do
     writeln(StdErr, '► RootURI: ', rootUri);
     writeln(StdErr, '► ProjectDir: ', CodeToolsOptions.ProjectDir);
 
+    {
+      For more information on CodeTools see:
+      https://wiki.freepascal.org/Codetools
+    }
+
     // set some built-in defaults based on platform
     {$ifdef DARWIN}
     CodeToolsOptions.FPCPath := '/usr/local/bin/fpc';
     CodeToolsOptions.FPCSrcDir := '/usr/local/share/fpcsrc';
     CodeToolsOptions.LazarusSrcDir := '/usr/local/share/lazsrc';
     CodeToolsOptions.TargetOS := 'darwin';
-    
-    // https://www.freepascal.org/docs-html/prog/progap7.html#x316-331000G
+
     {$ifdef CPUX86_64}
     CodeToolsOptions.TargetProcessor := 'x86_64';
     {$endif}
@@ -381,16 +380,17 @@ begin with Params do
 
     {$endif}
 
-    {$ifdef MSWINDOWS}
-    CodeToolsOptions.TargetOS := 'windows';
-    {$endif}
+    { Override default settings with environment variables.
+      These are the required values which must be set:
 
-    {$ifdef LINUX}
-    CodeToolsOptions.TargetOS := 'linux';
-    {$endif}
-
-    // Override default settings with environment variables
+      FPCDIR       = path to FPC source directory
+      PP           = path of the Free Pascal compiler. For example /usr/bin/ppc386.
+      LAZARUSDIR   = path of the lazarus sources
+      FPCTARGET    = FPC target OS like linux, win32, darwin
+      FPCTARGETCPU = FPC target cpu like i386, x86_64, arm }
     CodeToolsOptions.InitWithEnvironmentVariables;
+
+    GuessCodeToolConfig(CodeToolsOptions);
 
     {$ifdef FreePascalMake}
     { attempt to load settings from FPM config file or search in the
