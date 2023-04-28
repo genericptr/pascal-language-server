@@ -66,8 +66,9 @@ type
 procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
 
 implementation
+
 uses
-  Settings, LSP.Diagnostics;
+  LSP.Settings, LSP.Diagnostics;
   
 procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
 var

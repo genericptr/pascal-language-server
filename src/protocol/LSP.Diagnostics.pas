@@ -81,8 +81,9 @@ procedure PublishDiagnostic(UserMessage: String = '');
 procedure ClearDiagnostics(Code: TCodeBuffer);
 
 implementation
+
 uses
-  SysUtils, Settings;
+  SysUtils, LSP.Settings;
 
 { Publish the last code tools error as a diagnostics }
 procedure PublishDiagnostic(UserMessage: String = '');

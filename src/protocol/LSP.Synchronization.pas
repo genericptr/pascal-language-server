@@ -27,7 +27,7 @@ interface
 uses
   Classes, DateUtils, URIParser, 
   CodeToolManager, CodeCache,
-  lsp, basic, symbols;
+  LSP.Base, LSP.Basic, LSP.Symbols;
 
 type
 
@@ -136,7 +136,7 @@ type
 
 implementation
 uses
-  SysUtils, codeUtils, settings, diagnostics, documentSymbol;
+  SysUtils, LSP.Bridge.CodeUtils, LSP.Settings, LSP.Diagnostics, LSP.DocumentSymbol;
 
 { TDidChangeTextDocumentParams }
 

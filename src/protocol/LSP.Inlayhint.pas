@@ -25,7 +25,7 @@ unit LSP.InlayHint;
 interface
 uses
   Classes, SysUtils,
-  lsp, basic;
+  LSP.Base, LSP.Basic;
 
 type
   

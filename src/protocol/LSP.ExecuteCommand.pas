@@ -68,7 +68,7 @@ type
 
 implementation
 uses
-  Commands;
+  LSP.Bridge.Commands;
 
 destructor TExecuteCommandParams.Destroy;
 begin
