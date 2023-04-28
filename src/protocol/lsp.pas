@@ -25,13 +25,14 @@ unit lsp;
 interface
 uses
   { RTL }
-  Classes, SysUtils, TypInfo, RTTIUtils, Contnrs,
+  Classes, SysUtils, TypInfo, RTTIUtils, Contnrs,  types,
   { JSON-RPC }
   fpjson, fpjsonrtti, fpjsonrpc,
   { Pasls }
   basic, memUtils;
 
 type
+  TObjectArray = Array of TObject;
 
   { TLSPStreamer }
 
@@ -54,7 +55,6 @@ type
 
   generic TLSPStreaming<T> = class
   type
-    TObjectArray = array of TObject;
     PObject = ^TObject;
   private
     class var Streamer: TLSPStreamer;
@@ -467,7 +467,7 @@ end;
 
 function TLSPRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
 type
-  TObjectArray = array of TObject;
+//  TObjectArray = array of TObject;
   PObjectArray = ^TObjectArray;
   PObject = ^TObject;
 var
