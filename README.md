@@ -21,7 +21,7 @@ The implementation is still incomplete.
    - documentSymbol (only `SymbolInformation`)
    - documentHighlight
    - completion
-   - inlayHint
+   - inlayHint (incomplete)
  - window
    - showMessage
  - workspace
@@ -44,16 +44,7 @@ The follow options are supported:
     "-Fi/path/to",
     "-dMY_MACRO"
   ],
-  "options":
-  {
-    "name": "string|number|boolean"
-  },
   "symbolDatabase": "/path/to/symbols.db",
-  "maximumCompletions": "number",
-  "overloadPolicy": [1,  // duplicate function names appear in the list
-                     2,  // after the original definition ignore others
-                     3   // add a suffix which denotes the overload count
-                     ],
   "program": "pasls.lpr"
 }
 ```
@@ -77,7 +68,7 @@ The following macro formats are valid:
 
 ### Optional Settings
 
-Boolean values used in *initializationOptions.options*.
+Boolean values used in *initializationOptions*.
 
 ```json
 // procedure completions with parameters are inserted as snippets
