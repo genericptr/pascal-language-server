@@ -31,7 +31,7 @@
         <UnitName Value="LSP.Diagnostics"/>
       </Item>
       <Item>
-        <Filename Value="LSP.Documenthighlight.pas"/>
+        <Filename Value="LSP.DocumentHighlight.pas"/>
         <UnitName Value="LSP.DocumentHighlight"/>
       </Item>
       <Item>
@@ -43,7 +43,7 @@
         <UnitName Value="LSP.ExecuteCommand"/>
       </Item>
       <Item>
-        <Filename Value="LSP.Gotodeclaration.pas"/>
+        <Filename Value="LSP.GotoDeclaration.pas"/>
         <UnitName Value="LSP.GotoDeclaration"/>
       </Item>
       <Item>
