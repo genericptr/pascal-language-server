@@ -37,64 +37,61 @@ const
 var
   LastMessageID: LongInt = 0;
 
-procedure SendMessage(dispatcher: TLSPDispatcher; method, params: String);
-var
-  Content: String;
-  Request: TJSONData = nil;
-  Response: TJSONData = nil;
-begin
-  writeln('▶️ ', method);
-  Content := '{"jsonrpc": "2.0","id": '+LastMessageID.ToString+', "method": "'+method+'","params": '+params+'}';
-  Inc(LastMessageID);
-
-  Request := TJSONParser.Create(Content, DefaultOptions).Parse;
-  Response := Dispatcher.Execute(Request);
-  if Assigned(Response) then
-    begin
-      writeln('◀️ response: ');
-      writeln(Response.FormatJSON);
-      Response.Free;
-    end;
-
-  FreeAndNil(Request);
-end;
-
 procedure ExecuteCommandLineMessages;
+
+  procedure SendMessage(dispatcher: TLSPDispatcher; method, params: String);
+  var
+    Content: String;
+    Request: TJSONData = nil;
+    Response: TJSONData = nil;
+  begin
+    writeln('▶️ ', method);
+    Content := '{"jsonrpc": "2.0","id": '+LastMessageID.ToString+', "method": "'+method+'","params": '+params+'}';
+    Inc(LastMessageID);
+
+    Request := TJSONParser.Create(Content, DefaultOptions).Parse;
+    Response := Dispatcher.Execute(Request);
+    if Assigned(Response) then
+      begin
+        writeln('◀️ response: ');
+        writeln(Response.FormatJSON);
+        Response.Free;
+      end;
+
+    FreeAndNil(Request);
+  end;
+
 var
   i: integer;
   method, path: String;
   dispatcher: TLSPDispatcher;
 begin
-  if ParamCount > 0 then
+  i := 1;
+  dispatcher := TLSPDispatcher.Create(nil);
+
+  while i <= ParamCount do
     begin
-      i := 1;
-      dispatcher := TLSPDispatcher.Create(nil);
-
-      while i <= ParamCount do
+      if ParamCount < i + 1 then
         begin
-          if ParamCount < i + 1 then
-            begin
-              writeln('Invalid parameter count of '+ParamCount.ToString+' (must be pairs of 2)');
-              Halt(1);
-            end;
-
-          method := ParamStr(i + 0);
-          path := ExpandFileName(ParamStr(i + 1));
-          if not FileExists(path) then
-            begin
-              writeln('Command path "'+path+'" can''t be found');
-              Halt(1);
-            end;
-
-          SendMessage(dispatcher, method, GetFileAsString(path));
-          Inc(i, 2);
+          writeln('Invalid parameter count of '+ParamCount.ToString+' (must be pairs of 2)');
+          Halt(1);
         end;
 
-      DrainAutoReleasePool;
-      Halt;
-    end;
-end;
+      method := ParamStr(i + 0);
+      path := ExpandFileName(ParamStr(i + 1));
+      if not FileExists(path) then
+        begin
+          writeln('Command path "'+path+'" can''t be found');
+          Halt(1);
+        end;
 
+      SendMessage(dispatcher, method, GetFileAsString(path));
+      Inc(i, 2);
+    end;
+
+  DrainAutoReleasePool;
+  Halt;
+end;
 
 var
   Dispatcher: TLSPDispatcher;
@@ -110,9 +107,8 @@ begin
       Halt;
     end;
 
-
-  ExecuteCommandLineMessages;
-
+  if ParamCount > 0 then
+    ExecuteCommandLineMessages;
 
   Dispatcher := TLSPDispatcher.Create(nil);
   TJSONData.CompressedJSON := True;
