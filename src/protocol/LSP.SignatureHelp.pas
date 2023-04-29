@@ -133,9 +133,10 @@ type
   end;
 
 implementation
+
 uses
   { RTL }
-  SysUtils, CodeUtils, 
+  SysUtils, PasLS.CodeUtils,
   { Code Tools}
   FindDeclarationTool, CodeTree, PascalParserTool,
   { Protocol }

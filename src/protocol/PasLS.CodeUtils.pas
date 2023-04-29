@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit CodeUtils;
+unit PasLS.CodeUtils;
 
 {$mode objfpc}{$H+}
 {$modeswitch advancedrecords}
