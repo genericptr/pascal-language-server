@@ -26,7 +26,7 @@ uses
   { RTL }
   SysUtils, Classes, FPJson, JSONParser, JSONScanner, MemUtils,
   { Protocol }
-  LSP.Basic, LSP.GotoDeclaration, LSP.GotoDefinition,
+  LSP.Base, LSP.Basic, LSP.GotoDeclaration, LSP.GotoDefinition,
   LSP.GotoImplementation, LSP.Hover, LSP.SignatureHelp, LSP.References, LSP.CodeAction, 
   LSP.DocumentHighlight, LSP.DocumentSymbol, LSP.Workspace, LSP.Window, LSP.ExecuteCommand,
   LSP.InlayHint;

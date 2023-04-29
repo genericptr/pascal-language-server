@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit lazconfig;
+unit LazConfig;
 
 {$mode objfpc}{$H+}
 
