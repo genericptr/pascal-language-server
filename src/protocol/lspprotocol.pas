@@ -8,13 +8,13 @@ unit lspprotocol;
 interface
 
 uses
-  LSP.CodeAction, LSP.Bridge.CodeUtils, LSP.Bridge.Commands, LSP.Diagnostics, 
-  LSP.DocumentHighlight, LSP.DocumentSymbol, LSP.ExecuteCommand, 
-  LSP.GotoDeclaration, LSP.GotoDefinition, LSP.GotoImplementation, LSP.Hover, 
-  LSP.InlayHint, MemUtils, LSP.Basic, LSP.Capabilities, LSP.Completion, 
-  LSP.General, LSP.Base, LSP.Options, LSP.References, LSP.Settings, 
-  LSP.SignatureHelp, LSP.Symbols, LSP.Synchronization, LSP.Window, 
-  LSP.WorkDoneProgress, LSP.Workspace, LSP.Bridge.LazConfig, LazarusPackageIntf;
+  LSP.CodeAction, LSP.Diagnostics, LSP.DocumentHighlight, LSP.DocumentSymbol, 
+  LSP.ExecuteCommand, LSP.GotoDeclaration, LSP.GotoDefinition, 
+  LSP.GotoImplementation, LSP.Hover, LSP.InlayHint, MemUtils, LSP.Basic, 
+  LSP.Capabilities, LSP.Completion, LSP.General, LSP.Base, LSP.Options, 
+  LSP.References, PasLS.Settings, LSP.SignatureHelp, LSP.Symbols, 
+  LSP.Synchronization, LSP.Window, LSP.WorkDoneProgress, LSP.Workspace, 
+  PasLS.CodeUtils, PasLS.Commands, PasLS.LazConfig, LazarusPackageIntf;
 
 implementation
 

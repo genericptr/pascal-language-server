@@ -28,7 +28,7 @@ uses
   Classes, fpjson, fpjsonrpc,
   { Protocol }
   LSP.Base, LSP.Basic, LSP.General, LSP.DocumentSymbol, 
-  LSP.Settings, LSP.Symbols;
+  PasLS.Settings, LSP.Symbols;
 
 type
   

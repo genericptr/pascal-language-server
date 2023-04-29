@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit LSP.Bridge.LazConfig;
+unit PasLS.LazConfig;
 
 {$mode objfpc}{$H+}
 

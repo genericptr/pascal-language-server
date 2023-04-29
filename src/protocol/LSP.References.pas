@@ -68,7 +68,7 @@ procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: T
 implementation
 
 uses
-  LSP.Settings, LSP.Diagnostics;
+  PasLS.Settings, LSP.Diagnostics;
   
 procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
 var

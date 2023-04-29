@@ -256,7 +256,7 @@ implementation
 
 uses
   SysUtils, Contnrs, PascalParserTool,
-  LSP.Bridge.CodeUtils, LSP.Diagnostics, LSP.Settings;  
+  PasLS.CodeUtils, LSP.Diagnostics, PasLS.Settings;
 
 function KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
 begin

@@ -83,7 +83,7 @@ procedure ClearDiagnostics(Code: TCodeBuffer);
 implementation
 
 uses
-  SysUtils, LSP.Settings;
+  SysUtils, PasLS.Settings;
 
 { Publish the last code tools error as a diagnostics }
 procedure PublishDiagnostic(UserMessage: String = '');

@@ -31,7 +31,7 @@ uses
   { Protocols }
   LSP.Base, LSP.Basic, LSP.DocumentSymbol,
   { Other }
-  LSP.Bridge.CodeUtils;
+  PasLS.CodeUtils;
 
 type
 
@@ -179,7 +179,7 @@ uses
   CodeToolsConfig, IdentCompletionTool, CodeAtom,
   BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
   { Protocol }
-  LSP.diagnostics, LSP.Settings;
+  LSP.diagnostics, PasLS.Settings;
 
 function GetFileKey(Path: String): ShortString;
 begin

@@ -136,7 +136,7 @@ implementation
 
 uses
   { RTL }
-  SysUtils, LSP.Bridge.CodeUtils, 
+  SysUtils, PasLS.CodeUtils,
   { Code Tools}
   FindDeclarationTool, CodeTree, PascalParserTool,
   { Protocol }

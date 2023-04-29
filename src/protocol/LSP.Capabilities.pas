@@ -27,7 +27,7 @@ uses
   { RTL }
   Classes, 
   { Protocol }
-  LSP.Options, LSP.DocumentSymbol, LSP.Settings, LSP.Symbols;
+  LSP.Options, LSP.DocumentSymbol, PasLS.Settings, LSP.Symbols;
 
 type
 

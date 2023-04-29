@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit LSP.Bridge.Commands;
+unit PasLS.Commands;
 
 {$mode objfpc}{$H+}
 
@@ -26,7 +26,7 @@ uses
   { RTL }
   SysUtils, Classes, URIParser, FPJSON,
   { LSP }
-  LSP.Basic;
+  LSP.Basic, PasLS.Settings;
 
 procedure CompleteCode(documentURI: TDocumentUri; line, column: integer);
 

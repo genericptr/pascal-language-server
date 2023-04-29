@@ -31,7 +31,7 @@ uses
   { Protocol }
   LSP.Base, LSP.Basic,
   { Other }
-  LSP.Bridge.CodeUtils;
+  PasLS.CodeUtils;
 
 type
   TDocumentHighlightKind = (

@@ -36,7 +36,7 @@ uses
   { Protocol }
   LSP.Base, LSP.Basic, LSP.Capabilities, LSP.DocumentSymbol,
   { Utils }
-  LSP.Settings, LSP.Symbols, LSP.Bridge.LazConfig;
+  PasLS.Settings, LSP.Symbols, PasLS.LazConfig;
 
 type
 
@@ -344,7 +344,7 @@ begin with Params do
     CodeToolsOptions := TCodeToolsOptions.Create;
 
     ServerSettings := initializationOptions;
-    LSP.Settings.ClientInfo := clientInfo;
+    PasLS.Settings.ClientInfo := clientInfo;
 
     // replace macros in server settings
     Macros := TMacroMap.Create;

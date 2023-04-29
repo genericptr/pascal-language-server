@@ -32,7 +32,7 @@ uses
   { Protocol }
   LSP.Base, LSP.Basic, 
   { Other }
-  LSP.Bridge.CodeUtils;
+  PasLS.CodeUtils;
 
 type
   TSymbolKind = (
@@ -175,7 +175,7 @@ uses
   CodeToolsConfig, IdentCompletionTool, CodeAtom,
   BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
   { Protocol }
-  LSP.Diagnostics, LSP.Symbols, LSP.Settings;
+  LSP.Diagnostics, LSP.Symbols, PasLS.Settings;
 
 function SymbolKindToString(kind: TSymbolKind): ShortString;
 begin

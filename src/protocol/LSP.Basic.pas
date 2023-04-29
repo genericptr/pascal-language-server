@@ -544,8 +544,8 @@ operator :=(right: Integer): TOptionalInteger;
 operator :=(right: String): TOptionalString;
 
 implementation
-uses
-  LSP.Base;
+
+uses LSP.Base;
 
 { Utilities }
 
@@ -637,7 +637,8 @@ var
   Data: TJSONData;
   Content: String;
 begin
-  Data := specialize TLSPStreaming<TAbstractMessage>.ToJSON(self);
+  Data := specialize
+  TLSPStreaming<TAbstractMessage>.ToJSON(self);
   if Data <> nil then
     begin
       Content := Data.AsJSON;

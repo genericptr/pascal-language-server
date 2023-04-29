@@ -7,7 +7,7 @@
     <CompilerOptions>
       <Version Value="11"/>
       <SearchPaths>
-        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)/"/>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
     <Description Value="Object Pascal - Language Server Protocol implementation"/>
@@ -17,14 +17,6 @@
       <Item>
         <Filename Value="LSP.CodeAction.pas"/>
         <UnitName Value="LSP.CodeAction"/>
-      </Item>
-      <Item>
-        <Filename Value="LSP.Bridge.CodeUtils.pas"/>
-        <UnitName Value="LSP.Bridge.CodeUtils"/>
-      </Item>
-      <Item>
-        <Filename Value="LSP.Bridge.Commands.pas"/>
-        <UnitName Value="LSP.Bridge.Commands"/>
       </Item>
       <Item>
         <Filename Value="LSP.Diagnostics.pas"/>
@@ -64,7 +56,7 @@
       </Item>
       <Item>
         <Filename Value="memutils.pas"/>
-        <UnitName Value="memUtils"/>
+        <UnitName Value="MemUtils"/>
       </Item>
       <Item>
         <Filename Value="LSP.Basic.pas"/>
@@ -95,8 +87,8 @@
         <UnitName Value="LSP.References"/>
       </Item>
       <Item>
-        <Filename Value="LSP.Settings.pas"/>
-        <UnitName Value="LSP.Settings"/>
+        <Filename Value="PasLS.Settings.pas"/>
+        <UnitName Value="PasLS.Settings"/>
       </Item>
       <Item>
         <Filename Value="LSP.SignatureHelp.pas"/>
@@ -123,8 +115,16 @@
         <UnitName Value="LSP.Workspace"/>
       </Item>
       <Item>
-        <Filename Value="LSP.Bridge.LazConfig.pas"/>
-        <UnitName Value="LSP.Bridge.LazConfig"/>
+        <Filename Value="PasLS.CodeUtils.pas"/>
+        <UnitName Value="PasLS.CodeUtils"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Commands.pas"/>
+        <UnitName Value="PasLS.Commands"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.LazConfig.pas"/>
+        <UnitName Value="PasLS.LazConfig"/>
       </Item>
     </Files>
     <RequiredPkgs>

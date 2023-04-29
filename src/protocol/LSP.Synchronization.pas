@@ -136,7 +136,7 @@ type
 
 implementation
 uses
-  SysUtils, LSP.Bridge.CodeUtils, LSP.Settings, LSP.Diagnostics, LSP.DocumentSymbol;
+  SysUtils, PasLS.CodeUtils, PasLS.Settings, LSP.Diagnostics, LSP.DocumentSymbol;
 
 { TDidChangeTextDocumentParams }
 
