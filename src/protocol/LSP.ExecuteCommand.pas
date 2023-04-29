@@ -68,7 +68,7 @@ type
 
 implementation
 uses
-  Commands;
+  PasLS.Commands;
 
 destructor TExecuteCommandParams.Destroy;
 begin

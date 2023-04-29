@@ -28,7 +28,7 @@ interface
 uses
   Classes, DateUtils, URIParser, 
   CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
-  lsp, basic;
+  LSP.Base, LSP.Basic;
 
 type
 
@@ -253,9 +253,10 @@ type
   end;
 
 implementation
+
 uses
   SysUtils, Contnrs, PascalParserTool,
-  codeUtils, diagnostics, settings;  
+  PasLS.CodeUtils, LSP.Diagnostics, PasLS.Settings;
 
 function KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
 begin

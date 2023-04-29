@@ -26,7 +26,6 @@ interface
 uses
   { RTL }
   Classes, SysUtils,
-  { Protocol }
   LSP.Base, LSP.Basic;
 
 type

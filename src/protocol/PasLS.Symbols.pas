@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit Symbols;
+unit PasLS.Symbols;
 
 {$mode objfpc}{$H+}
 {define SYMBOL_DEBUG}
@@ -31,7 +31,7 @@ uses
   { Protocols }
   LSP.Base, LSP.Basic, LSP.DocumentSymbol,
   { Other }
-  CodeUtils;
+  PasLS.CodeUtils;
 
 type
 
@@ -179,7 +179,7 @@ uses
   CodeToolsConfig, IdentCompletionTool, CodeAtom,
   BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
   { Protocol }
-  LSP.diagnostics, Settings;
+  LSP.diagnostics, PasLS.Settings;
 
 function GetFileKey(Path: String): ShortString;
 begin

@@ -7,7 +7,7 @@
     <CompilerOptions>
       <Version Value="11"/>
       <SearchPaths>
-        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)/"/>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
     <Description Value="Object Pascal - Language Server Protocol implementation"/>
@@ -15,112 +15,116 @@
     <Version Major="1"/>
     <Files>
       <Item>
-        <Filename Value="codeaction.pas"/>
-        <UnitName Value="codeAction"/>
+        <Filename Value="LSP.CodeAction.pas"/>
+        <UnitName Value="LSP.CodeAction"/>
       </Item>
       <Item>
-        <Filename Value="codeutils.pas"/>
-        <UnitName Value="codeUtils"/>
+        <Filename Value="LSP.Diagnostics.pas"/>
+        <UnitName Value="LSP.Diagnostics"/>
       </Item>
       <Item>
-        <Filename Value="commands.pas"/>
-        <UnitName Value="commands"/>
+        <Filename Value="LSP.DocumentHighlight.pas"/>
+        <UnitName Value="LSP.DocumentHighlight"/>
       </Item>
       <Item>
-        <Filename Value="diagnostics.pas"/>
-        <UnitName Value="diagnostics"/>
+        <Filename Value="LSP.DocumentSymbol.pas"/>
+        <UnitName Value="LSP.DocumentSymbol"/>
       </Item>
       <Item>
-        <Filename Value="documenthighlight.pas"/>
-        <UnitName Value="documentHighlight"/>
+        <Filename Value="LSP.ExecuteCommand.pas"/>
+        <UnitName Value="LSP.ExecuteCommand"/>
       </Item>
       <Item>
-        <Filename Value="documentsymbol.pas"/>
-        <UnitName Value="documentSymbol"/>
+        <Filename Value="LSP.GotoDeclaration.pas"/>
+        <UnitName Value="LSP.GotoDeclaration"/>
       </Item>
       <Item>
-        <Filename Value="executecommand.pas"/>
-        <UnitName Value="executeCommand"/>
+        <Filename Value="LSP.GotoDefinition.pas"/>
+        <UnitName Value="LSP.GotoDefinition"/>
       </Item>
       <Item>
-        <Filename Value="gotodeclaration.pas"/>
-        <UnitName Value="gotoDeclaration"/>
+        <Filename Value="LSP.GotoImplementation.pas"/>
+        <UnitName Value="LSP.GotoImplementation"/>
       </Item>
       <Item>
-        <Filename Value="gotodefinition.pas"/>
-        <UnitName Value="gotoDefinition"/>
+        <Filename Value="LSP.Hover.pas"/>
+        <UnitName Value="LSP.Hover"/>
       </Item>
       <Item>
-        <Filename Value="gotoimplementation.pas"/>
-        <UnitName Value="gotoImplementation"/>
-      </Item>
-      <Item>
-        <Filename Value="hover.pas"/>
-        <UnitName Value="hover"/>
-      </Item>
-      <Item>
-        <Filename Value="inlayhint.pas"/>
-        <UnitName Value="inlayHint"/>
+        <Filename Value="LSP.InlayHint.pas"/>
+        <UnitName Value="LSP.InlayHint"/>
       </Item>
       <Item>
         <Filename Value="memutils.pas"/>
-        <UnitName Value="memUtils"/>
+        <UnitName Value="MemUtils"/>
       </Item>
       <Item>
-        <Filename Value="basic.pas"/>
-        <UnitName Value="basic"/>
+        <Filename Value="LSP.Basic.pas"/>
+        <UnitName Value="LSP.Basic"/>
       </Item>
       <Item>
-        <Filename Value="capabilities.pas"/>
-        <UnitName Value="capabilities"/>
+        <Filename Value="LSP.Capabilities.pas"/>
+        <UnitName Value="LSP.Capabilities"/>
       </Item>
       <Item>
-        <Filename Value="completion.pas"/>
-        <UnitName Value="completion"/>
+        <Filename Value="LSP.Completion.pas"/>
+        <UnitName Value="LSP.Completion"/>
       </Item>
       <Item>
-        <Filename Value="general.pas"/>
-        <UnitName Value="general"/>
+        <Filename Value="LSP.General.pas"/>
+        <UnitName Value="LSP.General"/>
       </Item>
       <Item>
-        <Filename Value="lsp.pas"/>
-        <UnitName Value="lsp"/>
+        <Filename Value="LSP.Base.pas"/>
+        <UnitName Value="LSP.Base"/>
       </Item>
       <Item>
-        <Filename Value="options.pas"/>
-        <UnitName Value="options"/>
+        <Filename Value="LSP.Options.pas"/>
+        <UnitName Value="LSP.Options"/>
       </Item>
       <Item>
-        <Filename Value="references.pas"/>
-        <UnitName Value="references"/>
+        <Filename Value="LSP.References.pas"/>
+        <UnitName Value="LSP.References"/>
       </Item>
       <Item>
-        <Filename Value="settings.pas"/>
-        <UnitName Value="settings"/>
+        <Filename Value="PasLS.Settings.pas"/>
+        <UnitName Value="PasLS.Settings"/>
       </Item>
       <Item>
-        <Filename Value="signaturehelp.pas"/>
-        <UnitName Value="signatureHelp"/>
+        <Filename Value="LSP.SignatureHelp.pas"/>
+        <UnitName Value="LSP.SignatureHelp"/>
       </Item>
       <Item>
-        <Filename Value="symbols.pas"/>
-        <UnitName Value="symbols"/>
+        <Filename Value="PasLS.Symbols.pas"/>
+        <UnitName Value="PasLS.Symbols"/>
       </Item>
       <Item>
-        <Filename Value="synchronization.pas"/>
-        <UnitName Value="synchronization"/>
+        <Filename Value="LSP.Synchronization.pas"/>
+        <UnitName Value="LSP.Synchronization"/>
       </Item>
       <Item>
-        <Filename Value="window.pas"/>
-        <UnitName Value="window"/>
+        <Filename Value="LSP.Window.pas"/>
+        <UnitName Value="LSP.Window"/>
       </Item>
       <Item>
-        <Filename Value="workdoneprogress.pas"/>
-        <UnitName Value="workDoneProgress"/>
+        <Filename Value="LSP.WorkDoneProgress.pas"/>
+        <UnitName Value="LSP.WorkDoneProgress"/>
       </Item>
       <Item>
-        <Filename Value="workspace.pas"/>
-        <UnitName Value="workspace"/>
+        <Filename Value="LSP.Workspace.pas"/>
+        <UnitName Value="LSP.Workspace"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.CodeUtils.pas"/>
+        <UnitName Value="PasLS.CodeUtils"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Commands.pas"/>
+        <UnitName Value="PasLS.Commands"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.LazConfig.pas"/>
+        <UnitName Value="PasLS.LazConfig"/>
       </Item>
     </Files>
     <RequiredPkgs>
