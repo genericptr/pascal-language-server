@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit LSP.Symbols;
+unit PasLS.Symbols;
 
 {$mode objfpc}{$H+}
 {define SYMBOL_DEBUG}

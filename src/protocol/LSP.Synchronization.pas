@@ -27,7 +27,7 @@ interface
 uses
   Classes, DateUtils, URIParser, 
   CodeToolManager, CodeCache,
-  LSP.Base, LSP.Basic, LSP.Symbols;
+  LSP.Base, LSP.Basic, PasLS.Symbols;
 
 type
 

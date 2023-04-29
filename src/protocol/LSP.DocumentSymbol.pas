@@ -175,7 +175,7 @@ uses
   CodeToolsConfig, IdentCompletionTool, CodeAtom,
   BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
   { Protocol }
-  LSP.Diagnostics, LSP.Symbols, PasLS.Settings;
+  LSP.Diagnostics, PasLS.Symbols, PasLS.Settings;
 
 function SymbolKindToString(kind: TSymbolKind): ShortString;
 begin

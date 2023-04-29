@@ -36,7 +36,7 @@ uses
   { Protocol }
   LSP.Base, LSP.Basic, LSP.Capabilities, LSP.DocumentSymbol,
   { Utils }
-  PasLS.Settings, LSP.Symbols, PasLS.LazConfig;
+  PasLS.Settings, PasLS.Symbols, PasLS.LazConfig;
 
 type
 

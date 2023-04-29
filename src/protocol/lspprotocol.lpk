@@ -95,8 +95,8 @@
         <UnitName Value="LSP.SignatureHelp"/>
       </Item>
       <Item>
-        <Filename Value="LSP.Symbols.pas"/>
-        <UnitName Value="LSP.Symbols"/>
+        <Filename Value="PasLS.Symbols.pas"/>
+        <UnitName Value="PasLS.Symbols"/>
       </Item>
       <Item>
         <Filename Value="LSP.Synchronization.pas"/>

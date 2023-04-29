@@ -29,7 +29,7 @@ uses
   LSP.Base, LSP.Basic, LSP.GotoDeclaration, LSP.GotoDefinition, LSP.Completion, LSP.Capabilities,
   LSP.GotoImplementation, LSP.Hover, LSP.SignatureHelp, LSP.References, LSP.CodeAction,
   LSP.DocumentHighlight, LSP.DocumentSymbol, LSP.Workspace, LSP.Window, LSP.ExecuteCommand,
-  LSP.InlayHint, LSP.Diagnostics, LSP.General, LSP.Options, LSP.Symbols, LSP.Synchronization, LSP.WorkDoneProgress;
+  LSP.InlayHint, LSP.Diagnostics, LSP.General, LSP.Options, PasLS.Symbols, LSP.Synchronization, LSP.WorkDoneProgress;
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';
