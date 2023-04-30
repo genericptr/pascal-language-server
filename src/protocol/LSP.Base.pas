@@ -23,6 +23,7 @@ unit LSP.Base;
 {$mode objfpc}{$H+}
 
 interface
+
 uses
   { RTL }
   Classes, SysUtils, TypInfo, RTTIUtils, Contnrs, Types,
@@ -30,6 +31,10 @@ uses
   fpjson, fpjsonrtti, fpjsonrpc,
   { Pasls }
   LSP.Basic;
+
+const
+  LSPContentType = 'application/vscode-jsonrpc; charset=utf-8';
+
 
 type
   TObjectArray = Array of TObject;
@@ -115,13 +120,30 @@ type
 
   { TLSPDispatcher }
 
-  TLSPDispatcher = class(TCustomJSONRPCDispatcher)
+  TLSPBaseDispatcher = class(TObject)
+    Function ExecuteRequest(aRequest : TJSONData): TJSONData; virtual; abstract;
+  end;
+
+
+  TJSONRPCDispatcher = class(TCustomJSONRPCDispatcher)
   protected
     function ExecuteMethod(const AClassName, AMethodName: TJSONStringType;
       Params, ID: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
   public
     constructor Create(AOwner: TComponent); override;
   end;
+
+  { TLSPLocalDispatcher }
+
+  TLSPLocalDispatcher = class(TLSPBaseDispatcher)
+  Private
+    FJSONDispatcher : TJSONRPCDispatcher;
+  Public
+    Constructor Create;
+    Destructor Destroy; override;
+    function ExecuteRequest(aRequest : TJSONData): TJSONData; override;
+  end;
+
 
   { LSPException }
 
@@ -151,6 +173,36 @@ type
     function Code: Integer; override;
   end;
 
+  { TLSPContext }
+
+  TLSPContext = Class (TObject)
+  private
+    FDispatcher: TLSPBaseDispatcher;
+    FDispatcherOwner: Boolean;
+    FLastMessageID: Integer;
+    FLogFile: TFileStream;
+    function GetLogFile: String;
+    procedure SetDispatcher(AValue: TLSPBaseDispatcher);
+    procedure SetLogFile(const AValue: String);
+  Protected
+    Procedure DoLog(const Msg : String);
+    Procedure DoLog(const Fmt : String; Const Args : Array of const);
+  Public
+    Constructor Create(aDispatcher : TLSPBaseDispatcher; aOwner : Boolean);
+    Constructor Create(aOwner : Boolean);
+    destructor Destroy; override;
+    Function NextMessageID : Integer;
+    Function HaveLog : Boolean;
+    Function Execute(aRequest : TJSONData) : TJSONData;
+    Procedure Log(const Msg : String);
+    Procedure Log(const Fmt : String; Const Args : Array of const);
+  published
+    Property LastMessageID: Integer Read FLastMessageID;
+    Property Dispatcher : TLSPBaseDispatcher Read FDispatcher Write SetDispatcher;
+    Property DispatcherOwner : Boolean Read FDispatcherOwner Write FDispatcherOwner;
+    Property LogFile : String Read GetLogFile Write SetLogFile;
+  end;
+
 { LSPHandlerManager }
 
 function LSPHandlerManager: TCustomJSONRPCHandlerManager;
@@ -172,6 +224,25 @@ begin
     ((TJSONObject(Response).Find('id') = nil) or 
       TJSONObject(Response).Nulls['id']) then
     result := false;
+end;
+
+{ TLSPLocalDispatcher }
+
+constructor TLSPLocalDispatcher.Create;
+begin
+  FJSONDispatcher:=TJSONRPCDispatcher.Create(Nil);
+end;
+
+destructor TLSPLocalDispatcher.Destroy;
+begin
+  FreeAndNil(FJSONDispatcher);
+  inherited Destroy;
+end;
+
+function TLSPLocalDispatcher.ExecuteRequest(aRequest: TJSONData): TJSONData;
+
+begin
+  Result:=FJSONDispatcher.Execute(aRequest);
 end;
 
 { TLSPStreamer }
@@ -555,7 +626,7 @@ end;
 
 { TLSPDispatcher }
 
-function TLSPDispatcher.ExecuteMethod(const AClassName, AMethodName: TJSONStringType;
+function TJSONRPCDispatcher.ExecuteMethod(const AClassName, AMethodName: TJSONStringType;
     Params, ID: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
 begin
   try
@@ -567,7 +638,7 @@ begin
   end;
 end;
 
-constructor TLSPDispatcher.Create(AOwner: TComponent);
+constructor TJSONRPCDispatcher.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   Options := [jdoSearchRegistry, jdoJSONRPC2, jdoNotifications, jdoStrictNotifications];
@@ -601,5 +672,113 @@ function LSPHandlerManager: TCustomJSONRPCHandlerManager;
 begin
   Result := JSONRPCHandlerManager;
 end;
+
+
+procedure TLSPContext.SetDispatcher(AValue: TLSPBaseDispatcher);
+begin
+  if FDispatcher=AValue then Exit;
+  if FDispatcherOwner then
+    FreeAndNil(FDispatcher);
+  FDispatcher:=AValue;
+end;
+
+function TLSPContext.GetLogFile: String;
+begin
+  Result:='';
+  if assigned(FLogFile) then
+    Result:=FLogFile.FileName;
+end;
+
+procedure TLSPContext.SetLogFile(const AValue: String);
+begin
+  if aValue=GetLogFile then exit;
+  FreeAndNil(FLogFile);
+  if aValue<>'' then
+    FLogFile:=TFileStream.Create(aValue,fmCreate);
+end;
+
+procedure TLSPContext.DoLog(const Msg: String);
+
+Var
+  NL : String;
+
+begin
+  if HaveLog and (Length(Msg)>0) then
+    begin
+    FLogFile.WriteBuffer(Msg[1],Length(Msg));
+    NL:=sLineBreak;
+    FLogFile.WriteBuffer(NL[1],Length(NL));
+    end;
+end;
+
+procedure TLSPContext.DoLog(const Fmt: String; const Args: array of const);
+begin
+  DoLog(Format(Fmt,Args));
+end;
+
+constructor TLSPContext.Create(aDispatcher: TLSPBaseDispatcher; aOwner: Boolean
+  );
+begin
+  Create(aOwner);
+  Dispatcher:=aDispatcher;
+  LogFile:=GetTempDir(True)+ChangeFileExt(ExtractFileName(ParamStr(0)),'.log');
+end;
+
+constructor TLSPContext.Create(aOwner: Boolean);
+begin
+  FDispatcherOwner:=aOwner;
+end;
+
+destructor TLSPContext.Destroy;
+begin
+  FreeAndNil(FLogFile);
+  Dispatcher:=Nil;
+  inherited Destroy;
+end;
+
+function TLSPContext.NextMessageID: Integer;
+begin
+  Result:=InterlockedIncrement(FLastMessageID);
+end;
+
+function TLSPContext.HaveLog: Boolean;
+begin
+  Result:=assigned(FLogFile);
+end;
+
+function TLSPContext.Execute(aRequest: TJSONData): TJSONData;
+
+begin
+  If HaveLog then
+    DoLog('Executing request: %s',[aRequest.AsJSON]);
+  try
+    Result:=Dispatcher.ExecuteRequest(aRequest);
+    If HaveLog then
+      if Result<>Nil then
+        DoLog('Request response: %s',[Result.AsJSON])
+      else
+        DoLog('Request returned no response.');
+  except
+    on E : Exception do
+      begin
+      if HaveLog then
+        DoLog('Error %d while executing request: %s',[E.ClassName,E.Message]);
+      Raise;
+      end;
+  end;
+end;
+
+procedure TLSPContext.Log(const Msg: String);
+begin
+  If HaveLog then
+    DoLog(Msg);
+end;
+
+procedure TLSPContext.Log(const Fmt: String; const Args: array of const);
+begin
+  If HaveLog then
+    DoLog(Fmt,Args);
+end;
+
 
 end.
