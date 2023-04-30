@@ -1,6 +1,6 @@
 program paslsproxy;
 
-// Pascal Language Server dispatcher
+// Pascal Language Server proxy dispatcher
 // Copyright 2023 Michael Van Canneyt
 
 // This file is part of Pascal Language Server.
