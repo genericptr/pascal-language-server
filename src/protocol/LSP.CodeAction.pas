@@ -26,7 +26,7 @@ interface
 
 uses
   { RTL }
-  Classes, URIParser, 
+  Classes,
   { Protocol }
   LSP.Base, LSP.Basic;
 
@@ -39,7 +39,7 @@ type
     The set of kinds is open and client needs to announce the kinds it supports to the server during
     initialization. }
 
-  TCodeActionKind = record
+  TCodeActionKind = Class
   public const
     // Empty kind.
     Empty = '';
@@ -58,8 +58,6 @@ type
     Source = 'source';
     // Base kind for an organize imports source action: `source.organizeImports`.
     SourceOrganizeImports = 'source.organizeImports';
-  private
-    value: string;
   end;
 
   { TCodeAction }
@@ -67,7 +65,7 @@ type
   TCodeAction = class(TCollectionItem)
   private
     fTitle: string;
-    fKind: TCodeActionKind;
+    fKind: String;
     fDiagnostics: TDiagnosticItems;
     fIsPreferred: boolean;
     fEdit: TWorkspaceEdit;
@@ -77,7 +75,7 @@ type
     property title: string read fTitle write fTitle;
     // The kind of the code action.
     // Used to filter code actions.
-    property kind: string read fKind.value write fKind.value;
+    property kind: string read fKind write fKind;
     // The diagnostics that this code action resolves.
     property diagnostics: TDiagnosticItems read fDiagnostics write fDiagnostics;
     // Marks this as a preferred action. Preferred actions are used by the `auto fix` command and can be targeted

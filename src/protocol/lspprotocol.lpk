@@ -9,6 +9,11 @@
       <SearchPaths>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
+      <Other>
+        <CompilerMessages>
+          <IgnoredMessages idx6058="True" idx5024="True" idx3124="True" idx3123="True"/>
+        </CompilerMessages>
+      </Other>
     </CompilerOptions>
     <Description Value="Object Pascal - Language Server Protocol implementation"/>
     <License Value="LGPL V3"/>
@@ -53,10 +58,6 @@
       <Item>
         <Filename Value="LSP.InlayHint.pas"/>
         <UnitName Value="LSP.InlayHint"/>
-      </Item>
-      <Item>
-        <Filename Value="memutils.pas"/>
-        <UnitName Value="MemUtils"/>
       </Item>
       <Item>
         <Filename Value="LSP.Basic.pas"/>

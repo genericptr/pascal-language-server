@@ -27,7 +27,6 @@ uses
   LSP.GotoDeclaration,
   LSP.GotoDefinition,
   LSP.Completion,
-  LSP.Capabilities,
   LSP.GotoImplementation,
   LSP.Hover,
   LSP.SignatureHelp,
@@ -36,14 +35,10 @@ uses
   LSP.DocumentHighlight,
   LSP.DocumentSymbol,
   LSP.Workspace,
-  LSP.Window,
   LSP.ExecuteCommand,
   LSP.InlayHint,
-  LSP.Diagnostics,
   LSP.General,
-  LSP.Options,
-  LSP.Synchronization,
-  LSP.WorkDoneProgress;
+  LSP.Synchronization;
 
 implementation
 

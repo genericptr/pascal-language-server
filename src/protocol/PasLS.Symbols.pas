@@ -115,7 +115,7 @@ type
   { TSymbolDatabase }
 
   TSymbolDatabase = class(TSQLiteDatabase)
-  private
+  protected
     procedure LogError(errmsg: pansichar); override;
   public
     constructor Create(Path: String);
@@ -145,7 +145,7 @@ type
     procedure RemoveFile(FileName: String);
     procedure AddError(Message: String); 
     function GetEntry(Code: TCodeBuffer): TSymbolTableEntry;
-    function GetDatabase: TSymbolDatabase; inline;
+    function GetDatabase: TSymbolDatabase;
     property Database: TSymbolDatabase read GetDatabase;
   public
 
@@ -176,10 +176,10 @@ uses
   { RTL }
   SysUtils, FileUtil, DateUtils, fpjsonrtti, 
   { Code Tools }
-  CodeToolsConfig, IdentCompletionTool, CodeAtom,
-  BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
+  CodeAtom,
+  FindDeclarationTool, KeywordFuncLists,
   { Protocol }
-  LSP.diagnostics, PasLS.Settings;
+  PasLS.Settings;
 
 function GetFileKey(Path: String): ShortString;
 begin
@@ -248,7 +248,7 @@ function TSymbolTableEntry.RequestReload: boolean;
 var
   Database: TSymbolDatabase;
   Path: String;
-  JSON: TJSONSerializedArray;
+
 begin
   if Modified then
     exit(true);
@@ -349,8 +349,8 @@ end;
 { TSymbolExtractor }
 
 procedure TSymbolExtractor.PrintNodeDebug(Node: TCodeTreeNode; Deep: boolean);
-var
-  Child: TCodeTreeNode;
+{var
+  Child: TCodeTreeNode;}
 begin
   {$ifdef SYMBOL_DEBUG}
   writeln(IndentLevelString(IndentLevel), Node.DescAsString, ' (', GetIdentifierAtPos(Tool, Node.StartPos, true, true), ') -> ', Node.ChildCount);
@@ -569,7 +569,6 @@ end;
 
 procedure TSymbolExtractor.ExtractCodeSection(Node: TCodeTreeNode); 
 var
-  Symbol: TSymbol = nil;
   Child: TCodeTreeNode;
   Scanner: TLinkScanner;
   LinkIndex: Integer;
@@ -714,15 +713,15 @@ begin
 end;
 
 const
-  SYMBOL_ENTRY_NAME = 0;
-  SYMBOL_ENTRY_PATH = 1;
+
+//  SYMBOL_ENTRY_NAME = 0;
+//  SYMBOL_ENTRY_PATH = 1;
   SYMBOL_ENTRY_JSON = 2;
 
 function TSymbolDatabase.FindAllSymbols(Path: String): TJSONSerializedArray;
 var
   Stat: String;
   statement: psqlite3_stmt;
-  Symbol: TSymbol;
   errmsg: pansichar;
   Contents: TLongString;
 begin
@@ -754,7 +753,6 @@ function TSymbolDatabase.FindSymbols(Query: String): TJSONSerializedArray;
 var
   Stat: String;
   statement: psqlite3_stmt;
-  Symbol: TSymbol;
   errmsg: pansichar;
   Contents: TLongString;
 begin
@@ -804,7 +802,7 @@ end;
 procedure TSymbolDatabase.InsertFile(Path: String);
 var
   Stat: String;
-  errmsg: pansichar;
+
 begin
   Stat := 'INSERT OR IGNORE INTO entries VALUES (';
     AddField(Stat, Path);
@@ -816,7 +814,7 @@ end;
 procedure TSymbolDatabase.TouchFile(Path: String);
 var
   Stat: String;
-  errmsg: pansichar;
+
 begin
   Stat := 'UPDATE entries SET date = '+IntToStr(FileAge(Path))+' WHERE path = '''+Path+''''#0;
   Exec(Stat);
@@ -833,7 +831,6 @@ end;
 procedure TSymbolDatabase.InsertSymbols(Collection: TSymbolItems; StartIndex, EndIndex: Integer);
 var
   Stat: String;
-  errmsg: pansichar;
   Symbol: TSymbol;
   i: integer;
 begin
@@ -934,7 +931,7 @@ end;
 
 function TSymbolManager.CollectSerializedSymbols: TJSONSerializedArray;
 var
-  i, j: integer;
+  i : integer;
   Entry: TSymbolTableEntry;
   Contents: TLongString;
 begin
@@ -1090,7 +1087,6 @@ var
   Entry: TSymbolTableEntry;
   Tool: TCodeTool = nil;
   Extractor: TSymbolExtractor;
-  MainCode: TCodeBuffer;
   StartTime: TDateTime;
 begin
   StartTime := Now;

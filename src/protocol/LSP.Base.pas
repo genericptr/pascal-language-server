@@ -21,6 +21,7 @@
 unit LSP.Base;
 
 {$mode objfpc}{$H+}
+{$WARN 5024 off : Parameter "$1" not used}
 
 interface
 
@@ -75,14 +76,6 @@ type
     class function ToJSON(AArray: array of TObject): TJSONData; overload;
   end;
 
-  { TLSPProcessor }
-
-  generic TLSPProcess<T, U> = function (var Params : T): U;
-
-  generic TLSPProcessor<T, U: TPersistent> = class
-  public
-    class function Process(AProcess: specialize TLSPProcess<T, U>; const Params: TJSONData): TJSONData; static;
-  end;
 
   { TLSPRequest
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#requestMessage
@@ -99,7 +92,7 @@ type
   { TLSPOutgoingRequest
     A request from the server to the client }
 
-  generic TLSPOutgoingRequest<T: TPersistent; U: TPersistent> = class
+  generic TLSPOutgoingRequest<T: TPersistent> = class
   private class var
     OutgoingRequestIndex: Integer;
   public
@@ -212,8 +205,7 @@ function LSPHandlerManager: TCustomJSONRPCHandlerManager;
 function IsResponseValid(Response: TJSONData): boolean;
 
 implementation
-uses
-  memUtils;
+
 
 { Utilities }
 
@@ -400,6 +392,8 @@ var
   VariantArray: array of variant;
   ObjectArray: array of TObject;
 begin
+  VariantArray:=[];
+  ObjectArray:=[];
   if (PropInfo^.PropType^.Kind = tkDynArray) and (PropData is TJSONArray) then
     begin
       // Class kinds are in ElType2 (not sure why)
@@ -498,15 +492,13 @@ end;
 class function TLSPStreaming.ToObject(const JSON: TJSONData): T;
 begin
   Result := T.Create;
-  DeStreamer.JSONToObject(JSON as TJSONObject, PObject(@Result)^);
-  PObject(@Result)^.AutoRelease;
+  DeStreamer.JSONToObject(JSON as TJSONObject, TObject(Result));
 end;
 
 class function TLSPStreaming.ToObject(const JSON: TJSONStringType): T;
 begin
   Result := T.Create;
-  DeStreamer.JSONToObject(JSON, PObject(@Result)^);
-  PObject(@Result)^.AutoRelease;
+  DeStreamer.JSONToObject(JSON, TObject(Result));
 end;
 
 class function TLSPStreaming.ToJSON(AObject: TObject): TJSONData;
@@ -528,31 +520,21 @@ begin
   result := JArray;
 end;
 
-{ TLSPProcessor }
-
-class function TLSPProcessor.Process(AProcess: specialize TLSPProcess<T, U>; const Params: TJSONData): TJSONData;
-var
-  Input: T;
-begin
-  Input := specialize TLSPStreaming<T>.ToObject(Params);
-  Result := specialize TLSPStreaming<U>.ToJSON(AProcess(Input));
-end;
 
 { TLSPRequest }
 
 function TLSPRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
 type
-//  TObjectArray = array of TObject;
   PObjectArray = ^TObjectArray;
   PObject = ^TObject;
 var
   Input: T;
   Output: U;
   Streamer: TLSPStreamer;
-  ObjectArray: TObjectArray;
   AObject: TObject;
   ArrayTypeInfo: PTypeInfo;
   ElementType: PTypeInfo;
+
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   Output := Process(Input);
@@ -601,17 +583,21 @@ end;
 { TLSPOutgoingRequest }
 
 class procedure TLSPOutgoingRequest.Execute(Params: T; Method: String);
+
 var
-  Request: TLSPOutgoingRequest;
   Message: TRequestMessage;
-  ID: TGUID;
+
 begin
   Message := TRequestMessage.Create;
-  Message.id := '_'+OutgoingRequestIndex.ToString;
-  Inc(OutgoingRequestIndex);
-  Message.params := Params;
-  Message.method := Method;
-  Message.Send;
+  try
+    Message.id := '_'+OutgoingRequestIndex.ToString;
+    Inc(OutgoingRequestIndex);
+    Message.params := Params;
+    Message.method := Method;
+    Message.Send;
+  finally
+    Message.Free;
+  end;
 end;
 
 { TLSPNotification }
@@ -621,8 +607,11 @@ var
   Input: T;
 begin
   Input := specialize TLSPStreaming<T>.ToObject(Params);
-  Process(Input);
-
+  try
+    Process(Input);
+  finally
+    Input.Free;
+  end;
   result := nil;
 end;
 

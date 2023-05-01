@@ -27,7 +27,7 @@ uses
   { RTL }
   Classes, 
   { Code Tools }
-  URIParser, CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
+  URIParser, CodeToolManager, CodeCache,
   { Protocol }
   LSP.Base, LSP.Basic,
   { Other }
@@ -94,8 +94,7 @@ var
   X, Y: Integer;
   NewCode: TCodeBuffer;
   NewX, NewY, NewTopLine: integer;
-  Item: TDocumentHighlight;
-  Identifier: String;
+
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);

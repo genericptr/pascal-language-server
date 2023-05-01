@@ -134,7 +134,7 @@ type
     constructor Create(line, column, len: integer); overload;
     constructor Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
 
-    function ToString: String;
+    function ToString: String; override;
   end;
 
   { TLocation }
@@ -381,8 +381,6 @@ type
     fCode: integer;
     fSource: string;
     fMessage: string;
-    fTags: TDiagnosticTags;
-    fRelatedInformation: TDiagnosticRelatedInformationItems;
   published
     // The range at which the message applies.
     property range: TRange read fRange write fRange;
@@ -445,7 +443,6 @@ type
 
   TAbstractMessage = class(TPersistent)
   private
-    fJsonrpc: String;
     function GetJSONRPC: String;
   published
     property jsonrpc: String read GetJSONRPC;

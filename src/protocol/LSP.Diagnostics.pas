@@ -38,7 +38,6 @@ type
   TPublishDiagnosticsParams = class(TPersistent)
   private
     fUri: TDocumentUri;
-    fVersion: integer;
     fDiagnostics: TDiagnosticItems;
   published
     // The URI for which diagnostic information is reported.
@@ -90,7 +89,6 @@ procedure PublishDiagnostic(UserMessage: String = '');
 var
   Notification: TPublishDiagnostics;
   ShowMessage: TShowMessageNotification;
-  FileName, 
   MessageString: String;
 begin
   

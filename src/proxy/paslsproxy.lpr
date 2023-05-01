@@ -31,7 +31,7 @@ uses
   LSP.Base, PasLS.TextLoop, PasLS.SocketDispatcher,
 
   { Pasls }
-  memUtils, PasLSProxy.Config;
+   PasLSProxy.Config;
 
 Type
 
@@ -187,7 +187,6 @@ begin
   Finally
     aContext.Free;
     aSocket.Free;
-    DrainAutoReleasePool;
   end;
 end;
 

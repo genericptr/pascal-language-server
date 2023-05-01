@@ -27,7 +27,7 @@ uses
   { RTL }
   Classes, URIParser, 
   { Code Tools }
-  CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools,
+  CodeToolManager, CodeCache,
   { Protocol }
   LSP.Base, LSP.Basic;
 
@@ -56,8 +56,7 @@ type
 
 implementation
 uses
-  SysUtils, 
-  LSP.Diagnostics;
+  SysUtils;
 
 { THoverRequest }
 

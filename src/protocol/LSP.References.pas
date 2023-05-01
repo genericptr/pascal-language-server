@@ -75,7 +75,7 @@ var
   DeclCode, StartSrcCode, Code: TCodeBuffer;
   ListOfPCodeXYPosition: TFPList;
   DeclX, DeclY, DeclTopLine, i: Integer;
-  Identifier, CurLine: string;
+  Identifier: string;
   Graph: TUsesGraph;
   Cache: TFindIdentifierReferenceCache;
   TreeOfPCodeXYPosition: TAVLTree;
@@ -187,11 +187,7 @@ var
   URI: TURI;
   Path: String;
   X, Y: Integer;
-  List: TFPList;
-  Cache: TFindIdentifierReferenceCache;
-  Item: Pointer;
-  Pos: TCodeXYPosition;
-  Loc: TLocationItem;
+
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
@@ -199,8 +195,6 @@ begin with Params do
     X := position.character;
     Y := position.line;
 
-    List := nil;
-    Cache := nil;
     Result := TLocationItems.Create;
     // if the main program file was provided via initializationOptions -> program
     // then use this unit as the root for searching, otherwise default to the

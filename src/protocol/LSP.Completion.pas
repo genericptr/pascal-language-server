@@ -255,7 +255,7 @@ type
 implementation
 
 uses
-  SysUtils, Contnrs, PascalParserTool,
+  SysUtils, Contnrs,
   PasLS.CodeUtils, LSP.Diagnostics, PasLS.Settings;
 
 function KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
@@ -374,20 +374,19 @@ function TCompletion.Process(var Params: TCompletionParams): TCompletionList;
 var
   URI: TURI;
   Code: TCodeBuffer;
-  X, Y, PStart, PEnd, Count, I, J: Integer;
+  X, Y, PStart, PEnd, Count, I: Integer;
   Line: String;
   Completions: TCompletionItems;
   Identifier: TIdentifierListItem;
   Completion: TCompletionItem;
-  SnippetText, RawList, Parent: String;
+
   OverloadMap: TFPHashList;
-  StartTime, GatherTime: TDateTime;
+
   IdentContext, IdentDetails: ShortString;
   ObjectMember: boolean;
   Kind: TCompletionItemKind;
 begin with Params do
   begin
-    StartTime := Now;
 
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
@@ -405,7 +404,6 @@ begin with Params do
       if CodeToolBoss.GatherIdentifiers(Code, X + 1, Y + 1) then
         begin
           Count := CodeToolBoss.IdentifierList.GetFilteredCount;
-          GatherTime := Now;
           IdentContext := '';
           IdentDetails := '';
           for I := 0 to Count - 1 do

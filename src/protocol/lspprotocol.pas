@@ -10,7 +10,7 @@ interface
 uses
   LSP.CodeAction, LSP.Diagnostics, LSP.DocumentHighlight, LSP.DocumentSymbol, 
   LSP.ExecuteCommand, LSP.GotoDeclaration, LSP.GotoDefinition, 
-  LSP.GotoImplementation, LSP.Hover, LSP.InlayHint, MemUtils, LSP.Basic, 
+  LSP.GotoImplementation, LSP.Hover, LSP.InlayHint, LSP.Basic, 
   LSP.Capabilities, LSP.Completion, LSP.General, LSP.Base, LSP.Options, 
   LSP.References, PasLS.Settings, LSP.SignatureHelp, PasLS.Symbols, 
   LSP.Synchronization, LSP.Window, LSP.WorkDoneProgress, LSP.Workspace, 

@@ -27,7 +27,7 @@ uses
   { RTL }
   Classes, URIParser, 
   { Code Tools }
-  CodeToolManager, CodeCache, BasicCodeTools,
+  CodeToolManager, CodeCache,
   { Protocol }
   LSP.Base, LSP.Basic;
 

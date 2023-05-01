@@ -133,8 +133,8 @@ end;
 { TInlayHintRequest }
 
 function TInlayHintRequest.Process(var Params: TInlayHintParams): TInlayHints;
-var
-  hint: TInlayHint;
+{var
+  hint: TInlayHint;}
 begin with Params do
   //hint := TInlayHint(result.Add);
   //hint.position := TPosition.Create(0, 0);

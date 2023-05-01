@@ -150,7 +150,7 @@ function TSignatureHelpRequest.Process(var Params: TTextDocumentPositionParams):
   var
     Params, ResultType: String;
     CurExprType: TExpressionType;
-    CodeNode, ChildNode: TCodeTreeNode;
+    CodeNode: TCodeTreeNode;
     CodeTool: TFindDeclarationTool;
     i: integer;
   begin

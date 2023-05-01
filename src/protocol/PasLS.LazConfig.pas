@@ -23,14 +23,14 @@ unit PasLS.LazConfig;
 
 interface
 uses
-  SysUtils, Classes, Contnrs, CodeToolManager, CodeToolsConfig, URIParser, LazUTF8,
+  SysUtils, Classes, Contnrs, CodeToolManager, CodeToolsConfig, LazUTF8,
   DefineTemplates, FileUtil, LazFileUtils, DOM, XMLRead;
 
 procedure GuessCodeToolConfig(Options: TCodeToolsOptions);
 
 implementation
 uses
-  iostream, streamex, StreamIO;
+  iostream;
 
 type
   TPaths = record
@@ -212,7 +212,7 @@ var
   Package: TPackage;
 
   function GetAdditionalPaths(
-    SearchPaths: TDomNode; const What: string
+    SearchPaths: TDomNode; const What: domstring
   ): String;
   var
     Node: TDomNode;
@@ -227,7 +227,7 @@ var
     if not Assigned(Node) then
       Exit;
 
-    S := Node.NodeValue;
+    S := UTF8Encode(Node.NodeValue);
     Segments := S.Split([';'], TStringSplitOptions.ExcludeEmpty);
 
     for Segment in Segments do
@@ -293,7 +293,7 @@ var
       if not Assigned(Name) then
         continue;
 
-      Dep.Name    := Name.NodeValue; 
+      Dep.Name    := UTF8Encode(Name.NodeValue); 
       Dep.Prefer  := False;
       Dep.Package := nil;
       Dep.Path    := '';
@@ -307,7 +307,7 @@ var
 
         Dep.Prefer := Assigned(Prefer) and (Prefer.NodeValue = 'True');
         if Assigned(Path) then
-          Dep.Path := CreateAbsolutePath(Path.NodeValue, Package.Dir);
+          Dep.Path := CreateAbsolutePath(UTF8Encode(Path.NodeValue), Package.Dir);
 
         //DebugLog('HARDCODED DEP %s in %s', [Dep.Name, Dep.Path]);
         //DebugLog('  Dir: %s, Rel: %s', [Package.Dir, Path.NodeValue]);
@@ -709,12 +709,9 @@ var
   Packages,
   SubDirectories:    TStringList;
   i:                 integer;
-  Paths:             TPaths;
-
   DirectoryTemplate,
   IncludeTemplate,
-  UnitPathTemplate,
-  SrcTemplate:       TDefineTemplate;
+  UnitPathTemplate : TDefineTemplate;
   Pkg:               TPackage;
 
 begin
