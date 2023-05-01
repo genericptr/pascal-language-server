@@ -24,37 +24,60 @@ program paslsproxy;
 uses
   { RTL }
   SysUtils, Classes, fpjson, jsonparser, jsonscanner,
+  ssockets, custapp, types,
 
   { LSP }
 
   LSP.Base, PasLS.TextLoop, PasLS.SocketDispatcher,
 
-  ssockets,
-
   { Pasls }
-  memUtils;
+  memUtils, PasLSProxy.Config;
 
+Type
 
-Function ExecuteCommandLineMessages(aContext : TLSPContext) : Boolean;
+  { TLSPProxyApplication }
+
+  TLSPProxyApplication = Class(TCustomApplication)
+  Private
+    const
+      ShortOptions = 'htp:u:c:';
+      LongOptions : Array of string = ('help','test','port:','unix:','config:');
+  Private
+    FConfig : TLSPProxyConfig;
+    function ParseOptions(out aParams : TStringDynArray): Boolean;
+    function SetupSocket: TSocketStream;
+  protected
+    procedure DoRun; override;
+    Function ExecuteCommandLineMessages(aContext : TLSPContext; aParams : Array of string) : Boolean;
+
+  public
+    constructor Create(TheOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure Usage(const aError: String); virtual;
+  end;
+
+function TLSPProxyApplication.ExecuteCommandLineMessages(aContext: TLSPContext;
+  aParams: array of string): Boolean;
 
 var
-  i: integer;
+  i, len: integer;
   method, path : String;
 
 begin
   Result:=True;
-  if ParamCount=0 then
+  len:=Length(aParams);
+  if len =0 then
     exit;
-  if (ParamCount mod 2)= 1 then
+  if (Len mod 2)= 1 then
     begin
     writeln('Invalid parameter count of '+ParamCount.ToString+' (must be pairs of 2)');
     Exit(false);
     end;
   I:=1;
-  while i <= ParamCount do
+  while (i<=Len) do
     begin
-    method := ParamStr(i);
-    path := ExpandFileName(ParamStr(i + 1));
+    method := aParams[i];
+    path := ExpandFileName(aParams[i+1]);
     if not FileExists(path) then
       begin
       writeln('Command path "',path,'" can''t be found');
@@ -62,38 +85,118 @@ begin
       end;
     DebugSendMessage(output,aContext, method, GetFileAsString(path));
     Inc(i, 2);
-  end;
+    end;
 end;
 
-Function SetupSocket : TSocketStream;
+constructor TLSPProxyApplication.Create(TheOwner: TComponent);
 
 begin
-  // Todo: Add some code to start the socket server, e.g. when the file does not exist.
-  Result:=TInetsocket.Create('127.0.0.1',9898);
+  inherited Create(TheOwner);
+  FConfig:=TLSPProxyConfig.Create;
+  StopOnException:=True;
 end;
+
+destructor TLSPProxyApplication.Destroy;
+begin
+  FreeAndNil(FConfig);
+  inherited Destroy;
+end;
+
+procedure TLSPProxyApplication.Usage(const aError: String);
+
+begin
+  Writeln('Pascal Language Server Proxy [',{$INCLUDE %DATE%},']');
+  Writeln('Usage: ', ExeName, ' [options]');
+  Writeln('Where options is one or more of:');
+  Writeln('-h  --help           This help message');
+  Writeln('-c  --config=FILE    Read configuration from file FILE. Default is to read from ',TLSPProxyConfig.DefaultConfigFile);
+  Writeln('-p  --port=NNN       Listen on port NNN (default: ',DefaultSocketPort);
+  Writeln('-t  --test           Interpret non-option arguments as call/param file pairs and send to server');
+  Writeln('-u  --unix=FILE      Listen on unix socket FILE (only on unix-like systems. Default: ',DefaultSocketUnix,')');
+  Writeln('Only one of -p or -u may be specified, if none is specified then the default is to listen on port 9898');
+end;
+
+
+function TLSPProxyApplication.ParseOptions(out aParams: TStringDynArray): Boolean;
+var
+  FN : String;
+begin
+  Result:=False;
+  FN:=GetOptionValue('c','config');
+  if FN='' then
+    FN:=TLSPProxyConfig.DefaultConfigFile;
+  FConfig.LoadFromFile(FN);
+{$IFDEF UNIX}
+  if HasOption('u','unix') then
+    FConfig.Unix:=GetOptionValue('u','unix');
+{$ENDIF}
+  if HasOption('p','port') then
+    FConfig.Port:=StrToInt(GetOptionValue('p','port'));
+  if HasOption('t','test') then
+    aParams:=GetNonOptions(ShortOptions,LongOptions)
+  else
+    aParams:=[];
+  Result:=True;
+end;
+
+function TLSPProxyApplication.SetupSocket: TSocketStream;
+
+
+begin
+  Result:=Nil;
+  SetupTextLoop;
+  TLSPContext.LogFile:=FConfig.LogFile;
+{$IFDEF UNIX}
+  // Todo: Add some code to start the socket server, e.g. when the file does not exist.
+  if FConfig.Unix<>'' then
+    Result:=TUnixSocket.Create(FConfig.Unix);
+{$ENDIF}
+  if Result=Nil then
+    Result:=TInetsocket.Create('127.0.0.1',FConfig.Port);
+end;
+
+procedure TLSPProxyApplication.DoRun;
 
 var
   aContext : TLSPContext;
   aSocket : TSocketStream;
+  aMsg : String;
+  lParams : TStringDynArray;
 
 begin
-  // Show help for the server
-  if ParamStr(1) = '-h' then
+  Terminate;
+  lParams:=[];
+  aMsg:=CheckOptions(ShortOptions, LongOptions);
+  if HasOption('h','help') then
     begin
-    writeln('Pascal Language Server [',{$INCLUDE %DATE%},']');
-    Halt;
+    Usage(aMsg);
+    exit;
     end;
-  SetupTextLoop;
+  if not ParseOptions(lParams) then
+    exit;
   aSocket:=SetupSocket;
   try
     aContext:=TLSPContext.Create(TLSPClientSocketDispatcher.Create(aSocket),True);
-    if not ExecuteCommandLineMessages(aContext) then
-      exit;
+    if length(lParams)>0 then
+      if not ExecuteCommandLineMessages(aContext,lParams) then
+        exit;
     RunMessageLoop(Input,Output,StdErr,aContext);
-   Finally
-     aContext.Free;
-     aSocket.Free;
-     DrainAutoReleasePool;
-   end;
+  Finally
+    aContext.Free;
+    aSocket.Free;
+    DrainAutoReleasePool;
+  end;
+end;
+
+var
+  Application: TLSPProxyApplication;
+
+begin
+  Application:=TLSPProxyApplication.Create(nil);
+  Application.Title:='Pascal LSP Server proxy application';
+  Application.Run;
+  Application.Free;
+end.
+
 end.
 
