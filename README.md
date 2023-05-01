@@ -153,5 +153,42 @@ Requires Free Pascal Compiler version 3.2.0 and Lazarus version 2.0.8,
 open the project file in Lazarus or use the commandline:
 
 ```sh
-lazbuild pasls.lpi
+lazbuild src/standard/pasls.lpi
 ```
+
+## Debugging the LSP server
+
+### The problem
+
+VS Code and other editors that use the LSP server start the LSP server and
+send messages in JSON-RPC style to standard input, and read replies through
+standard output. This makes the LSP server process hard to debug.
+
+### The solution
+To solve this, 2 extra projects have been added:
+
+- **paslssock**:  a LSP server that reads messages from a TCP/IP or Unix
+  socket and sends replies back through the socket.
+
+- **paslsproxy**:  a LSP server that acts as a proxy: it reads messages from
+  standard input, sends them to a TCP/IP or Unix socket. It reads the replies
+  from the socket and writes them to standard output.
+
+Both programs have a -h or --help commandline option which will display all
+configuration options.
+
+### Usage
+
+1. Configure the socket process and proxy process. Both can be configured
+   through a command-line option or a configuration file.
+
+   By default the server listens on port 9898 and the proxy connects through
+   this port.
+
+   For both processes you can specify a log file which will log all communication to that logfile.
+
+2. Start the socket server process (in the IDE or debugger of your choice).
+
+3. Configure VS Code to use the proxy process instead of the standard pasls executable.
+
+4. Happy debugging !
