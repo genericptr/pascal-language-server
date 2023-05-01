@@ -28,7 +28,7 @@ uses
   cthreads,
   {$ENDIF}
   Classes, SysUtils, CustApp, IniFiles, LSP.AllCommands,
-  PasLSSock.Config, PasLS.SocketDispatcher;
+  LSP.Base, PasLSSock.Config, PasLS.SocketDispatcher;
 
 type
 
@@ -94,6 +94,7 @@ begin
     end;
   if not ParseOptions then
     exit;
+  TLSPContext.LogFile:=FConfig.LogFile;
   if FConfig.Port>0 then
     Disp:=TLSPServerTCPSocketDispatcher.Create(FConfig.Port)
   else
