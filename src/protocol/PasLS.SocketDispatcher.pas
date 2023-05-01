@@ -68,6 +68,7 @@ Type
     function HandleException(aException: Exception; IsReceive : Boolean): Boolean; virtual;
   public
     Constructor Create(aSocket : TSocketStream); virtual;
+    Destructor Destroy; override;
     Property Socket : TSocketStream Read FSocket;
     Property SocketClosed : Boolean Read FSocketClosed;
   end;
@@ -172,6 +173,12 @@ uses sockets;
 constructor TLSPSocketDispatcher.Create(aSocket: TSocketStream);
 begin
   FSocket:=aSocket;
+end;
+
+destructor TLSPSocketDispatcher.Destroy;
+begin
+  FreeAndNil(FSocket);
+  inherited Destroy;
 end;
 
 function TLSPSocketDispatcher.NextID: Cardinal;
@@ -316,6 +323,8 @@ end;
 
 destructor TLSPServerSocketConnectionDispatcher.Destroy;
 begin
+  If Assigned(FOnDestroy) then
+    FOnDestroy(Self);
   FreeAndNil(FContext);
   inherited Destroy;
 end;
@@ -401,6 +410,7 @@ end;
 
 destructor TLSPServerSocketDispatcher.Destroy;
 begin
+  FreeAndNil(FSocket);
   FreeAndNil(FConns);
   inherited Destroy;
 end;

@@ -882,4 +882,10 @@ initialization
 
   PkgNameToPath := TFPStringHashTable.Create;
   PkgCache      := TFPObjectHashTable.Create;
+
+Finalization
+  PkgNameToPath.Free;
+  PkgCache.Free;
+  DebugOutput.Free;
+
 end.

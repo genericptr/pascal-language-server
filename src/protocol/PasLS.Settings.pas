@@ -40,6 +40,8 @@ type
 
   TMacroMap = specialize TFPGMap<ShortString, String>;
 
+  { TServerSettings }
+
   TServerSettings = class(TPersistent)
   private
     fBooleans: array[0..32] of Boolean;
@@ -50,6 +52,7 @@ type
     fMaximumCompletions: Integer;
     fOverloadPolicy: TOverloadPolicy;
     fConfig: String;
+    procedure SetFPCOptions(AValue: TStrings);
   published
     // Path to the main program file for resolving references
     // if not available the path of the current document will be used
@@ -57,7 +60,7 @@ type
     // Path to SQLite3 database for symbols
     property symbolDatabase: String read fSymbolDatabase write fSymbolDatabase;
     // FPC compiler options (passed to Code Tools)
-    property fpcOptions: TStrings read fFPCOptions write fFPCOptions;
+    property fpcOptions: TStrings read fFPCOptions write SetFPCOptions;
     // Optional codetools.config file to load settings from
     property codeToolsConfig: String read fCodeToolsConfig write fCodeToolsConfig;
     // Maximum number of completion items to be returned
@@ -93,14 +96,20 @@ type
 
     function CanProvideWorkspaceSymbols: boolean;
   public
-    procedure AfterConstruction; override;
+    constructor Create;
+    Destructor Destroy; override;
     procedure ReplaceMacros(Macros: TMacroMap);
+    Procedure Assign(aSource : TPersistent); override;
   end;
+
+  { TClientInfo }
 
   TClientInfo = class(TPersistent)
   private
     fName: string;
     fVersion: string;
+  Public
+    Procedure Assign(aSource : TPersistent); override;
   published
     // The name of the client as defined by the client.
     property name: string read fName write fName;
@@ -108,13 +117,34 @@ type
     property version: string read fVersion write fVersion;
   end;
 
-var
-  ServerSettings: TServerSettings = nil;
-  ClientInfo: TClientInfo = nil;
+
+Function ServerSettings: TServerSettings;
+Function ClientInfo: TClientInfo;
 
 implementation
+
 uses
   SysUtils;
+
+var
+  _ServerSettings: TServerSettings;
+  _ClientInfo: TClientInfo;
+
+Function ServerSettings: TServerSettings;
+
+begin
+  if _ServerSettings=Nil then
+    _ServerSettings:=TServerSettings.Create;
+  Result:=_ServerSettings;
+end;
+
+Function ClientInfo: TClientInfo;
+
+begin
+  if _ClientInfo=Nil then
+    _ClientInfo:=TClientInfo.Create;
+  Result:=_ClientInfo;
+end;
 
 { TServerSettings }
 
@@ -155,6 +185,33 @@ begin
     end;
 end;
 
+procedure TServerSettings.Assign(aSource: TPersistent);
+
+var
+  src : TServerSettings absolute aSource;
+
+begin
+  if (aSource is TServerSettings) then
+    begin
+    fBooleans:=Src.FBooleans;
+    fProgram:=Src.fProgram;;
+    SymbolDatabase:=Src.SymbolDatabase;
+    FPCOptions:=Src.fpcOptions;
+    CodeToolsConfig:=Src.CodeToolsConfig;
+    MaximumCompletions:=Src.MaximumCompletions;
+    OverloadPolicy:=Src.OverloadPolicy;
+    Config:=Src.Config;
+    end
+  else
+    inherited Assign(aSource);
+end;
+
+procedure TServerSettings.SetFPCOptions(AValue: TStrings);
+begin
+  if fFPCOptions=AValue then Exit;
+  fFPCOptions.Assign(AValue);
+end;
+
 function TServerSettings.CanProvideWorkspaceSymbols: boolean;
 begin
   result := workspaceSymbols and 
@@ -162,11 +219,11 @@ begin
             FileExists(ExpandFileName(symbolDatabase));
 end;
 
-procedure TServerSettings.AfterConstruction;
+constructor TServerSettings.Create;
 begin
   inherited;
 
-  FPCOptions := TStringList.Create;
+  fFPCOptions := TStringList.Create;
 
   // default settings
   symbolDatabase := '';
@@ -188,4 +245,30 @@ begin
   showSyntaxErrors := false;
 end;
 
+destructor TServerSettings.Destroy;
+begin
+  FreeAndNil(fFPCOptions);
+  inherited Destroy;
+end;
+
+{ TClientInfo }
+
+procedure TClientInfo.Assign(aSource: TPersistent);
+
+var
+  Src : TClientInfo absolute aSource;
+
+begin
+  if aSource is TClientInfo then
+    begin
+    Name:=Src.name;
+    Version:=Src.version;
+    end
+  else
+    inherited Assign(aSource);
+end;
+
+finalization
+  _ServerSettings.Free;
+  _ClientInfo.Free;
 end.

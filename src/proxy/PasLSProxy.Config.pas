@@ -39,8 +39,6 @@ Type
   private
     FLogFile: String;
     FPort: Word;
-    FSingleConnect: Boolean;
-    FThreaded: Boolean;
     FUnix: String;
   Public
     Constructor Create; virtual;

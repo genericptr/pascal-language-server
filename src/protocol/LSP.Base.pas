@@ -70,6 +70,7 @@ type
                               DataName: TJSONStringType; var AValue: TObject); static;
   public
     class constructor Create;
+    class destructor Done;
     class function ToObject(const JSON: TJSONData): T; overload;
     class function ToObject(const JSON: TJSONStringType): T; overload;
     class function ToJSON(AObject: TObject): TJSONData; overload;
@@ -489,6 +490,12 @@ begin
   DeStreamer.OnGetObject := @GetObject;
 end;
 
+class destructor TLSPStreaming.Done;
+begin
+  Streamer.Free;
+  Destreamer.Free;
+end;
+
 class function TLSPStreaming.ToObject(const JSON: TJSONData): T;
 begin
   Result := T.Create;
@@ -524,9 +531,7 @@ end;
 { TLSPRequest }
 
 function TLSPRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
-type
-  PObjectArray = ^TObjectArray;
-  PObject = ^TObject;
+
 var
   Input: T;
   Output: U;
@@ -536,48 +541,52 @@ var
   ElementType: PTypeInfo;
 
 begin
+  Streamer:=Nil;
   Input := specialize TLSPStreaming<T>.ToObject(Params);
-  Output := Process(Input);
-
-  if Output = nil then
-    begin
-      Result := TJSONNull.Create;
-      exit;
-    end;
-
-  Streamer := TLSPStreamer.Create(nil);
-  Streamer.Options := Streamer.Options + [jsoEnumeratedAsInteger, jsoSetEnumeratedAsInteger, jsoTStringsAsArray];
-
-  if GetTypeKind(U) = tkDynArray then
-    begin
-      ArrayTypeInfo := PTypeInfo(TypeInfo(U));
-
-      // Class kinds are in ElType2 (not sure why)
-      ElementType := GetTypeData(ArrayTypeInfo)^.ElType;
-      if ElementType = nil then
-        ElementType := GetTypeData(ArrayTypeInfo)^.ElType2;
-
-      case ElementType^.Kind of
-        tkClass:
-          begin
-            Result := specialize TLSPStreaming<U>.ToJSON(PObjectArray(@Output)^);
-
-            // Free all objects
-            for AObject in PObjectArray(@Output)^ do
-              AObject.Free;
-          end;
-        otherwise
-          raise EUnknownErrorCode.Create('Dynamic array element type "'+Integer(ElementType^.Kind).ToString+'" is not supported for responses.');
+  try
+    Output := Process(Input);
+    if Output = nil then
+      begin
+        Result := TJSONNull.Create;
+        exit;
       end;
-    end
-  else
-    begin
-      Result := specialize TLSPStreaming<U>.ToJSON(PObject(@Output)^);
-      PObject(@Output)^.Free;
-    end;
-  
-  if Result = nil then
-    Result := TJSONNull.Create;
+    Streamer := TLSPStreamer.Create(nil);
+    Streamer.Options := Streamer.Options + [jsoEnumeratedAsInteger, jsoSetEnumeratedAsInteger, jsoTStringsAsArray];
+    if GetTypeKind(U) = tkDynArray then
+      begin
+        ArrayTypeInfo := PTypeInfo(TypeInfo(U));
+
+        // Class kinds are in ElType2 (not sure why)
+        ElementType := GetTypeData(ArrayTypeInfo)^.ElType;
+        if ElementType = nil then
+          ElementType := GetTypeData(ArrayTypeInfo)^.ElType2;
+
+        case ElementType^.Kind of
+          tkClass:
+            begin
+              Result := specialize TLSPStreaming<U>.ToJSON(TObjectArray(Output));
+
+              // Free all objects
+              for AObject in TObjectArray(Output) do
+                AObject.Free;
+            end;
+          otherwise
+            raise EUnknownErrorCode.Create('Dynamic array element type "'+Integer(ElementType^.Kind).ToString+'" is not supported for responses.');
+        end;
+      end
+    else if GetTypeKind(U) = tkClass then
+      begin
+        Result := specialize TLSPStreaming<U>.ToJSON(TObject(Output));
+        TObject(Output).Free;
+      end;
+
+    if Result = nil then
+      Result := TJSONNull.Create;
+
+  finally
+    Input.Free;
+    Streamer.Free;
+  end;
 end;
 
 { TLSPOutgoingRequest }

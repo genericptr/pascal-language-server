@@ -25,7 +25,7 @@ unit LSP.Capabilities;
 interface
 uses
   { RTL }
-  Classes, 
+  SysUtils, Classes,
   { Protocol }
   LSP.Options, LSP.DocumentSymbol, PasLS.Settings, PasLS.Symbols;
 
@@ -38,6 +38,8 @@ type
     fApplyEdit: Boolean;
     fWorkspaceFolders: boolean;
     fConfiguration: boolean;
+  Public
+    Procedure Assign(Source : TPersistent); override;
   published
     // The client supports applying batch edits to the workspace by supporting
     // the request 'workspace/applyEdit'
@@ -56,6 +58,8 @@ type
   private
     fSupported: boolean;
     fChangeNotifications: boolean;
+  Public
+    Procedure Assign(Source : TPersistent); override;
   published
     // The server has support for workspace folders
     property supported: Boolean read fSupported write fSupported;
@@ -69,14 +73,19 @@ type
     property changeNotifications: boolean read fChangeNotifications write fChangeNotifications;
   end;
 
+  { TWorkspaceServerCapabilities }
+
   TWorkspaceServerCapabilities = class(TPersistent)
   private
     fWorkspaceFolders: TWorkspaceFoldersServerCapabilities;
+    procedure SetWorkspaceFolders(AValue: TWorkspaceFoldersServerCapabilities);
   published
     // The server supports workspace folder.
-    property workspaceFolders: TWorkspaceFoldersServerCapabilities read fWorkspaceFolders write fWorkspaceFolders;
+    property workspaceFolders: TWorkspaceFoldersServerCapabilities read fWorkspaceFolders write SetWorkspaceFolders;
   public
     constructor Create;
+    Destructor Destroy; override;
+    Procedure Assign(Source : TPersistent); override;
   end;
 
   { TTextDocumentClientCapabilities }
@@ -90,9 +99,15 @@ type
   private
     fWorkspace: TWorkspaceClientCapabilities;
     fTextDocument: TTextDocumentClientCapabilities;
+    procedure SetTextDocument(AValue: TTextDocumentClientCapabilities);
+    procedure SetWorkspace(AValue: TWorkspaceClientCapabilities);
+  Public
+    constructor Create;
+    destructor destroy; override;
+    Procedure Assign(Source : TPersistent); override;
   published
-    property workspace: TWorkspaceClientCapabilities read fWorkspace write fWorkspace;
-    property textDocument: TTextDocumentClientCapabilities read fTextDocument write fTextDocument;
+    property workspace: TWorkspaceClientCapabilities read fWorkspace write SetWorkspace;
+    property textDocument: TTextDocumentClientCapabilities read fTextDocument write SetTextDocument;
   end;
 
   { TServerCapabilities }
@@ -114,12 +129,21 @@ type
     fSignatureHelpProvider: TSignatureHelpOptions;
     fExecuteCommandProvider: TExecuteCommandOptions;
     fInlayHintProvider: TInlayHintOptions;
+    procedure SetCompletionProvider(AValue: TCompletionOptions);
+    procedure SetExecuteCommandProvider(AValue: TExecuteCommandOptions);
+    procedure SetInlayHintProvider(AValue: TInlayHintOptions);
+    procedure SetSignatureHelpProvider(AValue: TSignatureHelpOptions);
+    procedure SetTextDocumentSync(AValue: TTextDocumentSyncOptions);
+    procedure SetWorkspace(AValue: TWorkspaceServerCapabilities);
   public
     constructor Create(settings: TServerSettings);
+    destructor destroy; override;
+    procedure ApplySettings(settings: TServerSettings); virtual;
+    Procedure Assign(Source : TPersistent); override;
   published
-    property textDocumentSync: TTextDocumentSyncOptions read fTextDocumentSync write fTextDocumentSync;
-    property workspace: TWorkspaceServerCapabilities read fWorkspace write fWorkspace;
-    property completionProvider: TCompletionOptions read fCompletionProvider write fCompletionProvider;
+    property textDocumentSync: TTextDocumentSyncOptions read fTextDocumentSync write SetTextDocumentSync;
+    property workspace: TWorkspaceServerCapabilities read fWorkspace write SetWorkspace;
+    property completionProvider: TCompletionOptions read fCompletionProvider write SetCompletionProvider;
     property hoverProvider: boolean read fHoverProvider write fHoverProvider;
     property definitionProvider: boolean read fDefinitionProvider write fDefinitionProvider;
     property declarationProvider: boolean read fDeclarationProvider write fDeclarationProvider;
@@ -129,32 +153,176 @@ type
     property documentHighlightProvider: boolean read fDocumentHighlightProvider write fDocumentHighlightProvider;
     property documentSymbolProvider: boolean read fDocumentSymbolProvider write fDocumentSymbolProvider;
     property workspaceSymbolProvider: boolean read fWorkspaceSymbolProvider write fWorkspaceSymbolProvider;
-    property signatureHelpProvider: TSignatureHelpOptions read fSignatureHelpProvider write fSignatureHelpProvider;
-    property executeCommandProvider: TExecuteCommandOptions read fExecuteCommandProvider write fExecuteCommandProvider;
-    property inlayHintProvider: TInlayHintOptions read fInlayHintProvider write fInlayHintProvider;
+    property signatureHelpProvider: TSignatureHelpOptions read fSignatureHelpProvider write SetSignatureHelpProvider;
+    property executeCommandProvider: TExecuteCommandOptions read fExecuteCommandProvider write SetExecuteCommandProvider;
+    property inlayHintProvider: TInlayHintOptions read fInlayHintProvider write SetInlayHintProvider;
   end;
 
 implementation
 
+{ TWorkspaceClientCapabilities }
+
+procedure TWorkspaceClientCapabilities.Assign(Source: TPersistent);
+
+var
+  Src : TWorkspaceClientCapabilities absolute Source;
+
+begin
+  if Source is TWorkspaceClientCapabilities then
+    begin
+    ApplyEdit:=Src.ApplyEdit;
+    WorkspaceFolders:=Src.workspaceFolders;
+    Configuration:=Src.configuration;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TWorkspaceFoldersServerCapabilities }
+
+procedure TWorkspaceFoldersServerCapabilities.Assign(Source: TPersistent);
+
+var
+  Src : TWorkspaceFoldersServerCapabilities absolute source;
+
+begin
+  if Source is TWorkspaceFoldersServerCapabilities then
+    begin
+    Supported:=Src.supported;
+    ChangeNotifications:=Src.changeNotifications;
+    end
+  else
+    inherited Assign(Source);
+end;
+
 { TWorkspaceServerCapabilities }
+
+procedure TWorkspaceServerCapabilities.SetWorkspaceFolders(
+  AValue: TWorkspaceFoldersServerCapabilities);
+begin
+  if fWorkspaceFolders=AValue then Exit;
+  fWorkspaceFolders.Assign(AValue);
+end;
 
 constructor TWorkspaceServerCapabilities.Create;
 begin
-  workspaceFolders := TWorkspaceFoldersServerCapabilities.Create;
+  FWorkspaceFolders := TWorkspaceFoldersServerCapabilities.Create;
+end;
+
+destructor TWorkspaceServerCapabilities.Destroy;
+begin
+  FreeAndNil(FWorkspaceFolders);
+  inherited Destroy;
+end;
+
+procedure TWorkspaceServerCapabilities.Assign(Source: TPersistent);
+
+var
+  Src : TWorkspaceServerCapabilities absolute Source;
+
+begin
+  If Source is TWorkspaceServerCapabilities then
+    begin
+    workspaceFolders:=Src.workspaceFolders;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TClientCapabilities }
+
+procedure TClientCapabilities.SetTextDocument(
+  AValue: TTextDocumentClientCapabilities);
+begin
+  if fTextDocument=AValue then Exit;
+  fTextDocument.Assign(AValue);
+end;
+
+procedure TClientCapabilities.SetWorkspace(AValue: TWorkspaceClientCapabilities
+  );
+begin
+  if fWorkspace=AValue then Exit;
+  fWorkspace.Assign(AValue);
+end;
+
+constructor TClientCapabilities.Create;
+begin
+  fWorkspace:=TWorkspaceClientCapabilities.Create;
+  fTextDocument:=TTextDocumentClientCapabilities.Create;
+end;
+
+destructor TClientCapabilities.destroy;
+begin
+  FreeAndNil(fWorkspace);
+  FreeAndNil(fTextDocument);
+  inherited destroy;
+end;
+
+procedure TClientCapabilities.Assign(Source: TPersistent);
+
+Var
+  CP : TClientCapabilities absolute source;
+
+begin
+  if Source is TClientCapabilities then
+    begin
+    Workspace:=cp.Workspace;
+    TextDocument:=cp.textDocument;
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TServerCapabilities }
 
-constructor TServerCapabilities.Create(settings: TServerSettings);
-var
-  triggerCharacters: TStringList;
+procedure TServerCapabilities.SetCompletionProvider(AValue: TCompletionOptions);
 begin
-  textDocumentSync := TTextDocumentSyncOptions.Create;
+  if fCompletionProvider=AValue then Exit;
+  fCompletionProvider.Assign(AValue);
+end;
 
-  textDocumentSync.save := TSaveOptions.Create(false);
-  textDocumentSync.change := TTextDocumentSyncKind.Full;
+procedure TServerCapabilities.SetExecuteCommandProvider(
+  AValue: TExecuteCommandOptions);
+begin
+  if fExecuteCommandProvider=AValue then Exit;
+  fExecuteCommandProvider.Assign(AValue);
+end;
 
-  workspace := TWorkspaceServerCapabilities.Create;
+procedure TServerCapabilities.SetInlayHintProvider(AValue: TInlayHintOptions);
+begin
+  if fInlayHintProvider=AValue then Exit;
+  fInlayHintProvider.Assign(AValue);
+end;
+
+procedure TServerCapabilities.SetSignatureHelpProvider(
+  AValue: TSignatureHelpOptions);
+begin
+  if fSignatureHelpProvider=AValue then Exit;
+  fSignatureHelpProvider.Assign(AValue);
+end;
+
+procedure TServerCapabilities.SetTextDocumentSync(
+  AValue: TTextDocumentSyncOptions);
+begin
+  if fTextDocumentSync=AValue then Exit;
+  fTextDocumentSync.Assign(AValue);
+end;
+
+procedure TServerCapabilities.SetWorkspace(AValue: TWorkspaceServerCapabilities
+  );
+begin
+  if fWorkspace=AValue then Exit;
+  fWorkspace.Assign(AValue);
+end;
+
+constructor TServerCapabilities.Create(settings: TServerSettings);
+
+begin
+  ftextDocumentSync := TTextDocumentSyncOptions.Create;
+
+  ftextDocumentSync.change := TTextDocumentSyncKind.Full;
+
+  fworkspace := TWorkspaceServerCapabilities.Create;
   workspace.workspaceFolders.supported := true;
   workspace.workspaceFolders.changeNotifications := true;
 
@@ -164,26 +332,70 @@ begin
   implementationProvider := true;
   referencesProvider := true;
   documentHighlightProvider := true;
-  executeCommandProvider := TExecuteCommandOptions.Create([
+  fexecuteCommandProvider := TExecuteCommandOptions.Create([
     'pasls.completeCode'
   ]);
-  inlayHintProvider := nil;//TInlayHintOptions.Create;
+  finlayHintProvider:= TInlayHintOptions.Create;
 
   documentSymbolProvider := Assigned(SymbolManager);
-  workspaceSymbolProvider := settings.CanProvideWorkspaceSymbols;
-  
-  completionProvider := TCompletionOptions.Create;
-  triggerCharacters := TStringList.Create;
-  triggerCharacters.Add('.');
-  triggerCharacters.Add('^');
-  completionProvider.triggerCharacters := triggerCharacters;
+  if Assigned(Settings) then
+    ApplySettings(Settings);
 
-  signatureHelpProvider := TSignatureHelpOptions.Create;
-  triggerCharacters := TStringList.Create;
-  triggerCharacters.Add('(');
-  triggerCharacters.Add(')');
-  triggerCharacters.Add(',');
-  signatureHelpProvider.triggerCharacters := triggerCharacters;
+  fcompletionProvider := TCompletionOptions.Create;
+  completionProvider.triggerCharacters.Add('.');
+  completionProvider.triggerCharacters.Add('^');
+
+  fsignatureHelpProvider := TSignatureHelpOptions.Create;
+  signatureHelpProvider.triggerCharacters.Add('(');
+  signatureHelpProvider.triggerCharacters.Add(')');
+  signatureHelpProvider.triggerCharacters.Add(',');
+end;
+
+destructor TServerCapabilities.destroy;
+
+begin
+  FreeAndNil(fTextDocumentSync);
+  FreeAndNil(fWorkspace);
+  FreeAndNil(fCompletionProvider);
+  FreeAndNil(fSignatureHelpProvider);
+  FreeAndNil(fExecuteCommandProvider);
+  FreeAndNil(fInlayHintProvider);
+  inherited destroy;
+end;
+
+procedure TServerCapabilities.ApplySettings(settings: TServerSettings);
+begin
+  if not Assigned(Settings) then
+    exit;
+  workspaceSymbolProvider := settings.CanProvideWorkspaceSymbols;
+end;
+
+procedure TServerCapabilities.Assign(Source: TPersistent);
+
+var
+  Src : TServerCapabilities absolute source;
+
+begin
+  if Source is TServerCapabilities then
+    begin
+    TextDocumentSync:=TextDocumentSync;
+    Workspace:=Src.Workspace;
+    CompletionProvider:=Src.CompletionProvider;
+    HoverProvider:= Src.HoverProvider;
+    DefinitionProvider:=Src.DefinitionProvider;
+    DeclarationProvider:=Src.DeclarationProvider;
+    ReferencesProvider:=Src.ReferencesProvider;
+    ImplementationProvider:=Src.ImplementationProvider;
+    CodeActionProvider:=Src.CodeActionProvider;
+    DocumentHighlightProvider:=Src.DocumentHighlightProvider;
+    DocumentSymbolProvider:=Src.DocumentSymbolProvider;
+    WorkspaceSymbolProvider:=Src.WorkspaceSymbolProvider;
+    SignatureHelpProvider:=Src.SignatureHelpProvider;
+    ExecuteCommandProvider:=Src.ExecuteCommandProvider;
+    InlayHintProvider:=Src.inlayHintProvider;
+    end
+  else
+    inherited Assign(Source);
 end;
 
 end.

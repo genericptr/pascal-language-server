@@ -73,8 +73,8 @@ begin
     writeln('Invalid parameter count of '+ParamCount.ToString+' (must be pairs of 2)');
     Exit(false);
     end;
-  I:=1;
-  while (i<=Len) do
+  I:=0;
+  while (i<Len) do
     begin
     method := aParams[i];
     path := ExpandFileName(aParams[i+1]);
