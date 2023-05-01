@@ -88,7 +88,7 @@ end;
 
 class function TLSPSocketServerConfig.DefaultConfigFile: String;
 begin
-{$IFNDEF UNIX}
+{$IFDEF UNIX}
   Result:='/etc/paslssock.cfg';
 {$ELSE}
   Result:=ChangeFileExt(ParamStr(0),'.ini');
