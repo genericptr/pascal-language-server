@@ -40,8 +40,8 @@ Type
   TLSPProxyApplication = Class(TCustomApplication)
   Private
     const
-      ShortOptions = 'htp:u:c:';
-      LongOptions : Array of string = ('help','test','port:','unix:','config:');
+      ShortOptions = 'htp:u:c:l:';
+      LongOptions : Array of string = ('help','test','port:','unix:','config:','log:');
   Private
     FConfig : TLSPProxyConfig;
     function ParseOptions(out aParams : TStringDynArray): Boolean;
@@ -110,6 +110,7 @@ begin
   Writeln('Where options is one or more of:');
   Writeln('-h  --help           This help message');
   Writeln('-c  --config=FILE    Read configuration from file FILE. Default is to read from ',TLSPProxyConfig.DefaultConfigFile);
+  Writeln('-l  --log=FILE       Set log file in which to write all log messages');
   Writeln('-p  --port=NNN       Listen on port NNN (default: ',DefaultSocketPort);
   Writeln('-t  --test           Interpret non-option arguments as call/param file pairs and send to server');
   Writeln('-u  --unix=FILE      Listen on unix socket FILE (only on unix-like systems. Default: ',DefaultSocketUnix,')');
@@ -132,6 +133,8 @@ begin
 {$ENDIF}
   if HasOption('p','port') then
     FConfig.Port:=StrToInt(GetOptionValue('p','port'));
+  if HasOption('l','log') then
+    FConfig.LogFile:=GetOptionValue('l','log');
   if HasOption('t','test') then
     aParams:=GetNonOptions(ShortOptions,LongOptions)
   else

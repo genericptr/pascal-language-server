@@ -65,6 +65,8 @@ begin
 {$ENDIF}
   if HasOption('p','port') then
     FConfig.Port:=StrToInt(GetOptionValue('p','port'));
+  if HasOption('l','log') then
+    FConfig.LogFile:=GetOptionValue('l','log');
   if HasOption('t','threaded') then
     FConfig.Threaded:=True;
   if HasOption('s','single-connect') then
@@ -75,8 +77,8 @@ end;
 procedure TPasLSPSocketServerApp.DoRun;
 
 Const
-  ShortOpts = 'hp:u:c:ts';
-  LongOpts : array of string = ('help','port','unix','config','threaded','single-connect');
+  ShortOpts = 'hp:u:c:tsl:';
+  LongOpts : array of string = ('help','port','unix','config','threaded','single-connect','log:');
 
 
 var
@@ -129,6 +131,7 @@ begin
   Writeln('Where options is one or more of:');
   Writeln('-h  --help           This help message');
   Writeln('-c  --config=FILE    Read configuration from file FILE. Default is to read from ',TLSPSocketServerConfig.DefaultConfigFile);
+  Writeln('-l  --log=FILE       Set log file in which to write all log messages');
   Writeln('-p  --port=NNN       Listen on port NNN');
   Writeln('-s  --single-connect Handle one connection and then exit');
   Writeln('-t  --threaded       Use threading for connections.');
