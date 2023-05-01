@@ -9,6 +9,16 @@
           <Mode Name="Release"/>
         </BuildModes>
       </Target>
+      <Target FileName="proxy/paslsproxy.lpi">
+        <BuildModes>
+          <Mode Name="Default"/>
+        </BuildModes>
+      </Target>
+      <Target FileName="socketserver/paslssock.lpi">
+        <BuildModes>
+          <Mode Name="Default"/>
+        </BuildModes>
+      </Target>
     </Targets>
   </ProjectGroup>
 </CONFIG>

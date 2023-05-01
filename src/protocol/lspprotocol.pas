@@ -14,7 +14,8 @@ uses
   LSP.Capabilities, LSP.Completion, LSP.General, LSP.Base, LSP.Options, 
   LSP.References, PasLS.Settings, LSP.SignatureHelp, PasLS.Symbols, 
   LSP.Synchronization, LSP.Window, LSP.WorkDoneProgress, LSP.Workspace, 
-  PasLS.CodeUtils, PasLS.Commands, PasLS.LazConfig, LazarusPackageIntf;
+  PasLS.CodeUtils, PasLS.Commands, PasLS.LazConfig, PasLS.TextLoop, 
+  PasLS.SocketDispatcher, LSP.AllCommands, LazarusPackageIntf;
 
 implementation
 

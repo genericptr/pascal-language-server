@@ -126,6 +126,18 @@
         <Filename Value="PasLS.LazConfig.pas"/>
         <UnitName Value="PasLS.LazConfig"/>
       </Item>
+      <Item>
+        <Filename Value="PasLS.TextLoop.pas"/>
+        <UnitName Value="PasLS.TextLoop"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.SocketDispatcher.pas"/>
+        <UnitName Value="PasLS.SocketDispatcher"/>
+      </Item>
+      <Item>
+        <Filename Value="LSP.AllCommands.pas"/>
+        <UnitName Value="LSP.AllCommands"/>
+      </Item>
     </Files>
     <RequiredPkgs>
       <Item>
