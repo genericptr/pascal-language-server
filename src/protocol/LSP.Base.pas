@@ -176,31 +176,33 @@ type
   { TLSPContext }
 
   TLSPContext = Class (TObject)
+  Private
+    Class var _LogFile: TFileStream;
   private
     FDispatcher: TLSPBaseDispatcher;
     FDispatcherOwner: Boolean;
     FLastMessageID: Integer;
-    FLogFile: TFileStream;
-    function GetLogFile: String;
+    Class function GetLogFile: String; static;
     procedure SetDispatcher(AValue: TLSPBaseDispatcher);
-    procedure SetLogFile(const AValue: String);
+    Class procedure SetLogFile(const AValue: String); static;
   Protected
-    Procedure DoLog(const Msg : String);
-    Procedure DoLog(const Fmt : String; Const Args : Array of const);
+    Class Procedure DoLog(const Msg : String);
+    Class Procedure DoLog(const Fmt : String; Const Args : Array of const);
   Public
     Constructor Create(aDispatcher : TLSPBaseDispatcher; aOwner : Boolean);
     Constructor Create(aOwner : Boolean);
     destructor Destroy; override;
+    Class Destructor Done;
     Function NextMessageID : Integer;
-    Function HaveLog : Boolean;
+    class Function HaveLog : Boolean;
     Function Execute(aRequest : TJSONData) : TJSONData;
-    Procedure Log(const Msg : String);
-    Procedure Log(const Fmt : String; Const Args : Array of const);
+    Class Procedure Log(const Msg : String);
+    Class Procedure Log(const Fmt : String; Const Args : Array of const);
+    Class Property LogFile : String Read GetLogFile Write SetLogFile;
   published
     Property LastMessageID: Integer Read FLastMessageID;
     Property Dispatcher : TLSPBaseDispatcher Read FDispatcher Write SetDispatcher;
     Property DispatcherOwner : Boolean Read FDispatcherOwner Write FDispatcherOwner;
-    Property LogFile : String Read GetLogFile Write SetLogFile;
   end;
 
 { LSPHandlerManager }
@@ -682,22 +684,22 @@ begin
   FDispatcher:=AValue;
 end;
 
-function TLSPContext.GetLogFile: String;
+class function TLSPContext.GetLogFile: String;
 begin
   Result:='';
-  if assigned(FLogFile) then
-    Result:=FLogFile.FileName;
+  if assigned(_LogFile) then
+    Result:=_LogFile.FileName;
 end;
 
-procedure TLSPContext.SetLogFile(const AValue: String);
+class procedure TLSPContext.SetLogFile(const AValue: String);
 begin
   if aValue=GetLogFile then exit;
-  FreeAndNil(FLogFile);
+  FreeAndNil(_LogFile);
   if aValue<>'' then
-    FLogFile:=TFileStream.Create(aValue,fmCreate);
+    _LogFile:=TFileStream.Create(aValue,fmCreate);
 end;
 
-procedure TLSPContext.DoLog(const Msg: String);
+class procedure TLSPContext.DoLog(const Msg: String);
 
 Var
   NL : String;
@@ -705,13 +707,14 @@ Var
 begin
   if HaveLog and (Length(Msg)>0) then
     begin
-    FLogFile.WriteBuffer(Msg[1],Length(Msg));
+    _LogFile.WriteBuffer(Msg[1],Length(Msg));
     NL:=sLineBreak;
-    FLogFile.WriteBuffer(NL[1],Length(NL));
+    _LogFile.WriteBuffer(NL[1],Length(NL));
     end;
 end;
 
-procedure TLSPContext.DoLog(const Fmt: String; const Args: array of const);
+class procedure TLSPContext.DoLog(const Fmt: String;
+  const Args: array of const);
 begin
   DoLog(Format(Fmt,Args));
 end;
@@ -721,7 +724,6 @@ constructor TLSPContext.Create(aDispatcher: TLSPBaseDispatcher; aOwner: Boolean
 begin
   Create(aOwner);
   Dispatcher:=aDispatcher;
-  LogFile:=GetTempDir(True)+ChangeFileExt(ExtractFileName(ParamStr(0)),'.log');
 end;
 
 constructor TLSPContext.Create(aOwner: Boolean);
@@ -731,9 +733,13 @@ end;
 
 destructor TLSPContext.Destroy;
 begin
-  FreeAndNil(FLogFile);
   Dispatcher:=Nil;
   inherited Destroy;
+end;
+
+class destructor TLSPContext.Done;
+begin
+  FreeAndNil(_LogFile);
 end;
 
 function TLSPContext.NextMessageID: Integer;
@@ -741,9 +747,9 @@ begin
   Result:=InterlockedIncrement(FLastMessageID);
 end;
 
-function TLSPContext.HaveLog: Boolean;
+class function TLSPContext.HaveLog: Boolean;
 begin
-  Result:=assigned(FLogFile);
+  Result:=assigned(_LogFile);
 end;
 
 function TLSPContext.Execute(aRequest: TJSONData): TJSONData;
@@ -768,13 +774,13 @@ begin
   end;
 end;
 
-procedure TLSPContext.Log(const Msg: String);
+class procedure TLSPContext.Log(const Msg: String);
 begin
   If HaveLog then
     DoLog(Msg);
 end;
 
-procedure TLSPContext.Log(const Fmt: String; const Args: array of const);
+class procedure TLSPContext.Log(const Fmt: String; const Args: array of const);
 begin
   If HaveLog then
     DoLog(Fmt,Args);
