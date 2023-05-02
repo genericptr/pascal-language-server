@@ -170,8 +170,9 @@ To solve this, 2 extra projects have been added:
 - **paslssock**:  a LSP server that reads messages from a TCP/IP or Unix
   socket and sends replies back through the socket.
 
-- **paslsproxy**:  a LSP server that acts as a proxy: it reads messages from
-  standard input, sends them to a TCP/IP or Unix socket. It reads the replies
+- **paslsproxy**: This is a drop-in replacement for pasls: It is a LSP server
+  that acts as a proxy: it reads messages from standard input (just as
+  pasls), but sends them to a TCP/IP or Unix socket. It reads the replies
   from the socket and writes them to standard output.
 
 Both programs have a -h or --help commandline option which will display all
@@ -187,8 +188,12 @@ configuration options.
 
    For both processes you can specify a log file which will log all communication to that logfile.
 
-2. Start the socket server process (in the IDE or debugger of your choice).
+2. Start the socket server process (in the IDE or debugger of your choice)
+   before you start the editor that uses the language server.
 
-3. Configure VS Code to use the proxy process instead of the standard pasls executable.
+3. Configure VS Code (or any other edit) to use the proxy process instead of the standard pasls executable.
+   Simply replace the full path to pasls to the full path to paslsproxy:
+
+![VS Code: specifying paslsproxy](images/vscodedebug.png)
 
 4. Happy debugging !
