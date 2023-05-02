@@ -26,15 +26,15 @@ uses
   { RTL }
   SysUtils, Classes, URIParser, FPJSON,
   { LSP }
-  LSP.Basic, PasLS.Settings;
+  LSP.Basic;
 
 procedure CompleteCode(documentURI: TDocumentUri; line, column: integer);
 
 implementation
 uses
   { CodeTools }
-  CodeToolManager, CodeToolsConfig, CodeCache, IdentCompletionTool, 
-  BasicCodeTools, CodeTree, FindDeclarationTool, PascalParserTool,
+  CodeToolManager, CodeCache,
+  FindDeclarationTool,
   SourceChanger,
   { Protocols }
   LSP.Workspace;
@@ -43,7 +43,6 @@ procedure ApplyEdit(documentURI, Text: String; range: TRange);
 var
   params: TApplyWorkspaceEditParams;
   edit: TWorkspaceEdit;
-  request: TRequestMessage;
   textEdit: TTextEdit;
   textDocumentEdit: TTextDocumentEdit;
 begin

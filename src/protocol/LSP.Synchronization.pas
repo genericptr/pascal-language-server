@@ -136,7 +136,7 @@ type
 
 implementation
 uses
-  SysUtils, PasLS.CodeUtils, PasLS.Settings, LSP.Diagnostics, LSP.DocumentSymbol;
+  SysUtils, LSP.Diagnostics, LSP.DocumentSymbol;
 
 { TDidChangeTextDocumentParams }
 
@@ -195,12 +195,11 @@ end;
 { TDidCloseTextDocument }
 
 procedure TDidCloseTextDocument.Process(var Params : TDidCloseTextDocumentParams);
-var
-  URI: TURI;
-  Code: TCodeBuffer;
+
+
 begin with Params do
   begin
-    URI := ParseURI(textDocument.uri);
+    // URI := ParseURI(textDocument.uri);
     // TODO: clear errors
     // TODO: if the file was manually loaded (i.e. not in search paths)
     // then we may want to remove it from the symbol table so it doesn't cause clutter
@@ -215,12 +214,13 @@ var
   URI: TURI;
   Code: TCodeBuffer;
   Change: TCollectionItem;
-  Range: TRange;
+{  Range: TRange;
   StartPos, EndPos: integer;
-  StartTime: TDateTime;
+
+  }
 begin with Params do
   begin
-    StartTime := Now;
+
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     for Change in contentChanges do

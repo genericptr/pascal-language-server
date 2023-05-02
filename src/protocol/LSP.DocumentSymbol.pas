@@ -26,13 +26,11 @@ interface
 
 uses
   { RTL }
-  Classes, Contnrs, URIParser, FPJson, FPJsonRPC, SQLite3,
+  Classes,  URIParser, FPJson, FPJsonRPC,
   { Code Tools }
-  CodeToolManager, CodeCache, CodeTree, LinkScanner,
+  CodeToolManager, LinkScanner,
   { Protocol }
-  LSP.Base, LSP.Basic, 
-  { Other }
-  PasLS.CodeUtils;
+  LSP.Base, LSP.Basic;
 
 type
   TSymbolKind = (
@@ -172,10 +170,10 @@ uses
   { RTL }
   SysUtils, FileUtil, DateUtils, fpjsonrtti, 
   { Code Tools }
-  CodeToolsConfig, IdentCompletionTool, CodeAtom,
-  BasicCodeTools, FindDeclarationTool, PascalParserTool, KeywordFuncLists,
+
+  FindDeclarationTool, KeywordFuncLists,
   { Protocol }
-  LSP.Diagnostics, PasLS.Symbols, PasLS.Settings;
+  PasLS.Symbols;
 
 function SymbolKindToString(kind: TSymbolKind): ShortString;
 begin

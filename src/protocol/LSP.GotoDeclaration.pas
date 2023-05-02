@@ -25,7 +25,7 @@ interface
 
 uses
   { RTL }
-  Classes, URIParser, CodeToolManager, CodeCache, BasicCodeTools,
+  Classes, URIParser, CodeToolManager, CodeCache,
   { Protocol }
   LSP.Base, LSP.Basic;
 

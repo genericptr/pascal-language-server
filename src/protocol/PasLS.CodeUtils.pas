@@ -388,6 +388,7 @@ var
   part: string = '';
   parts: TStringArray;
 begin
+  parts:=[];
   SetLength(parts, 0);
   for i := 1 to Length(s) do
     begin
@@ -410,7 +411,6 @@ function ParseParamList(RawList: String): TStringList;
 const
   kPairDelimiter = ': ';
 var
-  Text: String = '';
   I, J: Integer;
   Types, Names, Pair: TStringArray;
 begin

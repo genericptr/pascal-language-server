@@ -149,7 +149,7 @@ type
     The `workspace/applyEdit` request is sent from the server to the client to 
     modify resource on the client side. }
 
-  TWorkspaceApplyEditRequest = class(specialize TLSPOutgoingRequest<TApplyWorkspaceEditParams, TApplyWorkspaceEditResult>);
+  TWorkspaceApplyEditRequest = class(specialize TLSPOutgoingRequest<TApplyWorkspaceEditParams>);
 
 implementation
 uses
@@ -172,10 +172,9 @@ end;
 function TWorkspaceSymbolRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
 var
   Input: TWorkspaceSymbolParams;
-  StartTime: TDateTime;
+
 begin
   Input := specialize TLSPStreaming<TWorkspaceSymbolParams>.ToObject(Params);
-  StartTime := Now;
   Result := SymbolManager.FindWorkspaceSymbols(Input.query);
   Flush(stderr);
 
