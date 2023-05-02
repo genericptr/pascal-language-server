@@ -893,7 +893,7 @@ end;
 constructor TLocation.Create(Path: String; Line, Column, Span: Integer);
 begin
   uri := PathToURI(Path);
-  range := TRange.Create(Line, Column, Span);
+  fRange := TRange.Create(Line, Column, Span);
 end;
 
 procedure TLocation.Assign(Source: TPersistent);
@@ -1242,12 +1242,12 @@ end;
 
 function TGenericCollection.GetI(Index : Integer): T;
 begin
-  Result:=T(Items[Index]);
+  Result:=T(Inherited Items[Index]);
 end;
 
 procedure TGenericCollection.SetI(Index : Integer; AValue: T);
 begin
-  Items[Index]:=aValue;
+  Inherited Items[Index]:=aValue;
 end;
 
 constructor TGenericCollection.Create;
