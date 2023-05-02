@@ -91,7 +91,13 @@ type
   { TGenericCollection }
 
   generic TGenericCollection<T> = class(TCollection)
+  private
+    function GetI(Index : Integer): T;
+    procedure SetI(Index : Integer; AValue: T);
+  public
     constructor Create;
+    Function Add : T; reintroduce;
+    Property Items[Index : Integer] : T Read GetI Write SetI;
   end;
 
   { TDocumentUri }
@@ -104,6 +110,9 @@ type
   private
     fLine: Integer;
     fCharacter: Integer;
+  public
+    constructor Create(l, c: integer); overload;
+    procedure Assign(Source : TPersistent); override;
   published
     // Line position in a document (zero-based).
     property line: Integer read fLine write fLine;
@@ -114,8 +123,6 @@ type
     // If the character value is greater than the line length it
     // defaults back to the line length.
     property character: Integer read fCharacter write fCharacter;
-  public
-    constructor Create(l, c: integer); overload;
   end;
 
   { TRange }
@@ -124,15 +131,18 @@ type
   private
     fStart: TPosition;
     fEnd: TPosition;
+    procedure SetEnd(AValue: TPosition);
+    procedure SetStart(AValue: TPosition);
   published
     // The range's start position.
-    property start: TPosition read fStart write fStart;
+    property start: TPosition read fStart write SetStart;
     // The range's end position.
-    property &end: TPosition read fEnd write fEnd;
+    property &end: TPosition read fEnd write SetEnd;
   public
     constructor Create(line, column: integer); overload;
     constructor Create(line, column, len: integer); overload;
     constructor Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
+    Destructor destroy; override;
 
     function ToString: String; override;
   end;
@@ -143,22 +153,31 @@ type
   private
     fUri: TDocumentUri;
     fRange: TRange;
-  published
-    property uri: TDocumentUri read fUri write fUri;
-    property range: TRange read fRange write fRange;
+    procedure SetRange(AValue: TRange);
   public
     constructor Create(Path: String; Line, Column, Span: Integer); overload;
+    procedure Assign(Source : TPersistent); override;
+  published
+    property uri: TDocumentUri read fUri write fUri;
+    property range: TRange read fRange write SetRange;
   end;
 
   { TLocation }
+
+  { TLocationItem }
 
   TLocationItem = class(TCollectionItem)
   private
     fUri: TDocumentUri;
     fRange: TRange;
+    procedure SetRange(AValue: TRange);
+  Public
+    Constructor Create(ACollection: TCollection); override;
+    destructor destroy; override;
+    Procedure Assign(source : TPersistent); override;
   published
     property uri: TDocumentUri read fUri write fUri;
-    property range: TRange read fRange write fRange;
+    property range: TRange read fRange write SetRange;
   end;
   
   TLocationItems = specialize TGenericCollection<TLocationItem>;
@@ -171,12 +190,19 @@ type
     fTargetUri: TDocumentUri;
     fTargetRange: TRange;
     fTargetSelectionRange: TRange;
+    procedure SetOriginSelectionRange(AValue: TRange);
+    procedure SetTargetRange(AValue: TRange);
+    procedure SetTargetSelectionRange(AValue: TRange);
+  public
+    Constructor Create;
+    Destructor Destroy; override;
+    Procedure Assign(aSource : TPersistent); override;
   published
     // Span of the origin of this link.
     //
     // Used as the underlined span for mouse interaction. Defaults to
     // the word range at the mouse position.
-    property originSelectionRange: TRange read fOriginSelectionRange write fOriginSelectionRange;
+    property originSelectionRange: TRange read fOriginSelectionRange write SetOriginSelectionRange;
     // The target resource identifier of this link.
     property targetUri: TDocumentUri read fTargetUri write fTargetUri;
     // The full target range of this link. If the target for example
@@ -184,12 +210,12 @@ type
     // symbol not including leading/trailing whitespace but everything
     // else like comments. This information is typically used to
     // highlight the range in the editor.
-    property targetRange: TRange read fTargetRange write fTargetRange;
+    property targetRange: TRange read fTargetRange write SetTargetRange;
     // The range that should be selected and revealed when this link
     // is being followed, e.g the name of a function.  Must be
     // contained by the the `targetRange`. See also
     // `DocumentSymbol#range`
-    property targetSelectionRange: TRange read fTargetSelectionRange write fTargetSelectionRange;
+    property targetSelectionRange: TRange read fTargetSelectionRange write SetTargetSelectionRange;
   end;
 
   { TTextDocumentIdentifier }
@@ -197,6 +223,8 @@ type
   TTextDocumentIdentifier = class(TPersistent)
   private
     fUri: TDocumentUri;
+  Public
+    Procedure Assign(aSource : TPersistent); override;
   published
     property uri: TDocumentUri read fUri write fUri;
   end;
@@ -210,6 +238,8 @@ type
   TVersionedTextDocumentIdentifier = class(TTextDocumentIdentifier)
   private
     fVersion: TOptionalInteger;
+  public
+    Procedure Assign(aSource : TPersistent); override;
   published
     // The version number of this document. If a versioned text
     // document identifier is sent from the server to the client and
@@ -230,15 +260,18 @@ type
   private
     fRange: TRange;
     fNewText: String;
+    procedure SetRange(AValue: TRange);
   published
     // The range of the text document to be manipulated. To insert
     // text into a document create a range where start === end.
-    property range: TRange read fRange write fRange;
+    property range: TRange read fRange write SetRange;
     // The string to be inserted. For delete operations use an empty
     // string.
     property newText: String read fNewText write fNewText;
   public
+    constructor Create(ACollection: TCollection); override;
     destructor Destroy; override;
+    Procedure Assign(aSource : TPersistent); override;
   end;
 
   TTextEdits = specialize TGenericCollection<TTextEdit>;
@@ -249,14 +282,17 @@ type
   private
     fTextDocument: TVersionedTextDocumentIdentifier;
     fEdits: TTextEdits;
+    procedure SetEdits(AValue: TTextEdits);
+    procedure SetTextDocument(AValue: TVersionedTextDocumentIdentifier);
+  public
+    constructor Create(ACollection: TCollection); override;
+    destructor Destroy; override;
+    procedure Assign(Source : TPersistent); override;
   published
     // The text document to change.
-    property textDocument: TVersionedTextDocumentIdentifier read fTextDocument write fTextDocument;
+    property textDocument: TVersionedTextDocumentIdentifier read fTextDocument write SetTextDocument;
     // The edits to be applied.
-    property edits: TTextEdits read fEdits write fEdits;
-  public
-    procedure AfterConstruction; override;
-    destructor Destroy; override;
+    property edits: TTextEdits read fEdits write SetEdits;
   end;
 
   TTextDocumentEdits = specialize TGenericCollection<TTextDocumentEdit>;
@@ -269,6 +305,8 @@ type
     fLanguageId: string;
     fVersion: Integer;
     fText: string;
+  Public
+    procedure Assign(Source : TPersistent); override;
   published
     // The text document's URI.
     property uri: TDocumentUri read fUri write fUri;
@@ -287,11 +325,17 @@ type
   private
     fTextDocument: TTextDocumentIdentifier;
     fPosition: TPosition;
+    procedure SetPosition(AValue: TPosition);
+    procedure SetTextDocument(AValue: TTextDocumentIdentifier);
+  Public
+    Constructor Create;
+    Destructor Destroy; override;
+    procedure Assign(Source : TPersistent); override;
   published
     // The text document.
-    property textDocument: TTextDocumentIdentifier read fTextDocument write fTextDocument;
+    property textDocument: TTextDocumentIdentifier read fTextDocument write SetTextDocument;
     // The position inside the text document.
-    property position: TPosition read fPosition write fPosition;
+    property position: TPosition read fPosition write SetPosition;
   end;
   
   { TMarkupKind }
@@ -303,12 +347,10 @@ type
     Please note that `MarkupKinds` must not start with a `$`. This
     kinds are reserved for internal usage. }
   
-  TMarkupKind = record
+  TMarkupKind = Class
   public const
     PlainText = 'plaintext';   // Plain text is supported as a content format
     Markdown = 'markdown';     // Markdown is supported as a content format
-  private
-    value: string;
   end;
 
   { TMarkupContent }
@@ -324,15 +366,16 @@ type
 
   TMarkupContent = class(TPersistent)
   private
-    fKind: TMarkupKind;
+    fKind: string;
     fValue: string;
   published
     // The type of the Markup
-    property kind: string read fKind.value write fKind.value;
+    property kind: string read FKind write FKind;
     // The content itself
     property value: string read fValue write fValue;
   public
     constructor Create(content: string; plainText: boolean = true);
+    procedure Assign(Source : TPersistent) ; override;
   end;
 
   { TDiagnostic }
@@ -359,13 +402,21 @@ type
   // Represents a related message and source code location for a diagnostic. This should be
   // used to point to code locations that cause or are related to a diagnostics, e.g when duplicating
   // a symbol in a scope.
+
+  { TDiagnosticRelatedInformation }
+
   TDiagnosticRelatedInformation = class (TCollectionItem)
   private
     fLocation: TLocation;
     fMessage: string;
+    procedure SetLocation(AValue: TLocation);
+  Public
+    Constructor Create(ACollection: TCollection); override;
+    destructor destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
     // The location of this related diagnostic information.
-    property location: TLocation read fLocation write fLocation;
+    property location: TLocation read fLocation write SetLocation;
     // The message of this related diagnostic information.
     property message: string read fMessage write fMessage;
   end;
@@ -381,9 +432,14 @@ type
     fCode: integer;
     fSource: string;
     fMessage: string;
+    procedure SetRange(AValue: TRange);
+  Public
+    Constructor Create(ACollection: TCollection); override;
+    destructor destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
     // The range at which the message applies.
-    property range: TRange read fRange write fRange;
+    property range: TRange read fRange write SetRange;
     // The diagnostic's severity. Can be omitted. If omitted it is up to the
     // client to interpret diagnostics as error, warning, info or hint.
     property severity: TDiagnosticSeverity read fSeverity write fSeverity;
@@ -424,15 +480,18 @@ type
     fTitle: string;
     fCommand: string;
     fArguments: TStrings;
+    procedure SetArguments(AValue: TStrings);
+  public
+    Constructor Create;
+    destructor destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
     // Title of the command, like `save`.
     property title: string read fTitle write fTitle;
     // The identifier of the actual command handler.
     property command: string read fCommand write fCommand;
     // Arguments that the command handler should be invoked with.
-    property arguments: TStrings read fArguments write fArguments;
-  public
-    procedure AfterConstruction; override;
+    property arguments: TStrings read fArguments write SetArguments;
   end;
 
   { TAbstractMessage
@@ -586,40 +645,155 @@ end;
 procedure TWorkspaceEdit.AfterConstruction;
 begin
   inherited;
-
   documentChanges := TTextDocumentEdits.Create;
 end;
 
 destructor TWorkspaceEdit.Destroy;
 begin
   documentChanges.Free;
-
   inherited;
 end;
 
 { TTextEdit }
 
+procedure TTextEdit.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
+
+constructor TTextEdit.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fRange:=TRange.Create;
+end;
+
 destructor TTextEdit.Destroy;
 begin
   FreeAndNil(fRange);
-
   inherited;
+end;
+
+procedure TTextEdit.Assign(aSource: TPersistent);
+
+var
+  Src : TTextEdit absolute aSource;
+
+begin
+  if aSource is TTextEdit then
+    begin
+    Range:=Src.Range;
+    NewText:=Src.newText;
+    end
+  else
+    inherited Assign(aSource);
 end;
 
 { TTextDocumentEdit }
 
-procedure TTextDocumentEdit.AfterConstruction;
+procedure TTextDocumentEdit.SetEdits(AValue: TTextEdits);
+begin
+  if fEdits=AValue then Exit;
+  fEdits.assign(AValue);
+end;
+
+procedure TTextDocumentEdit.SetTextDocument(
+  AValue: TVersionedTextDocumentIdentifier);
+begin
+  if fTextDocument=AValue then Exit;
+  fTextDocument.Assign(AValue);
+end;
+
+constructor TTextDocumentEdit.Create(ACollection: TCollection);
 begin
   inherited;
-
-  edits := TTextEdits.Create;
+  Fedits := TTextEdits.Create;
+  fTextDocument:=TVersionedTextDocumentIdentifier.Create;
 end;
+
 
 destructor TTextDocumentEdit.Destroy;
 begin
-  edits.Free;
-
+  FEdits.Free;
+  fTextDocument.Free;
   inherited;
+end;
+
+procedure TTextDocumentEdit.Assign(Source: TPersistent);
+
+var
+  Src : TTextDocumentEdit absolute Source;
+
+begin
+  if Source is TTextDocumentEdit then
+    begin
+    Edits:=Src.Edits;
+    TextDocument:=Src.textDocument;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TTextDocumentItem }
+
+procedure TTextDocumentItem.Assign(Source: TPersistent);
+
+var
+  Src : TTextDocumentItem absolute Source;
+
+begin
+  if Source is TTextDocumentItem then
+    begin
+    Uri:=Src.Uri;
+    LanguageId:=Src.languageId;
+    Version:=Src.version;
+    Text:=Src.Text;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TTextDocumentPositionParams }
+
+procedure TTextDocumentPositionParams.SetPosition(AValue: TPosition);
+begin
+  if fPosition=AValue then Exit;
+  fPosition.Assign(AValue);
+end;
+
+procedure TTextDocumentPositionParams.SetTextDocument(
+  AValue: TTextDocumentIdentifier);
+begin
+  if fTextDocument=AValue then Exit;
+  fTextDocument.Assign(AValue);
+end;
+
+constructor TTextDocumentPositionParams.Create;
+begin
+  fTextDocument:=TTextDocumentIdentifier.Create;
+  fPosition:=TPosition.Create;
+end;
+
+destructor TTextDocumentPositionParams.Destroy;
+begin
+  FreeAndNil(fTextDocument);
+  FreeAndNil(fPosition);
+  inherited Destroy;
+end;
+
+procedure TTextDocumentPositionParams.Assign(Source: TPersistent);
+
+var
+  Src : TTextDocumentPositionParams absolute source;
+
+begin
+  if Source is TTextDocumentPositionParams then
+    begin
+    textDocument:=Src.textDocument;
+    position:=Src.position;
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TAbstractMessage }
@@ -652,11 +826,37 @@ end;
 
 { TCommand }
 
-procedure TCommand.AfterConstruction;
+procedure TCommand.SetArguments(AValue: TStrings);
 begin
-  inherited;
+  if fArguments=AValue then Exit;
+  fArguments.Assign(AValue);
+end;
 
-  arguments := TStringList.Create;
+constructor TCommand.Create;
+begin
+  fArguments:=TStringList.Create;
+end;
+
+destructor TCommand.destroy;
+begin
+  FreeAndNil(fArguments);
+  inherited destroy;
+end;
+
+procedure TCommand.Assign(Source: TPersistent);
+
+var
+  Src : TCommand absolute Source;
+
+begin
+  if Source is TCommand then
+    begin
+    Title:=Src.Title;
+    Command:=Src.Command;
+    Arguments:=Src.arguments;
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TPosition }
@@ -667,7 +867,28 @@ begin
   character := c;
 end;
 
+procedure TPosition.Assign(Source: TPersistent);
+
+var
+  Src : TPosition absolute source;
+
+begin
+  if Source is TPosition then
+    begin
+    Line:=Src.line;
+    Character:=Src.character;
+    end
+  else
+    inherited Assign(Source);
+end;
+
 { TLocation }
+
+procedure TLocation.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
 
 constructor TLocation.Create(Path: String; Line, Column, Span: Integer);
 begin
@@ -675,7 +896,152 @@ begin
   range := TRange.Create(Line, Column, Span);
 end;
 
+procedure TLocation.Assign(Source: TPersistent);
+
+var
+  Src : TLocation absolute source;
+
+begin
+  if Source is TLocation then
+    begin
+    Uri:=Src.Uri;
+    Range:=Src.Range;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TLocationItem }
+
+procedure TLocationItem.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
+
+constructor TLocationItem.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fRange:=TRange.Create;
+end;
+
+destructor TLocationItem.destroy;
+begin
+  FreeAndNil(fRange);
+  inherited destroy;
+end;
+
+procedure TLocationItem.Assign(source: TPersistent);
+
+var
+  Src : TLocationItem absolute source;
+
+begin
+  if Source is TLocationItem then
+    begin
+    Uri:=Src.uri;
+    Range:=Src.range;
+    end
+  else
+    inherited Assign(source);
+end;
+
+{ TLocationLink }
+
+procedure TLocationLink.SetOriginSelectionRange(AValue: TRange);
+begin
+  if fOriginSelectionRange=AValue then Exit;
+  fOriginSelectionRange.Assign(AValue);
+end;
+
+procedure TLocationLink.SetTargetRange(AValue: TRange);
+begin
+  if fTargetRange=AValue then Exit;
+  fTargetRange.Assign(AValue);
+end;
+
+procedure TLocationLink.SetTargetSelectionRange(AValue: TRange);
+begin
+  if fTargetSelectionRange=AValue then Exit;
+  fTargetSelectionRange.Assign(AValue);
+end;
+
+constructor TLocationLink.Create;
+begin
+  fOriginSelectionRange:=TRange.Create;
+  fTargetRange:=TRange.Create;
+  fTargetSelectionRange:=TRange.Create;
+end;
+
+destructor TLocationLink.Destroy;
+begin
+  FreeAndNil(fOriginSelectionRange);
+  FreeAndNil(fTargetRange);
+  FreeAndNil(fTargetSelectionRange);
+  inherited Destroy;
+end;
+
+procedure TLocationLink.Assign(aSource: TPersistent);
+
+var
+  Src :  TLocationLink absolute aSource;
+
+begin
+  if aSource is TLocationLink then
+    begin
+    OriginSelectionRange:=Src.OriginSelectionRange;
+    TargetUri:=Src.TargetUri;
+    TargetRange:=Src.TargetRange;
+    TargetSelectionRange:=Src.TargetSelectionRange;
+    end
+  else
+    inherited Assign(aSource);
+end;
+
+{ TTextDocumentIdentifier }
+
+procedure TTextDocumentIdentifier.Assign(aSource: TPersistent);
+
+Var
+  Src : TTextDocumentIdentifier absolute aSource;
+
+begin
+  if (aSource is TTextDocumentIdentifier) then
+    begin
+    Uri:=Src.Uri;
+    end
+  else
+    inherited Assign(aSource);
+end;
+
+{ TVersionedTextDocumentIdentifier }
+
+procedure TVersionedTextDocumentIdentifier.Assign(aSource: TPersistent);
+
+Var
+  Src : TVersionedTextDocumentIdentifier absolute aSource;
+
+begin
+  if (aSource is TVersionedTextDocumentIdentifier) then
+    begin
+    Version:=Src.Version;
+    end;
+  inherited Assign(aSource);
+end;
+
 { TRange }
+
+procedure TRange.SetEnd(AValue: TPosition);
+begin
+  if fEnd=AValue then Exit;
+  fEnd.Assign(AValue);
+end;
+
+procedure TRange.SetStart(AValue: TPosition);
+begin
+  if fStart=AValue then Exit;
+  fStart.Assign(AValue);
+end;
 
 constructor TRange.Create(line, column: integer);
 begin
@@ -695,6 +1061,13 @@ begin
   fEnd := TPosition.Create(endLine, endColumn);
 end;
 
+destructor TRange.destroy;
+begin
+  FreeAndNil(fStart);
+  FreeAndNil(fEnd);
+  inherited destroy;
+end;
+
 function TRange.ToString: String;
 begin
   result := 'start: ['+Start.line.ToString+':'+start.character.ToString+'], end:'+&end.line.ToString+':'+&end.character.ToString+']';
@@ -709,6 +1082,90 @@ begin
     kind := TMarkupKind.PlainText
   else
     kind := TMarkupKind.Markdown;
+end;
+
+procedure TMarkupContent.Assign(Source: TPersistent);
+
+var
+  Src : TMarkupContent absolute source;
+
+begin
+  if Source is TMarkupContent then
+    begin
+    Kind:=Src.Kind;
+    Value:=Src.Value;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TDiagnosticRelatedInformation }
+
+procedure TDiagnosticRelatedInformation.SetLocation(AValue: TLocation);
+begin
+  if fLocation=AValue then Exit;
+  fLocation.Assign(AValue);
+end;
+
+constructor TDiagnosticRelatedInformation.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fLocation:=TLocation.Create;
+end;
+
+destructor TDiagnosticRelatedInformation.destroy;
+begin
+  FreeAndNil(fLocation);
+  inherited destroy;
+end;
+
+procedure TDiagnosticRelatedInformation.Assign(Source: TPersistent);
+
+var
+  Src : TDiagnosticRelatedInformation absolute source;
+
+begin
+  if source is TDiagnosticRelatedInformation then
+    begin
+    Location:=Src.location;
+    message:=Src.message;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TDiagnostic.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
+
+constructor TDiagnostic.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fRange:=TRange.Create;
+end;
+
+destructor TDiagnostic.destroy;
+begin
+  FreeAndNil(fRange);
+  inherited destroy;
+end;
+
+procedure TDiagnostic.Assign(Source: TPersistent);
+var
+  Src : TDiagnostic absolute source;
+begin
+  if Source is TDiagnostic then
+    begin
+    Range:=Src.Range;
+    Severity:=Src.severity;
+    Code:=Src.Code;
+    self.Source:=Src.Source;
+    Message:=Src.Source;
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TOptional }
@@ -783,9 +1240,24 @@ end;
 
 { TGenericCollection }
 
+function TGenericCollection.GetI(Index : Integer): T;
+begin
+  Result:=T(Items[Index]);
+end;
+
+procedure TGenericCollection.SetI(Index : Integer; AValue: T);
+begin
+  Items[Index]:=aValue;
+end;
+
 constructor TGenericCollection.Create;
 begin
   inherited Create(T);
+end;
+
+function TGenericCollection.Add: T;
+begin
+  Result:=T(Inherited add);
 end;
 
 end.

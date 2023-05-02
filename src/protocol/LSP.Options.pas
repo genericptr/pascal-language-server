@@ -50,11 +50,12 @@ type
   TSaveOptions = class(TPersistent)
   private
     fIncludeText: Boolean;
+  public
+    constructor Create(_includeText: boolean);
+    Procedure Assign(aSource : TPersistent); override;
   published
     // The client is supposed to include the content on save.
     property includeText: Boolean read fIncludeText write fIncludeText;
-  public
-    constructor Create(_includeText: boolean);
   end;
 
   { TTextDocumentSyncOptions }
@@ -66,8 +67,11 @@ type
     fWillSave: Boolean;
     fWillSaveWaitUntil: Boolean;
     fSave: TSaveOptions;
+    procedure SetSave(AValue: TSaveOptions);
   public
     constructor Create;
+    destructor destroy; override;
+    Procedure Assign(aSource : TPersistent); override;
   published
     // Open and close notifications are sent to the server. If omitted
     // open close notification should not be sent.
@@ -85,7 +89,7 @@ type
     property willSaveWaitUntil: Boolean read fWillSaveWaitUntil write fWillSaveWaitUntil;
     // If present save notifications are sent to the server. If omitted the notification should not be
     // sent.
-    property save: TSaveOptions read fSave write fSave;
+    property save: TSaveOptions read fSave write SetSave;
   end;
 
   { TSignatureHelpOptions }
@@ -93,9 +97,14 @@ type
   TSignatureHelpOptions = class(TPersistent)
   private
     fTriggerCharacters: TStrings;
+    procedure SetTriggerCharacters(AValue: TStrings);
+  Public
+    Constructor Create;
+    Destructor Destroy; override;
+    Procedure Assign(Source : TPersistent); override;
   published
     // The characters that trigger signature help automatically.
-    property triggerCharacters: TStrings read fTriggerCharacters write fTriggerCharacters;
+    property triggerCharacters: TStrings read fTriggerCharacters write SetTriggerCharacters;
   end;
 
   { TCompletionOptions }
@@ -107,6 +116,8 @@ type
     fResolveProvider: Boolean;
   public
     constructor Create;
+    destructor destroy; override;
+    procedure Assign(Source : TPersistent); override;
   published
     // Most tools trigger completion request automatically without
     // explicitly requesting it using a keyboard shortcut
@@ -142,6 +153,8 @@ type
   TWorkDoneProgressOptions = class(TPersistent)
   private
     fworkDoneProgress: TOptionalBoolean;
+  Public
+    Procedure Assign(Source : TPersistent) ; override;
   published
     property workDoneProgress: TOptionalBoolean read fworkDoneProgress write fworkDoneProgress;
   end;
@@ -151,11 +164,14 @@ type
   TExecuteCommandOptions = class(TWorkDoneProgressOptions)
   private
     fCommands: TStrings;
-  published
-    // The commands to be executed on the server
-    property commands: TStrings read fCommands write fCommands;
+    procedure SetCommands(AValue: TStrings);
   public
     constructor Create(_commands: TStringArray);
+    destructor destroy; override;
+    Procedure Assign(Source : TPersistent); override;
+  published
+    // The commands to be executed on the server
+    property commands: TStrings read fCommands write SetCommands;
   end;
 
   { TInlayHintOptions }
@@ -172,13 +188,39 @@ implementation
 
 { TExecuteCommandOptions }
 
+procedure TExecuteCommandOptions.SetCommands(AValue: TStrings);
+begin
+  if fCommands=AValue then Exit;
+  fCommands.Assign(AValue);
+end;
+
 constructor TExecuteCommandOptions.Create(_commands: TStringArray);
 var
   command: String;
 begin
-  commands := TStringList.Create;
+  FCommands := TStringList.Create;
   for command in _commands do
     commands.Add(command);
+end;
+
+destructor TExecuteCommandOptions.destroy;
+begin
+  FreeAndNil(FCommands);
+  inherited destroy;
+end;
+
+procedure TExecuteCommandOptions.Assign(Source: TPersistent);
+
+var
+  Src : TExecuteCommandOptions absolute Source;
+
+begin
+  if Source is TExecuteCommandOptions then
+    begin
+    Commands.Assign(Src.commands);
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TSaveOptions }
@@ -188,12 +230,90 @@ begin
   includeText := _includeText;
 end;
 
+procedure TSaveOptions.Assign(aSource: TPersistent);
+
+var
+  Src : TSaveOptions absolute aSource;
+
+begin
+  if aSource is TSaveOptions then
+    begin
+    includeText:=Src.includeText;
+    end
+  else
+    inherited Assign(aSource);
+end;
+
 { TTextDocumentSyncOptions}
+
+procedure TTextDocumentSyncOptions.SetSave(AValue: TSaveOptions);
+begin
+  if fSave=AValue then Exit;
+  fSave.Assign(AValue);
+end;
 
 constructor TTextDocumentSyncOptions.Create;
 begin
   openClose := True;
   change := TTextDocumentSyncKind.Full;
+  fSave:=TSaveOptions.Create(False);
+end;
+
+destructor TTextDocumentSyncOptions.destroy;
+begin
+  FreeAndNil(fSave);
+  inherited destroy;
+end;
+
+procedure TTextDocumentSyncOptions.Assign(aSource: TPersistent);
+
+var
+  Src : TTextDocumentSyncOptions absolute aSource;
+
+begin
+  if  aSource is TTextDocumentSyncOptions then
+    begin
+    OpenClose:=Src.openClose;
+    Change:=Src.Change;
+    WillSave:=Src.WillSave;
+    WillSaveWaitUntil:=Src.WillSaveWaitUntil;
+    Save:=Src.Save;
+    end
+  else
+    inherited Assign(aSource);
+end;
+
+{ TSignatureHelpOptions }
+
+procedure TSignatureHelpOptions.SetTriggerCharacters(AValue: TStrings);
+begin
+  if fTriggerCharacters=AValue then Exit;
+  fTriggerCharacters.Assign(AValue);
+end;
+
+constructor TSignatureHelpOptions.Create;
+begin
+  fTriggerCharacters:=TStringList.Create;
+end;
+
+destructor TSignatureHelpOptions.Destroy;
+begin
+  FreeAndNil(fTriggerCharacters);
+  inherited Destroy;
+end;
+
+procedure TSignatureHelpOptions.Assign(Source: TPersistent);
+
+var
+  Src : TSignatureHelpOptions absolute Source;
+
+begin
+  if Source is TSignatureHelpOptions then
+    begin
+    triggerCharacters:=Src.triggerCharacters;
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TCompletionOptions }
@@ -201,6 +321,47 @@ end;
 constructor TCompletionOptions.Create;
 begin
   resolveProvider := False;
+  fTriggerCharacters:=TStringList.Create;
+  fAllCommitCharacters:=TStringList.Create;
+end;
+
+destructor TCompletionOptions.destroy;
+begin
+  FreeAndNil(fTriggerCharacters);
+  FreeAndNil(fAllCommitCharacters);
+  inherited destroy;
+end;
+
+procedure TCompletionOptions.Assign(Source: TPersistent);
+
+var
+  Src : TCompletionOptions absolute source;
+
+begin
+  if Source is TCompletionOptions then
+    begin
+    resolveProvider:=Src.resolveProvider;
+    TriggerCharacters:=Src.triggerCharacters;
+    AllCommitCharacters:=Src.allCommitCharacters;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TWorkDoneProgressOptions }
+
+procedure TWorkDoneProgressOptions.Assign(Source: TPersistent);
+
+Var
+  Src : TWorkDoneProgressOptions absolute source;
+
+begin
+  if Source is TWorkDoneProgressOptions then
+    begin
+    workDoneProgress:=Src.workDoneProgress;
+    end
+  else
+    inherited Assign(Source);
 end;
 
 end.

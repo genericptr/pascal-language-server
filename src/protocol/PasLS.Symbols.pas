@@ -1146,4 +1146,6 @@ begin
   inherited;
 end;
 
+finalization
+  SymbolManager.Free;
 end.
