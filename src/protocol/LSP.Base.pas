@@ -119,6 +119,8 @@ type
   end;
 
 
+  { TJSONRPCDispatcher }
+
   TJSONRPCDispatcher = class(TCustomJSONRPCDispatcher)
   protected
     function ExecuteMethod(const AClassName, AMethodName: TJSONStringType;
@@ -628,15 +630,34 @@ end;
 
 function TJSONRPCDispatcher.ExecuteMethod(const AClassName, AMethodName: TJSONStringType;
     Params, ID: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
+
+{$IFDEF VER3_2}
+Var
+  lID : TJSONData;
+{$ENDIF}
+
 begin
   try
-    Result := inherited ExecuteMethod(AClassName, AMethodName, Params, ID, AContext);
+{$IFDEF VER3_2}
+    lID:=ID;
+    if lID=Nil then
+      lID:=TJSONIntegerNumber.Create(0);
+    try
+      Result := inherited ExecuteMethod(AClassName, AMethodName, Params, lID, AContext);
+    finally
+      if lID<>ID then
+        lID.Free;
+    end;
+{$ELSE}
+   Result := inherited ExecuteMethod(AClassName, AMethodName, Params, ID, AContext);
+{$ENDIF}
   except
     on E: LSPException do // handle errors specific to LSP
       Exit(CreateJSON2Error(E.Message, E.Code, ID.Clone, TransactionProperty))
     else raise;
   end;
 end;
+
 
 constructor TJSONRPCDispatcher.Create(AOwner: TComponent);
 begin
