@@ -712,11 +712,12 @@ begin
     Source += ',';
 end;
 
-const
-
-//  SYMBOL_ENTRY_NAME = 0;
-//  SYMBOL_ENTRY_PATH = 1;
-  SYMBOL_ENTRY_JSON = 2;
+Type
+  TSymbolEntryType = (
+    SYMBOL_ENTRY_NAME, // 0
+    SYMBOL_ENTRY_PATH, // 1
+    SYMBOL_ENTRY_JSON  // 2
+  );
 
 function TSymbolDatabase.FindAllSymbols(Path: String): TJSONSerializedArray;
 var
@@ -734,7 +735,7 @@ begin
 
       while sqlite3_step(statement) = SQLITE_ROW do
         begin
-          Contents.Add(sqlite3_column_text(statement, SYMBOL_ENTRY_JSON));
+          Contents.Add(sqlite3_column_text(statement, Ord(SYMBOL_ENTRY_JSON)));
           Contents.Add(',');
         end;
 
@@ -768,7 +769,7 @@ begin
 
       while sqlite3_step(statement) = SQLITE_ROW do
         begin
-          Contents.Add(sqlite3_column_text(statement, SYMBOL_ENTRY_JSON));
+          Contents.Add(sqlite3_column_text(statement, Ord(SYMBOL_ENTRY_JSON)));
           Contents.Add(',');
         end;
 
