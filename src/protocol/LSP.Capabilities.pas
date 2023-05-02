@@ -291,6 +291,9 @@ end;
 procedure TServerCapabilities.SetInlayHintProvider(AValue: TInlayHintOptions);
 begin
   if fInlayHintProvider=AValue then Exit;
+  // May not have been created during constructor, so we need to create it here.
+  if fInlayHintProvider=Nil then
+    fInlayHintProvider:=TInlayHintOptions.Create;
   fInlayHintProvider.Assign(AValue);
 end;
 
@@ -335,7 +338,7 @@ begin
   fexecuteCommandProvider := TExecuteCommandOptions.Create([
     'pasls.completeCode'
   ]);
-  finlayHintProvider:= TInlayHintOptions.Create;
+  // finlayHintProvider:= TInlayHintOptions.Create;
 
   documentSymbolProvider := Assigned(SymbolManager);
   if Assigned(Settings) then
