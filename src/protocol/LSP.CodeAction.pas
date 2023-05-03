@@ -28,7 +28,7 @@ uses
   { RTL }
   Classes,
   { Protocol }
-  LSP.Base, LSP.Basic;
+  LSP.Base, LSP.Basic, LSP.BaseTypes;
 
 type
   

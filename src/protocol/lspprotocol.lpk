@@ -139,6 +139,18 @@
         <Filename Value="LSP.AllCommands.pas"/>
         <UnitName Value="LSP.AllCommands"/>
       </Item>
+      <Item>
+        <Filename Value="LSP.Streaming.pas"/>
+        <UnitName Value="LSP.Streaming"/>
+      </Item>
+      <Item>
+        <Filename Value="LSP.BaseTypes.pas"/>
+        <UnitName Value="LSP.BaseTypes"/>
+      </Item>
+      <Item>
+        <Filename Value="LSP.Messages.pas"/>
+        <UnitName Value="LSP.Messages"/>
+      </Item>
     </Files>
     <RequiredPkgs>
       <Item>

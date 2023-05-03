@@ -26,7 +26,7 @@ uses
   { RTL }
   SysUtils, Classes, FPJSON,
   { Protocol }
-  LSP.Base, LSP.Basic, LSP.WorkDoneProgress;
+  LSP.Base, LSP.Basic, LSP.Streaming, LSP.WorkDoneProgress;
 
 type
   { TExecuteCommandParams

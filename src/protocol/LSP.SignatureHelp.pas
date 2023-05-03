@@ -29,7 +29,7 @@ uses
   { Code Tools }
   CodeToolManager, CodeCache, IdentCompletionTool,
   { Protocol }
-  LSP.Base, LSP.Basic;
+  LSP.Base, LSP.Basic, LSP.BaseTypes;
 
 type
 

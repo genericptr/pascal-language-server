@@ -27,78 +27,10 @@ unit LSP.Basic;
 interface
 uses
   FPJson,
-  Classes, SysUtils;
+  Classes, SysUtils, LSP.BaseTypes, LSP.Messages;
 
 type
-  TAnyArray = array of Variant;
 
-  { TOptional }
-
-  generic TOptional<T> = class
-  private
-    fHasValue: Boolean;
-    fValue: T;
-    function GetValue: T;
-    procedure SetValue(AValue: T);
-  public
-    property HasValue: Boolean read fHasValue;
-    property Value: T read GetValue write SetValue;
-    procedure Clear;
-  end;
-
-  { TOptionalVariantBase }
-
-  TOptionalVariantBase = class(specialize TOptional<Variant>);
-
-  { TOptionalVariant }
-
-  generic TOptionalVariant<T> = class(TOptionalVariantBase)
-  private
-    function GetValue: T;
-    procedure SetValue(AValue: T);
-  public
-    constructor Create; overload;
-    constructor Create(AValue: T); overload;
-    property Value: T read GetValue write SetValue;
-  end;
-
-  { TOptionalObjectBase }
-
-  TOptionalObjectBase = class(specialize TOptional<TObject>)
-  public
-    function ValueClass: TClass; virtual; abstract;
-  end;
-
-  { TOptionalObject }
-
-  generic TOptionalObject<T> = class(TOptionalObjectBase)
-  private
-    function GetValue: T;
-    procedure SetValue(AValue: T);
-  public
-    constructor Create;
-    constructor Create(AValue: T);
-    function ValueClass: TClass; override;
-    property Value: T read GetValue write SetValue;
-  end;
-
-  TOptionalBoolean = specialize TOptionalVariant<Boolean>;
-  TOptionalString = specialize TOptionalVariant<String>;
-  TOptionalInteger = specialize TOptionalVariant<Integer>;
-  TOptionalAny = specialize TOptionalVariant<Variant>; // any type except structures (objects or arrays)
-  TOptionalNumber = TOptionalInteger;
-
-  { TGenericCollection }
-
-  generic TGenericCollection<T> = class(TCollection)
-  private
-    function GetI(Index : Integer): T;
-    procedure SetI(Index : Integer; AValue: T);
-  public
-    constructor Create;
-    Function Add : T; reintroduce;
-    Property Items[Index : Integer] : T Read GetI Write SetI;
-  end;
 
   { TDocumentUri }
 
@@ -495,57 +427,9 @@ type
     property arguments: TStrings read fArguments write SetArguments;
   end;
 
-  { TAbstractMessage
-    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#abstractMessage
+  TAbstractMessage = LSP.Messages.TAbstractMessage;
+  TRequestMessage = LSP.Messages.TRequestMessage;
 
-    A general message as defined by JSON-RPC. The language server 
-    protocol always uses “2.0” as the jsonrpc version. }
-
-  TAbstractMessage = class(TPersistent)
-  private
-    function GetJSONRPC: String;
-  published
-    property jsonrpc: String read GetJSONRPC;
-  public
-    procedure Send;
-  end;
-
-  { TRequestMessage
-    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#requestMessage
-
-    A request message to describe a request between the client and the server. 
-    Every processed request must send a response back to the sender of the request. }
-
-  TRequestMessage = class(TAbstractMessage)
-  protected
-    fID: TOptionalAny; // integer | string
-    fMethod: string;
-    fParams: TPersistent;
-  published
-    // The request id.
-    property id: TOptionalAny read fID write fID;
-    // The method to be invoked.
-    property method: string read fMethod write fMethod;
-    // The notification's params.
-    property params: TPersistent read fParams write fParams;
-  end;
-
-  { TNotificationMessage
-    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#notificationMessage
-
-    A notification message. A processed notification message 
-    must not send a response back. They work like events. }
-
-  TNotificationMessage = class(TAbstractMessage)
-  protected
-    fMethod: string;
-    fParams: TPersistent;
-  published
-    // The method to be invoked.
-    property method: string read fMethod write fMethod;
-    // The notification's params.
-    property params: TPersistent read fParams write fParams;
-  end;
 
   { TWorkspaceEdit
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspaceEdit
@@ -583,8 +467,6 @@ type
     destructor Destroy; override;
   end;
 
-const
-  ContentType = 'application/vscode-jsonrpc; charset=utf-8';
 
 { Utilities }
 
@@ -592,49 +474,11 @@ function PathToURI(path: String): TDocumentUri;
 
 { Optional Operators }
 
-operator :=(right: Boolean): TOptionalAny;
-operator :=(right: Integer): TOptionalAny;
-operator :=(right: String): TOptionalAny;
-
-operator :=(right: Boolean): TOptionalBoolean;
-operator :=(right: Integer): TOptionalInteger;
-operator :=(right: String): TOptionalString;
 
 implementation
 
-uses LSP.Base;
+// uses LSP.Base;
 
-{ Utilities }
-
-operator :=(right: Boolean): TOptionalAny;
-begin
-  result := TOptionalAny.Create(right);
-end;
-
-operator :=(right: Integer): TOptionalAny;
-begin
-  result := TOptionalAny.Create(right);
-end;
-
-operator :=(right: String): TOptionalAny;
-begin
-  result := TOptionalAny.Create(right);
-end;
-
-operator :=(right: Boolean): TOptionalBoolean;
-begin
-  result := TOptionalBoolean.Create(right);
-end;
-
-operator :=(right: Integer): TOptionalInteger;
-begin
-  result := TOptionalInteger.Create(right);
-end;
-
-operator :=(right: String): TOptionalString;
-begin
-  result := TOptionalString.Create(right);
-end;
 
 function PathToURI(path: String): TDocumentUri;
 begin
@@ -797,33 +641,6 @@ begin
     inherited Assign(Source);
 end;
 
-{ TAbstractMessage }
-
-function TAbstractMessage.GetJSONRPC: String;
-begin
-  result := '2.0';
-end;
-
-procedure TAbstractMessage.Send;
-var
-  Data: TJSONData;
-  Content: String;
-begin
-  Data := specialize
-  TLSPStreaming<TAbstractMessage>.ToJSON(self);
-  if Data <> nil then
-    begin
-      Content := Data.AsJSON;
-
-      WriteLn('Content-Type: ', ContentType);
-      WriteLn('Content-Length: ', Content.Length);
-      WriteLn;
-      Write(Content);
-      Flush(Output);
-
-      Data.Free;
-    end;
-end;
 
 { TCommand }
 
@@ -1174,97 +991,6 @@ begin
     inherited Assign(Source);
 end;
 
-{ TOptional }
-
-function TOptional.GetValue: T;
-begin
-  if fHasValue then Result := fValue
-  else Exception.Create('no value');
-end;
-
-procedure TOptional.SetValue(AValue: T);
-begin
-  fValue := AValue;
-  fHasValue := True;
-end;
-
-procedure TOptional.Clear;
-begin
-  fHasValue := False;
-end;
-
-{ TOptionalVariant }
-
-function TOptionalVariant.GetValue: T;
-begin
-  Result := T(inherited Value);
-end;
-
-procedure TOptionalVariant.SetValue(AValue: T);
-begin
-  inherited Value := AValue;
-end;
-
-constructor TOptionalVariant.Create;
-begin
-  inherited Create;
-end;
-
-constructor TOptionalVariant.Create(AValue: T);
-begin
-  Create;
-  SetValue(AValue);
-end;
-
-{ TOptionalObject }
-
-function TOptionalObject.GetValue: T;
-begin
-  Result := T(inherited Value);
-end;
-
-procedure TOptionalObject.SetValue(AValue: T);
-begin
-  inherited Value := AValue;
-end;
-
-constructor TOptionalObject.Create;
-begin
-  inherited Create;
-end;
-
-constructor TOptionalObject.Create(AValue: T);
-begin
-  Create;
-  SetValue(AValue);
-end;
-
-function TOptionalObject.ValueClass: TClass;
-begin
-  Result := T;
-end;
-
-{ TGenericCollection }
-
-function TGenericCollection.GetI(Index : Integer): T;
-begin
-  Result:=T(Inherited Items[Index]);
-end;
-
-procedure TGenericCollection.SetI(Index : Integer; AValue: T);
-begin
-  Inherited Items[Index]:=aValue;
-end;
-
-constructor TGenericCollection.Create;
-begin
-  inherited Create(T);
-end;
-
-function TGenericCollection.Add: T;
-begin
-  Result:=T(Inherited add);
-end;
 
 end.
   

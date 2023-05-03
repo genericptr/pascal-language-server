@@ -29,9 +29,9 @@ uses
   { Code Tools }
   CodeToolManager, CodeCache, CodeTree, LinkScanner,
   { Protocols }
-  LSP.Base, LSP.Basic, LSP.DocumentSymbol,
+  LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.DocumentSymbol,
   { Other }
-  PasLS.CodeUtils;
+  PasLS.CodeUtils, LSP.Streaming;
 
 type
 

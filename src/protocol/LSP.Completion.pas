@@ -28,7 +28,7 @@ interface
 uses
   Classes, DateUtils, URIParser, 
   CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
-  LSP.Base, LSP.Basic;
+  LSP.Base, LSP.Basic, LSP.BaseTypes;
 
 type
 

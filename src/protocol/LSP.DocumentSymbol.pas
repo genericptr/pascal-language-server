@@ -30,7 +30,7 @@ uses
   { Code Tools }
   CodeToolManager, LinkScanner,
   { Protocol }
-  LSP.Base, LSP.Basic;
+  LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.Streaming;
 
 type
   TSymbolKind = (

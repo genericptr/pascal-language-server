@@ -34,7 +34,7 @@ uses
   { Code Tools }
   CodeToolManager, CodeToolsConfig, 
   { Protocol }
-  LSP.Base, LSP.Basic, LSP.Capabilities, LSP.DocumentSymbol,
+  LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.Capabilities, LSP.DocumentSymbol,
   { Utils }
   PasLS.Settings, PasLS.Symbols, PasLS.LazConfig;
 
