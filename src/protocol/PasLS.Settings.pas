@@ -302,7 +302,7 @@ end;
 
 constructor TConfigEnvironmentSettings.Create;
 
-  procedure MaybeSet(aEnvVar : String; aVar : String);
+  procedure MaybeSet(aEnvVar : String; var aVar : String);
 
   begin
     if GetEnvironmentVariableUTF8(aEnvVar)<>'' then
@@ -314,7 +314,7 @@ begin
   MaybeSet('FPCDIR',ffpcDir);
   MaybeSet('LAZARUSDIR',fLazarusDir);
   MaybeSet('FPCTARGET',ffpcTarget);
-  MaybeSet('FPCTARGETCPU',fpcTargetCPU);
+  MaybeSet('FPCTARGETCPU',ffpcTargetCPU);
 end;
 
 procedure TConfigEnvironmentSettings.Assign(aSource: TPersistent);

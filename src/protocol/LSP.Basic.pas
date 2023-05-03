@@ -1116,7 +1116,7 @@ end;
 constructor TDiagnosticRelatedInformation.Create(ACollection: TCollection);
 begin
   inherited Create(ACollection);
-  fLocation:=TLocation.Create;
+  fLocation:=TLocation.Create('',0,0,0);
 end;
 
 destructor TDiagnosticRelatedInformation.destroy;

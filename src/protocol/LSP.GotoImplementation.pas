@@ -61,9 +61,7 @@ begin with Params do
     if CodeToolBoss.JumpToMethod(Code, X + 1, Y + 1, 
       NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine, RevertableJump) then
       begin
-        Result := TLocation.Create;
-        Result.URI := PathToURI(NewCode.Filename);
-        Result.Range := TRange.Create(NewY - 1, NewX - 1);
+        Result := TLocation.Create(NewCode.Filename,NewY - 1, NewX - 1,0);
       end
     else
       begin
