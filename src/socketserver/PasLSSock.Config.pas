@@ -32,15 +32,25 @@ Const
   DefaultSingleConnect = False;
   DefaultThreaded = False;
   DefaultLogFile = '';
+  DefaultCompiler = 'fpc';
+  DefaultLazarusDir = '';
+  DefaultFPCDir = '';
+  DefaultTargetOS = {$i %FPCTARGETOS%};
+  DefaultTargetCPU = {$i %FPCTARGETCPU%};
 
 Type
   { TLSPSocketServerConfig }
 
   TLSPSocketServerConfig = Class(TObject)
   private
+    FCompiler: string;
+    FFPCDir: string;
+    FLazarusDir: string;
     FLogFile: String;
     FPort: Word;
     FSingleConnect: Boolean;
+    FTargetCPU: string;
+    FTargetOS: string;
     FThreaded: Boolean;
     FUnix: String;
   Public
@@ -57,6 +67,11 @@ Type
     Property SingleConnect : Boolean Read FSingleConnect Write FSingleConnect;
     Property Threaded : Boolean Read FThreaded Write FThreaded;
     Property LogFile : String Read FLogFile Write FLogFile;
+    property Compiler : string read FCompiler write FCompiler;
+    property FPCDir : string Read FFPCDir Write FFPCDir;
+    property LazarusDir : string read FLazarusDir write FLazarusDir;
+    property TargetOS : string read FTargetOS write FTargetOS;
+    property TargetCPU : string read FTargetCPU write FTargetCPU;
   end;
 
 
@@ -69,6 +84,13 @@ Const
   KeySingleConnect = 'SingleConnect';
   KeyThreaded = 'Threaded';
   KeyLogFile = 'LogFile';
+
+  SCodeTools = 'CodeTools';
+  KeyCompiler = 'Compiler';
+  KeyFPCDir = 'FPCDir';
+  KeyLazarusDir = 'LazarusDir';
+  KeyTargetCPU = 'TargetCPU';
+  KeyTargetOS = 'TargetOS';
 
 { TLSPSocketServerConfig }
 
@@ -84,6 +106,11 @@ begin
   FSingleConnect:=DefaultSingleConnect;
   FThreaded:=DefaultThreaded;
   LogFile:=DefaultLogFile;
+  Compiler:=DefaultCompiler;
+  FPCDir:=DefaultFPCDir;
+  LazarusDir:=DefaultLazarusDir;
+  TargetCPU:=DefaultTargetCPU;
+  TargetOS:=DefaultTargetOS;
 end;
 
 class function TLSPSocketServerConfig.DefaultConfigFile: String;
@@ -132,6 +159,11 @@ begin
     FSingleConnect:=ReadBool(SServer,KeySingleConnect,SingleConnect);
     FThreaded:=ReadBool(SServer,KeyThreaded,Threaded);
     FLogFile:=ReadString(SServer,KeyLogFile,LogFile);
+    Compiler:=ReadString(SCodeTools,KeyCompiler,Compiler);
+    FPCDir:=ReadString(SCodetools,KeyFPCDir,FPCDir);
+    LazarusDir:=ReadString(SCodetools,KeyLazarusDir,LazarusDir);
+    TargetCPU:=ReadString(SCodetools,KeyTargetCPU,TargetCPU);
+    TargetOS:=ReadString(SCodetools,KeyTargetOS,TargetOS);
     end;
 end;
 
@@ -144,6 +176,11 @@ begin
     WriteBool(SServer,KeySingleConnect,SingleConnect);
     WriteBool(SServer,KeyThreaded,Threaded);
     WriteString(SServer,KeyLogFile,LogFile);
+    WriteString(SCodeTools,KeyCompiler,Compiler);
+    WriteString(SCodetools,KeyFPCDir,FPCDir);
+    WriteString(SCodetools,KeyLazarusDir,LazarusDir);
+    WriteString(SCodetools,KeyTargetCPU,TargetCPU);
+    WriteString(SCodetools,KeyTargetOS,TargetOS);
     end;
 end;
 
