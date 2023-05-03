@@ -155,6 +155,7 @@ type
     fRange: TRange;
     procedure SetRange(AValue: TRange);
   public
+    constructor Create; overload;
     constructor Create(Path: String; Line, Column, Span: Integer); overload;
     procedure Assign(Source : TPersistent); override;
   published
@@ -888,6 +889,11 @@ procedure TLocation.SetRange(AValue: TRange);
 begin
   if fRange=AValue then Exit;
   fRange.Assign(AValue);
+end;
+
+constructor TLocation.Create;
+begin
+  Create('',0,0,0);
 end;
 
 constructor TLocation.Create(Path: String; Line, Column, Span: Integer);
