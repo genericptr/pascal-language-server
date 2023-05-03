@@ -178,6 +178,42 @@ To solve this, 2 extra projects have been added:
 Both programs have a -h or --help commandline option which will display all
 configuration options.
 
+### Configuration  
+
+#### paslssock
+The paslssock server can read an initialization file with 2 sections, 
+`Server` and `CodeTools`. These can be used to set another port on which to
+listen, and to specify values for the environment variables that are normally sent by the
+client.
+
+```ini
+[Server]
+Port=10090
+
+[CodeTools]
+Compiler=/usr/local/bin/ppcx64-3.2.2
+FPCDir=/home/michael/FPC/build/svn/tag_3_2_2/fpcsrc
+LazarusDir=/home/michael/projects/lazarus
+TargetOS=linux
+TargetCPU=x86_64
+```
+
+The default location for this configuration file is `/etc/paslssock.cfg` on unix, and next to the
+executable on Windows.
+
+#### paslsproxy
+The proxy can also be configured with an  initialization file with 1
+section: `Server`. This can be used to set the port on which the server is
+listening.
+
+```ini
+[Server]
+Port=10090
+```
+
+The default location for this configuration file is `/etc/paslsproxy.cfg` on unix, and next to the
+executable on Windows.
+
 ### Usage
 
 1. Configure the socket process and proxy process. Both can be configured
@@ -195,5 +231,6 @@ configuration options.
    Simply replace the full path to pasls to the full path to paslsproxy:
 
 ![VS Code: specifying paslsproxy](images/vscodedebug.png)
+
 
 4. Happy debugging !
