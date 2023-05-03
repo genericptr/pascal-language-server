@@ -464,7 +464,8 @@ end;
 
 procedure TLSPServerUnixSocketDispatcher.InitSocket;
 begin
-  SetServer(TUnixServer.Create(FPath))
+  SetServer(TUnixServer.Create(FPath));
+  Socket.ReuseAddress:=True;
 end;
 
 { TLSPServerTCPSocketDispatcher }
@@ -478,6 +479,7 @@ end;
 procedure TLSPServerTCPSocketDispatcher.InitSocket;
 begin
   SetServer(TInetServer.Create(FPort));
+  Socket.ReuseAddress:=True;
 end;
 {$ENDIF}
 
