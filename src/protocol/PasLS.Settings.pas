@@ -117,18 +117,48 @@ type
     property version: string read fVersion write fVersion;
   end;
 
+  { TConfigEnvironmentSettings }
+
+  TConfigEnvironmentSettings = class(TPersistent)
+  Private
+    ffpcDir: string;
+    ffpcTarget: string;
+    ffpcTargetCPU: string;
+    flazarusDir: string;
+    fpp: string;
+  Public
+    Constructor Create;
+    Procedure Assign(aSource : TPersistent); override;
+  published
+    property fpcDir : string Read ffpcDir Write ffpcDir;
+    property pp : string read fpp write fpp;
+    property lazarusDir : string read flazarusDir write flazarusDir;
+    property fpcTarget : string read ffpcTarget write ffpcTarget;
+    property fpcTargetCPU : string read ffpcTargetCPU write ffpcTargetCPU;
+  end;
+
 
 Function ServerSettings: TServerSettings;
 Function ClientInfo: TClientInfo;
+Function EnvironmentSettings:TConfigEnvironmentSettings;
 
 implementation
 
 uses
-  SysUtils;
+  SysUtils, lazUTF8;
 
 var
   _ServerSettings: TServerSettings;
   _ClientInfo: TClientInfo;
+  _EnvironmentSettings:TConfigEnvironmentSettings;
+
+Function EnvironmentSettings:TConfigEnvironmentSettings;
+
+begin
+  if _EnvironmentSettings=Nil then
+    _EnvironmentSettings:=TConfigEnvironmentSettings.Create;
+  Result:=_EnvironmentSettings;
+end;
 
 Function ServerSettings: TServerSettings;
 
@@ -263,6 +293,41 @@ begin
     begin
     Name:=Src.name;
     Version:=Src.version;
+    end
+  else
+    inherited Assign(aSource);
+end;
+
+{ TConfigEnvironmentSettings }
+
+constructor TConfigEnvironmentSettings.Create;
+
+  procedure MaybeSet(aEnvVar : String; aVar : String);
+
+  begin
+    if GetEnvironmentVariableUTF8(aEnvVar)<>'' then
+      aVar:=GetEnvironmentVariableUTF8(aEnvVar);
+  end;
+
+begin
+  MaybeSet('PP',fpp);
+  MaybeSet('FPCDIR',ffpcDir);
+  MaybeSet('LAZARUSDIR',fLazarusDir);
+  MaybeSet('FPCTARGET',ffpcTarget);
+  MaybeSet('FPCTARGETCPU',fpcTargetCPU);
+end;
+
+procedure TConfigEnvironmentSettings.Assign(aSource: TPersistent);
+var
+  src : TConfigEnvironmentSettings absolute aSource;
+begin
+  if aSource is TConfigEnvironmentSettings then
+    begin
+      fpcDir:=src.fpcDir;
+      fpcTarget:=src.fpcTarget;
+      fpcTargetCPU:=src.fpcTargetCPU;
+      lazarusDir:=src.lazarusDir;
+      pp:=src.pp;
     end
   else
     inherited Assign(aSource);

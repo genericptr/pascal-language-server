@@ -125,6 +125,10 @@ type
   { TInitialize }
 
   TInitialize = class(specialize TLSPRequest<TInitializeParams, TInitializeResult>)
+  private
+    procedure SetPlatformDefaults(CodeToolsOptions : TCodeToolsOptions);
+    procedure ApplyConfigSettings(CodeToolsOptions: TCodeToolsOptions);
+  Public
     function Process(var Params : TInitializeParams): TInitializeResult; override;
   end;
 
@@ -269,6 +273,59 @@ begin
 end;
 
 { TInitialize }
+
+
+procedure TInitialize.ApplyConfigSettings(CodeToolsOptions: TCodeToolsOptions);
+
+  function MaybeSet(aValue,aDefault : String) : String;
+
+  begin
+    Result:=aValue;
+    if Result='' then
+      Result:=aDefault;
+  end;
+
+Var
+  env : TConfigEnvironmentSettings;
+
+begin
+  env:=EnvironmentSettings;
+  with CodeToolsOptions do
+    begin
+      FPCPath:=MaybeSet(Env.pp,FPCPath);
+      FPCSrcDir:=MaybeSet(Env.fpcDir,FPCSrcDir);
+      LazarusSrcDir:=MaybeSet(Env.lazarusDir,LazarusSrcDir);
+      TargetOS:=MaybeSet(Env.fpcTarget,TargetOS);
+      TargetProcessor:=MaybeSet(Env.fpcTargetCPU,TargetProcessor);
+    end;
+end;
+
+procedure TInitialize.SetPlatformDefaults(CodeToolsOptions: TCodeToolsOptions);
+begin
+  // Compile time defaults/
+  CodeToolsOptions.TargetOS := {$i %FPCTARGETOS%};
+  CodeToolsOptions.TargetProcessor := {$i %FPCTARGETCPU%};
+
+  {$ifdef windows}
+  CodeToolsOptions.FPCPath := 'C:\FPC';
+  CodeToolsOptions.FPCSrcDir := 'C:\FPC\Src';
+  CodeToolsOptions.LazarusSrcDir := 'C:\Lazarus';
+  {$endif}
+
+  {$ifdef unix}
+  {$ifdef DARWIN}
+  CodeToolsOptions.FPCPath := '/usr/local/bin/fpc';
+  CodeToolsOptions.FPCSrcDir := '/usr/local/share/fpcsrc';
+  CodeToolsOptions.LazarusSrcDir := '/usr/local/share/lazsrc';
+  {$else}
+  CodeToolsOptions.FPCPath := '/usr/local/bin/fpc';
+  CodeToolsOptions.FPCSrcDir := '/usr/local/share/fpcsrc';
+  CodeToolsOptions.LazarusSrcDir := '/usr/local/share/lazsrc';
+  {$endif}
+  {$endif}
+
+end;
+
 
 function TInitialize.Process(var Params : TInitializeParams): TInitializeResult;
 const
@@ -460,21 +517,8 @@ begin
       }
 
       // set some built-in defaults based on platform
-      {$ifdef DARWIN}
-      CodeToolsOptions.FPCPath := '/usr/local/bin/fpc';
-      CodeToolsOptions.FPCSrcDir := '/usr/local/share/fpcsrc';
-      CodeToolsOptions.LazarusSrcDir := '/usr/local/share/lazsrc';
-      CodeToolsOptions.TargetOS := 'darwin';
-
-      {$ifdef CPUX86_64}
-      CodeToolsOptions.TargetProcessor := 'x86_64';
-      {$endif}
-
-      {$ifdef CPUAARCH64}
-      CodeToolsOptions.TargetProcessor := 'AARCH64';
-      {$endif}
-
-      {$endif}
+      SetPlatformDefaults(CodeToolsOptions);
+      ApplyConfigSettings(CodeToolsOptions);
 
       { Override default settings with environment variables.
         These are the required values which must be set:

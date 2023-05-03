@@ -28,7 +28,7 @@ uses
   cthreads,
   {$ENDIF}
   Classes, SysUtils, CustApp, IniFiles, LSP.AllCommands,
-  LSP.Base, PasLSSock.Config, PasLS.SocketDispatcher;
+  LSP.Base, PasLS.Settings, PasLSSock.Config, PasLS.SocketDispatcher;
 
 type
 
@@ -37,6 +37,7 @@ type
   TPasLSPSocketServerApp = class(TCustomApplication)
   Private
     FConfig : TLSPSocketServerConfig;
+    procedure ConfigureLSP;
     function ParseOptions: Boolean;
   protected
     procedure DoRun; override;
@@ -74,6 +75,20 @@ begin
   Result:=True;
 end;
 
+procedure TPasLSPSocketServerApp.ConfigureLSP;
+
+begin
+  TLSPContext.LogFile:=FConfig.LogFile;
+  With EnvironmentSettings do
+    begin
+    pp:=FConfig.Compiler;
+    fpcDir:=FConfig.FPCDir;
+    lazarusDir:=FConfig.LazarusDir;
+    fpcTarget:=FConfig.TargetOS;
+    fpcTargetCPU:=FConfig.TargetCPU;
+    end;
+end;
+
 procedure TPasLSPSocketServerApp.DoRun;
 
 Const
@@ -96,7 +111,7 @@ begin
     end;
   if not ParseOptions then
     exit;
-  TLSPContext.LogFile:=FConfig.LogFile;
+  ConfigureLSP;
   if FConfig.Port>0 then
     Disp:=TLSPServerTCPSocketDispatcher.Create(FConfig.Port)
   else
