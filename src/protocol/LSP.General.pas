@@ -550,7 +550,10 @@ begin
 
       // load the symbol manager if it's enabled
       if ServerSettings.documentSymbols or ServerSettings.workspaceSymbols then
+        begin
         SymbolManager := TSymbolManager.Create;
+        Result.capabilities.documentSymbolProvider:=True;
+        end;
 
 
 
