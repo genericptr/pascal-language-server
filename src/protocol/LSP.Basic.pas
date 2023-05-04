@@ -155,6 +155,7 @@ type
     fRange: TRange;
     procedure SetRange(AValue: TRange);
   public
+    constructor Create; overload;
     constructor Create(Path: String; Line, Column, Span: Integer); overload;
     procedure Assign(Source : TPersistent); override;
   published
@@ -890,6 +891,11 @@ begin
   fRange.Assign(AValue);
 end;
 
+constructor TLocation.Create;
+begin
+  Create('',0,0,0);
+end;
+
 constructor TLocation.Create(Path: String; Line, Column, Span: Integer);
 begin
   uri := PathToURI(Path);
@@ -1110,7 +1116,7 @@ end;
 constructor TDiagnosticRelatedInformation.Create(ACollection: TCollection);
 begin
   inherited Create(ACollection);
-  fLocation:=TLocation.Create;
+  fLocation:=TLocation.Create('',0,0,0);
 end;
 
 destructor TDiagnosticRelatedInformation.destroy;

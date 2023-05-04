@@ -48,6 +48,7 @@ var
   NewCode: TCodeBuffer;
   X, Y: Integer;
   NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: integer;
+
 begin with Params do
   begin
     URI := ParseURI(textDocument.uri);
@@ -57,9 +58,7 @@ begin with Params do
 
     if CodeToolBoss.FindDeclaration(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine) then
       begin
-        Result := TLocation.Create;
-        Result.URI := PathToURI(NewCode.Filename);
-        Result.Range := TRange.Create(NewY - 1, NewX - 1);
+        Result := TLocation.Create(NewCode.Filename,NewY - 1,NewX-1,0);
       end
     else
       begin
