@@ -27,8 +27,8 @@ uses
   { RTL }
   Classes, fpjson, fpjsonrpc,
   { Protocol }
-  LSP.Base, LSP.Basic, LSP.General, LSP.DocumentSymbol, 
-  PasLS.Settings, PasLS.Symbols;
+  LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.General, LSP.DocumentSymbol,
+  PasLS.Settings, PasLS.Symbols, LSP.Streaming;
 
 type
   

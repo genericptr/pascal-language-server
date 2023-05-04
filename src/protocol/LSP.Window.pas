@@ -27,9 +27,9 @@ uses
   { RTL }
   Classes, 
   { Code Tools }
-  CodeToolManager, CodeCache,
+  CodeToolManager,
   { Protocol }
-  LSP.Base, LSP.Basic;
+  LSP.Base, LSP.BaseTypes, LSP.Messages;
 
 type
   

@@ -25,9 +25,7 @@ unit LSP.WorkDoneProgress;
 interface
 uses
   { RTL }
-  Classes,
-  { Protocol }
-  LSP.Basic;
+  Classes;
 
 type
   TProgressToken = String; { integer | string }
