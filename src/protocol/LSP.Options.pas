@@ -47,10 +47,11 @@ type
 
   { TSaveOptions }
 
-  TSaveOptions = class(TPersistent)
+  TSaveOptions = class(TLSPStreamable)
   private
     fIncludeText: Boolean;
   public
+    Constructor Create; override;
     constructor Create(_includeText: boolean);
     Procedure Assign(aSource : TPersistent); override;
   published
@@ -60,7 +61,7 @@ type
 
   { TTextDocumentSyncOptions }
 
-  TTextDocumentSyncOptions = class(TPersistent)
+  TTextDocumentSyncOptions = class(TLSPStreamable)
   private
     fOpenClose: Boolean;
     fChange: TTextDocumentSyncKind;
@@ -69,7 +70,7 @@ type
     fSave: TSaveOptions;
     procedure SetSave(AValue: TSaveOptions);
   public
-    constructor Create;
+    constructor Create; override;
     destructor destroy; override;
     Procedure Assign(aSource : TPersistent); override;
   published
@@ -94,12 +95,12 @@ type
 
   { TSignatureHelpOptions }
   
-  TSignatureHelpOptions = class(TPersistent)
+  TSignatureHelpOptions = class(TLSPStreamable)
   private
     fTriggerCharacters: TStrings;
     procedure SetTriggerCharacters(AValue: TStrings);
   Public
-    Constructor Create;
+    Constructor Create; override;
     Destructor Destroy; override;
     Procedure Assign(Source : TPersistent); override;
   published
@@ -109,13 +110,13 @@ type
 
   { TCompletionOptions }
 
-  TCompletionOptions = class(TPersistent)
+  TCompletionOptions = class(TLSPStreamable)
   private
     fTriggerCharacters: TStrings;
     fAllCommitCharacters: TStrings;
     fResolveProvider: Boolean;
   public
-    constructor Create;
+    constructor Create; override;
     destructor destroy; override;
     procedure Assign(Source : TPersistent); override;
   published
@@ -150,7 +151,7 @@ type
 
   { TWorkDoneProgressOptions }
   
-  TWorkDoneProgressOptions = class(TPersistent)
+  TWorkDoneProgressOptions = class(TLSPStreamable)
   private
     fworkDoneProgress: TOptionalBoolean;
   Public
@@ -166,6 +167,7 @@ type
     fCommands: TStrings;
     procedure SetCommands(AValue: TStrings);
   public
+    constructor Create; override;
     constructor Create(_commands: TStringArray);
     destructor destroy; override;
     Procedure Assign(Source : TPersistent); override;
@@ -194,11 +196,17 @@ begin
   fCommands.Assign(AValue);
 end;
 
+constructor TExecuteCommandOptions.Create;
+begin
+  inherited Create;
+  FCommands := TStringList.Create;
+end;
+
 constructor TExecuteCommandOptions.Create(_commands: TStringArray);
 var
   command: String;
 begin
-  FCommands := TStringList.Create;
+  Create;
   for command in _commands do
     commands.Add(command);
 end;
@@ -224,6 +232,11 @@ begin
 end;
 
 { TSaveOptions }
+
+constructor TSaveOptions.Create;
+begin
+  fincludeText:=False;
+end;
 
 constructor TSaveOptions.Create(_includeText: boolean);
 begin
@@ -254,6 +267,7 @@ end;
 
 constructor TTextDocumentSyncOptions.Create;
 begin
+  Inherited Create;
   openClose := True;
   change := TTextDocumentSyncKind.Full;
   fSave:=TSaveOptions.Create(False);
@@ -293,6 +307,7 @@ end;
 
 constructor TSignatureHelpOptions.Create;
 begin
+  Inherited Create;
   fTriggerCharacters:=TStringList.Create;
 end;
 
@@ -320,6 +335,7 @@ end;
 
 constructor TCompletionOptions.Create;
 begin
+  Inherited Create;
   resolveProvider := False;
   fTriggerCharacters:=TStringList.Create;
   fAllCommitCharacters:=TStringList.Create;

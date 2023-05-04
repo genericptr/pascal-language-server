@@ -20,12 +20,15 @@
 unit PasLS.SocketDispatcher;
 
 {$mode ObjFPC}{$H+}
+{$modeswitch advancedrecords}
+{$modeswitch typehelpers}
 
 interface
 
 uses
   Classes, SysUtils, fpjson, ssockets,
-  LSP.Base;
+  LSP.Base, LSP.Messages;
+
 
 {
   The Protocol is simple message exchange:
@@ -37,15 +40,32 @@ Const
   LSPProtocolVersion = 1;
 
 Type
-  TLSPProtocolMessageType = (lpmtRequest,lpmtResponse);
+  TLSPProtocolMessageType = (lpmtRequest,lpmtResponse, lptmMessage, lptmDiagnostic);
 
+  { TLSPProtocolMessageTypeHelper }
+
+  TLSPProtocolMessageTypeHelper = Type Helper for TLSPProtocolMessageType
+  private
+    function GetAsString: String;
+  Public
+    Property AsString : String Read GetAsString;
+  end;
+
+  { TLSPFrame }
 
   TLSPFrame = Packed Record
+  private
+    function GetMessageType: TLSPProtocolMessageType;
+    function GetPayloadString: UTF8String;
+    procedure SetMessageType(AValue: TLSPProtocolMessageType);
+  public
     Version : Byte;
     MsgType : Byte; // Sent as byte
     ID : cardinal; // In network order;
     PayloadLen : cardinal; // In network order
     PayLoad : TBytes;
+    Property MessageType : TLSPProtocolMessageType Read GetMessageType Write SetMessageType;
+    Property PayloadString : UTF8String Read GetPayloadString;
   end;
 
   ELSPSocket = Class(Exception);
@@ -54,23 +74,52 @@ Type
 
   { TLSPSocketDispatcher }
 
-  TLSPSocketDispatcher = Class(TLSPBaseDispatcher)
+  { TLSPSocketTransport }
+
+  THandleFrameEvent = Procedure(Sender : TObject; const aFrame : TLSPFrame) of object;
+  TLSPSocketTransport = class(TMessageTransport)
   private
+    FOnHandleFrame: THandleFrameEvent;
     FSocket: TSocketStream;
-    FID : Integer;
     FSocketClosed: Boolean;
+    FID : Integer;
   Protected
+    Procedure DoHandleFrame(const aFrame : TLSPFrame); virtual;
+  Public
+    Constructor Create(aSocket: TSocketStream);
+    Destructor Destroy; override;
     function NextID : Cardinal;
+    // TMessageTRansport methods
+    Procedure SendMessage(aMessage: TJSONData); override;
+    Procedure SendDiagnostic(const aMessage : UTF8String); override;
     function ReadFrame(Out Msg: TLSPFrame) : Boolean;
     function SendFrame(const Msg: TLSPFrame) : Boolean;
+    // Read frames till a frame with type aType is read.
     function ReceiveJSON(aType: TLSPProtocolMessageType): TJSONData;
     function SendJSON(aType: TLSPProtocolMessageType; aJSON : TJSONData) : Boolean;
-    function HandleException(aException: Exception; IsReceive : Boolean): Boolean; virtual;
-  public
-    Constructor Create(aSocket : TSocketStream); virtual;
-    Destructor Destroy; override;
+    // Socket is owned by this transport instance.
     Property Socket : TSocketStream Read FSocket;
+    // True when last read indicated socket is closed.
     Property SocketClosed : Boolean Read FSocketClosed;
+    // Handle unexpected frames
+    Property OnHandleFrame : THandleFrameEvent Read FOnHandleFrame Write FOnHandleFrame;
+  end;
+
+  TLSPSocketDispatcher = Class(TLSPBaseDispatcher)
+  private
+    FTransport : TLSPSocketTransport;
+    function GetSocket: TSocketStream;
+  Protected
+    function GetTransport: TMessageTransport; override;
+    function HandleException(aException: Exception; IsReceive : Boolean): Boolean; virtual;
+    // Owned by this instance
+    Property SocketTransport: TLSPSocketTransport Read FTransport;
+  public
+    // Transport is owned by this instance, will be freed when this is freed.
+    Constructor Create(aTransport : TLSPSocketTransport); reintroduce;
+    Destructor Destroy; override;
+    Property Socket : TSocketStream Read GetSocket;
+
   end;
 
   TLSPClientSocketDispatcher = Class(TLSPSocketDispatcher)
@@ -78,22 +127,20 @@ Type
     function ExecuteRequest(aRequest: TJSONData): TJSONData; override;
   end;
 
-  TLSPSocketContext = class(TLSPContext);
 
   { TLSPServerSocketConnectionDispatcher }
 
   TLSPServerSocketConnectionDispatcher = Class(TLSPSocketDispatcher)
   Private
-    FContext : TLSPSocketContext;
     FOnDestroy: TNotifyEvent;
     FTerminated : Boolean;
+    FContext : TLSPContext;
   Public
     function ExecuteRequest(aRequest: TJSONData): TJSONData; override;
-    Constructor Create(aSocket: TSocketStream); override;
+    Constructor Create(aTransport : TLSPSocketTransport); reintroduce;
     Destructor Destroy; override;
     Procedure RunLoop; virtual;
     Procedure Terminate; virtual;
-    Property Context : TLSPSocketContext Read FContext Write FContext;
     Property Terminated : Boolean Read FTerminated;
     Property OnDestroy: TNotifyEvent Read FOnDestroy Write FOnDestroy;
   end;
@@ -166,27 +213,98 @@ Type
 
 implementation
 
-uses sockets;
+uses typinfo, sockets;
 
-{ TSocketDispatcher }
+{ TLSPProtocolMessageTypeHelper }
 
-constructor TLSPSocketDispatcher.Create(aSocket: TSocketStream);
+function TLSPProtocolMessageTypeHelper.GetAsString: String;
+begin
+  Result:=GetEnumName(TypeInfo(TLSPProtocolMessageType),Ord(Self));
+end;
+
+{ TLSPFrame }
+
+function TLSPFrame.GetMessageType: TLSPProtocolMessageType;
+begin
+  Result:=TLSPProtocolMessageType(MsgType);
+end;
+
+function TLSPFrame.GetPayloadString: UTF8String;
+begin
+  Result:=TEncoding.UTF8.GetAnsiString(Payload);
+end;
+
+procedure TLSPFrame.SetMessageType(AValue: TLSPProtocolMessageType);
+begin
+  MsgType:=Ord(aValue);
+end;
+
+{ TLSPSocketTransport }
+
+procedure TLSPSocketTransport.DoHandleFrame(const aFrame: TLSPFrame);
+begin
+  if Assigned(FOnHandleFrame) then
+    FOnHandleFrame(Self,aFrame);
+end;
+
+constructor TLSPSocketTransport.Create(aSocket: TSocketStream);
 begin
   FSocket:=aSocket;
 end;
 
-destructor TLSPSocketDispatcher.Destroy;
+destructor TLSPSocketTransport.Destroy;
 begin
   FreeAndNil(FSocket);
   inherited Destroy;
 end;
 
-function TLSPSocketDispatcher.NextID: Cardinal;
+procedure TLSPSocketTransport.SendMessage(aMessage: TJSONData);
+begin
+  SendJSON(lptmMessage,aMessage);
+end;
+
+procedure TLSPSocketTransport.SendDiagnostic(const aMessage: UTF8String);
+Var
+  Msg : TLSPFrame;
+
+begin
+  Msg.Version:=LSPProtocolVersion;
+  Msg.MsgType:=Ord(lptmDiagnostic);
+  Msg.ID:=NextID;
+  Msg.PayLoad:=TEncoding.UTF8.GetAnsiBytes(aMessage);
+  Msg.PayloadLen:=Length(Msg.PayLoad);
+  SendFrame(Msg);
+end;
+
+{ TSocketDispatcher }
+
+constructor TLSPSocketDispatcher.Create(aTransport: TLSPSocketTransport);
+begin
+  FTransport:=aTransport;
+end;
+
+destructor TLSPSocketDispatcher.Destroy;
+begin
+  FreeAndNil(FTransport);
+  inherited Destroy;
+end;
+
+function TLSPSocketDispatcher.GetSocket: TSocketStream;
+begin
+  Result:=FTransport.Socket;
+end;
+
+function TLSPSocketDispatcher.GetTransport: TMessageTransport;
+begin
+  Result:=FTransport;
+end;
+
+function TLSPSocketTransport.NextID: Cardinal;
 begin
   Result:=InterlockedIncrement(FID);
 end;
 
-function TLSPSocketDispatcher.SendFrame(const Msg : TLSPFrame) : Boolean;
+function TLSPSocketTransport.SendFrame(const Msg : TLSPFrame) : Boolean;
 
 Var
   N : Cardinal;
@@ -212,7 +330,7 @@ begin
   end;
 end;
 
-function TLSPSocketDispatcher.ReadFrame(out Msg: TLSPFrame): Boolean;
+function TLSPSocketTransport.ReadFrame(out Msg: TLSPFrame): Boolean;
 
 Var
   N : Cardinal;
@@ -238,7 +356,7 @@ begin
 end;
 
 
-function TLSPSocketDispatcher.SendJSON(aType: TLSPProtocolMessageType;
+function TLSPSocketTransport.SendJSON(aType: TLSPProtocolMessageType;
   aJSON: TJSONData): Boolean;
 
 Var
@@ -246,26 +364,20 @@ Var
   JS : TJSONStringType; // Tmp var for debugging purposes.
 
 begin
-  Result:=False;
-  try
-    Msg.Version:=LSPProtocolVersion;
-    Msg.MsgType:=Ord(aType);
-    Msg.ID:=NextID;
-    if Assigned(aJSON) then
-      JS:=aJSON.AsJSON
-    else
-      JS:='';
-    Msg.PayLoad:=TEncoding.UTF8.GetAnsiBytes(JS);
-    Msg.PayloadLen:=Length(Msg.PayLoad);
-    SendFrame(Msg);
-    Result:=True;
-  except
-    On E : Exception do
-      HandleException(E,False);
-  end;
+  Msg.Version:=LSPProtocolVersion;
+  Msg.MsgType:=Ord(aType);
+  Msg.ID:=NextID;
+  if Assigned(aJSON) then
+    JS:=aJSON.AsJSON
+  else
+    JS:='';
+  Msg.PayLoad:=TEncoding.UTF8.GetAnsiBytes(JS);
+  Msg.PayloadLen:=Length(Msg.PayLoad);
+  SendFrame(Msg);
+  Result:=True;
 end;
 
-function TLSPSocketDispatcher.ReceiveJSON(aType : TLSPProtocolMessageType) : TJSONData;
+function TLSPSocketTransport.ReceiveJSON(aType: TLSPProtocolMessageType): TJSONData;
 
 Var
   Msg : TLSPFrame;
@@ -273,19 +385,20 @@ Var
 
 begin
   Result:=nil;
-  try
+  Repeat
     if Not ReadFrame(Msg) then
       Exit;
-    if (Msg.MsgType<>ord(aType)) then
-      Exit;
-    if (Msg.PayloadLen=0) then
-      Exit;
-    JSON:=TEncoding.UTF8.GetAnsiString(Msg.Payload);
-    Result:=GetJSON(JSON,True);
-  except
-    On E : Exception do
-      HandleException(E,True);
-  end;
+    if (Ord(aType)<>Msg.MsgType) then
+      DoHandleFrame(Msg)
+    else
+      begin
+      if (Msg.PayloadLen<>0) then
+        begin
+        JSON:=TEncoding.UTF8.GetAnsiString(Msg.Payload);
+        Result:=GetJSON(JSON,True);
+        end;
+      end;
+  Until (Ord(aType)=Msg.MsgType) or SocketClosed;
 end;
 
 function TLSPSocketDispatcher.HandleException(aException : Exception; IsReceive : Boolean) : Boolean;
@@ -303,8 +416,8 @@ function TLSPClientSocketDispatcher.ExecuteRequest(aRequest: TJSONData): TJSONDa
 
 begin
   Result:=Nil;
-  if SendJSON(lpmtRequest,aRequest) then
-    Result:=ReceiveJSON(lpmtResponse);
+  if SocketTransport.SendJSON(lpmtRequest,aRequest) then
+    Result:=SocketTransport.ReceiveJSON(lpmtResponse);
 end;
 
 { TLSPServerSocketConnectionDispatcher }
@@ -315,10 +428,11 @@ begin
   Result:=FContext.Execute(aRequest);
 end;
 
-constructor TLSPServerSocketConnectionDispatcher.Create(aSocket: TSocketStream);
+constructor TLSPServerSocketConnectionDispatcher.Create(aTransport : TLSPSocketTransport);
+
 begin
-  inherited Create(aSocket);
-  FContext:=TLSPSocketContext.Create(TLSPLocalDispatcher.Create,True);
+  inherited Create(aTransport);
+  FContext:=TLSPContext.Create(aTransport,TLSPLocalDispatcher.Create(aTransport,False),True);
 end;
 
 destructor TLSPServerSocketConnectionDispatcher.Destroy;
@@ -340,16 +454,16 @@ begin
   try
     While not Terminated do
       begin
-      Req:=ReceiveJSON(lpmtRequest);
+      Req:=SocketTransport.ReceiveJSON(lpmtRequest);
       if Assigned(Req) then
         begin
         Resp:=FContext.Execute(req);
-        if not SendJSON(lpmtResponse,Resp) then
+        if not SocketTransport.SendJSON(lpmtResponse,Resp) then
           Terminate;
         end;
       FreeAndNil(Resp);
       FreeAndNil(Req);
-      if SocketClosed then
+      if SocketTransport.SocketClosed then
         Terminate;
       end;
   finally
@@ -367,8 +481,12 @@ end;
 
 Function TLSPServerSocketDispatcher.CreateDispatcher(Data: TSocketStream) : TLSPServerSocketConnectionDispatcher;
 
+Var
+  Trans : TLSPSocketTransport;
+
 begin
-  Result:=TLSPServerSocketConnectionDispatcher.Create(Data);
+  Trans:=TLSPSocketTransport.Create(Data);
+  Result:=TLSPServerSocketConnectionDispatcher.Create(Trans);
 end;
 
 procedure TLSPServerSocketDispatcher.HandleConnection(Sender: TObject;

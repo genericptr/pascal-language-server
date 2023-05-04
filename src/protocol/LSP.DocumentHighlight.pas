@@ -25,13 +25,13 @@ unit LSP.DocumentHighlight;
 interface
 uses
   { RTL }
-  Classes, 
+  SysUtils, Classes,
   { Code Tools }
   URIParser, CodeToolManager, CodeCache,
   { Protocol }
   LSP.Base, LSP.Basic,
   { Other }
-  PasLS.CodeUtils;
+  LSP.BaseTypes, PasLS.CodeUtils;
 
 type
   TDocumentHighlightKind = (
@@ -43,18 +43,22 @@ type
 
   { TDocumentHighlight }
 
-  TDocumentHighlight = class(TPersistent)
+  TDocumentHighlight = class(TLSPStreamable)
   private
     fRange: TRange;
     fKind: TDocumentHighlightKind;
+    procedure SetRange(AValue: TRange);
   published
     // The range this highlight applies to.
-    property range: TRange read fRange write fRange;
+    property range: TRange read fRange write SetRange;
 
     // The highlight kind, default is DocumentHighlightKind.Text.
     property kind: TDocumentHighlightKind read fKind write fKind;
   public
+    constructor Create; override;
+    // _range will be owned.
     constructor Create(_kind: TDocumentHighlightKind; _range: TRange);
+    Destructor Destroy; override;
   end;
 
   TDocumentHighlightItems = array of TDocumentHighlight;
@@ -81,10 +85,29 @@ type
 
 implementation
 
+procedure TDocumentHighlight.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
+
+constructor TDocumentHighlight.Create;
+begin
+  Inherited Create;
+  Create(TDocumentHighlightKind.__UNUSED__,TRange.Create);
+end;
+
 constructor TDocumentHighlight.Create(_kind: TDocumentHighlightKind; _range: TRange);
 begin
+  Inherited Create;
   kind := _kind;
-  range := _range;
+  FRange := _range;
+end;
+
+destructor TDocumentHighlight.Destroy;
+begin
+  FreeAndNil(Frange);
+  inherited Destroy;
 end;
 
 function TDocumentHighlightRequest.Process(var Params: TDocumentHighlightParams): TDocumentHighlightItems;

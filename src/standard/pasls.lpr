@@ -25,7 +25,7 @@ program pasls;
 uses
   { RTL }
 
-  SysUtils, Classes, FPJson, JSONParser, JSONScanner, MemUtils,
+  SysUtils, Classes, FPJson, JSONParser, JSONScanner,
   { Protocol }
   LSP.AllCommands,
   LSP.Base, LSP.Basic, PasLS.TextLoop;
@@ -61,7 +61,9 @@ begin
 end;
 
 var
+  aTransport : TLSPTextTransport;
   aContext : TLSPContext;
+  aDisp : TLSPLocalDispatcher;
 
 begin
   // Show help for the server
@@ -70,14 +72,15 @@ begin
     writeln('Pascal Language Server [',{$INCLUDE %DATE%},']');
     Halt;
     end;
-  SetupTextLoop;
-  aContext:=TLSPContext.Create(TLSPLocalDispatcher.Create(),True);
+  SetupTextLoop(Input,Output,StdErr);
+  aTransport:=TLSPTextTransport.Create(@Input,@StdErr);
+  aDisp:=TLSPLocalDispatcher.Create(aTransport,True);
+  aContext:=TLSPContext.Create(aTransport,aDisp,True);
   try
     if not ExecuteCommandLineMessages(aContext) then
       exit;
     RunMessageLoop(Input,Output,StdErr,aContext);
    Finally
      aContext.Free;
-     DrainAutoReleasePool;
    end;
 end.

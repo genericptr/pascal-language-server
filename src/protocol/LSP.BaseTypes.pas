@@ -78,6 +78,15 @@ Type
     Property Items[Index : Integer] : T Read GetI Write SetI;
   end;
 
+  { TLSPStreamable }
+
+  TLSPStreamable = class(TPersistent)
+  Public
+    // We need a virtual constructor
+    Constructor Create; virtual;
+  end;
+  TLSPStreamableClass = Class of TLSPStreamable;
+
 
   { LSPException }
 
@@ -241,6 +250,13 @@ end;
 function TGenericCollection.Add: T;
 begin
   Result:=T(Inherited add);
+end;
+
+{ TLSPStreamable }
+
+constructor TLSPStreamable.Create;
+begin
+  Inherited Create;
 end;
 
 { LSPException }

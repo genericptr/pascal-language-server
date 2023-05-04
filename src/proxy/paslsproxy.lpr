@@ -42,10 +42,12 @@ Type
     const
       ShortOptions = 'htp:u:c:l:';
       LongOptions : Array of string = ('help','test','port:','unix:','config:','log:');
+    procedure DoHandleDiagnostic(Sender: TObject; const aFrame: TLSPFrame);
   Private
     FConfig : TLSPProxyConfig;
+    FContext : TLSPContext;
     function ParseOptions(out aParams : TStringDynArray): Boolean;
-    function SetupSocket: TSocketStream;
+    function SetupTransport: TLSPSocketTransport;
   protected
     procedure DoRun; override;
     Function ExecuteCommandLineMessages(aContext : TLSPContext; aParams : Array of string) : Boolean;
@@ -55,6 +57,28 @@ Type
     destructor Destroy; override;
     procedure Usage(const aError: String); virtual;
   end;
+
+procedure TLSPProxyApplication.DoHandleDiagnostic(Sender: TObject; const aFrame: TLSPFrame);
+
+Type
+  PFile = ^Text;
+
+var
+  aFile : PFile;
+
+begin
+  FContext.Log('Out of band message of type %s: %s',[aFrame.MessageType.AsString,aFrame.PayloadString]);
+  case aFrame.MessageType of
+    lptmDiagnostic:
+      aFile:=@StdErr;
+    lptmMessage:
+      aFile:=@Output;
+  else
+    aFile:=Nil;
+  end;
+  Writeln(aFile^,aFrame.PayloadString);
+  Flush(aFile^);
+end;
 
 function TLSPProxyApplication.ExecuteCommandLineMessages(aContext: TLSPContext;
   aParams: array of string): Boolean;
@@ -142,29 +166,33 @@ begin
   Result:=True;
 end;
 
-function TLSPProxyApplication.SetupSocket: TSocketStream;
+function TLSPProxyApplication.SetupTransport: TLSPSocketTransport;
 
+var
+  aSock : TSocketStream;
 
 begin
   Result:=Nil;
+  aSock:=Nil;
   SetupTextLoop;
   TLSPContext.LogFile:=FConfig.LogFile;
 {$IFDEF UNIX}
   // Todo: Add some code to start the socket server, e.g. when the file does not exist.
   if FConfig.Unix<>'' then
-    Result:=TUnixSocket.Create(FConfig.Unix);
+    aSock:=TUnixSocket.Create(FConfig.Unix);
 {$ENDIF}
-  if Result=Nil then
-    Result:=TInetsocket.Create('127.0.0.1',FConfig.Port);
+  if aSock=Nil then
+    aSock:=TInetsocket.Create('127.0.0.1',FConfig.Port);
+  Result:=TLSPSocketTransport.Create(aSock);
+  Result.OnHandleFrame:=@DoHandleDiagnostic;
 end;
 
 procedure TLSPProxyApplication.DoRun;
 
 var
-  aContext : TLSPContext;
-  aSocket : TSocketStream;
   aMsg : String;
   lParams : TStringDynArray;
+  aTrans : TLSPSocketTransport;
 
 begin
   Terminate;
@@ -177,16 +205,15 @@ begin
     end;
   if not ParseOptions(lParams) then
     exit;
-  aSocket:=SetupSocket;
+  aTrans:=SetupTransport;
   try
-    aContext:=TLSPContext.Create(TLSPClientSocketDispatcher.Create(aSocket),True);
+    FContext:=TLSPContext.Create(aTrans,TLSPClientSocketDispatcher.Create(aTrans),True);
     if length(lParams)>0 then
-      if not ExecuteCommandLineMessages(aContext,lParams) then
+      if not ExecuteCommandLineMessages(FContext,lParams) then
         exit;
-    RunMessageLoop(Input,Output,StdErr,aContext);
+    RunMessageLoop(Input,Output,StdErr,FContext);
   Finally
-    aContext.Free;
-    aSocket.Free;
+    FreeAndNil(FContext);
   end;
 end;
 

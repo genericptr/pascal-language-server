@@ -43,24 +43,45 @@ Type
     A request message to describe a request between the client and the server. 
     Every processed request must send a response back to the sender of the request. }
 
-  generic TLSPRequest<T: TPersistent; U> = class(TCustomJSONRPCHandler)
+
+  { TLSPContextCustomJSONRPCHandler }
+
+  TLSPContextCustomJSONRPCHandler = class(TCustomJSONRPCHandler)
+  private
+    FTransport: TMessageTransport;
+  Public
+    Procedure DoLog(Const Msg : String); overload;
+    Procedure DoLog(Const Fmt : String; Const Args : Array of const); overload;
+    Procedure LogError(Const Msg : String; E : Exception);
+    Property Transport : TMessageTransport Read FTransport Write FTransport;
+  end;
+
+  generic TLSPRequest<T: TLSPStreamable; U> = class(TLSPContextCustomJSONRPCHandler)
   protected
     function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
     function Process(var Params : T): U; virtual; abstract;
   end;
 
+  { TOutGoingID }
+
   TOutGoingID = Class
     // One ID for all outgoing requests
-  Class Var
+  Private
+    Class Var
     OutgoingRequestIndex : Integer;
+  Private
+     FTransport : TMessageTransport;
+  Public
+    Constructor Create(aTransport : TMessageTransport);
+    Property Transport : TMessageTransport Read FTransport;
   end;
 
   { TLSPOutgoingRequest
     A request from the server to the client }
 
-  generic TLSPOutgoingRequest<T: TPersistent> = class(TOutGoingID)
+  generic TLSPOutgoingRequest<T: TLSPStreamable> = class(TOutGoingID)
   public
-    class procedure Execute(Params: T; Method: String);
+    procedure Execute(Params: T; Method: String);
   end;
 
   { TLSPNotification
@@ -69,7 +90,7 @@ Type
     A notification message. A processed notification message must not send a response back. 
     They work like events. }
 
-  generic TLSPNotification<T: TPersistent> = class(TCustomJSONRPCHandler)
+  generic TLSPNotification<T: TLSPStreamable> = class(TLSPContextCustomJSONRPCHandler)
   protected
     function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
     procedure Process(var Params : T); virtual; abstract;
@@ -77,30 +98,50 @@ Type
 
   { TLSPDispatcher }
 
+  { TLSPBaseDispatcher }
+
+  // A dispatcher is responsible for handling a request and returning the result.
   TLSPBaseDispatcher = class(TObject)
+  protected
+    Function GetTransport : TMessageTransport; virtual; abstract;
+  Public
     Function ExecuteRequest(aRequest : TJSONData): TJSONData; virtual; abstract;
+    Property Transport : TMessageTransport Read GetTransport;
   end;
 
 
   { TJSONRPCDispatcher }
-
+  // Wrapper class for TCustomJSONRPCDispatcher, to handle a bug in fpc's JSON-rpc
   TJSONRPCDispatcher = class(TCustomJSONRPCDispatcher)
+  private
+    FTransport: TMessageTransport;
   protected
+    Function ExecuteHandler(H: TCustomJSONRPCHandler; Params, ID: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
     function ExecuteMethod(const AClassName, AMethodName: TJSONStringType;
       Params, ID: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
   public
     constructor Create(AOwner: TComponent); override;
+    Property Transport : TMessageTransport Read FTransport Write FTransport;
   end;
 
   { TLSPLocalDispatcher }
 
+  // Dispatches the request locally through a TJSONRPCDispatcher instance.
+
   TLSPLocalDispatcher = class(TLSPBaseDispatcher)
   Private
     FJSONDispatcher : TJSONRPCDispatcher;
+    FOwnsTransport: Boolean;
+    FTransport: TMessageTransport;
+  Protected
+    function GetTransport: TMessageTransport; override;
   Public
-    Constructor Create;
+    Constructor Create(aTransport : TMessageTransport; aOwnsTransport : Boolean = False);
     Destructor Destroy; override;
     function ExecuteRequest(aRequest : TJSONData): TJSONData; override;
+    Property Transport : TMessageTransport Read FTransport;
+    // Dispatcher owns transport !
+    Property OwnsTransport : Boolean Read FOwnsTransport Write FOwnsTransport;
   end;
 
 
@@ -113,6 +154,7 @@ Type
     FDispatcher: TLSPBaseDispatcher;
     FDispatcherOwner: Boolean;
     FLastMessageID: Integer;
+    FTransport: TMessageTransport;
     Class function GetLogFile: String; static;
     procedure SetDispatcher(AValue: TLSPBaseDispatcher);
     Class procedure SetLogFile(const AValue: String); static;
@@ -120,19 +162,25 @@ Type
     Class Procedure DoLog(const Msg : String);
     Class Procedure DoLog(const Fmt : String; Const Args : Array of const);
   Public
-    Constructor Create(aDispatcher : TLSPBaseDispatcher; aOwner : Boolean);
+    Class Destructor Done;
+  Public
+    Constructor Create(aTransport : TMessageTransport; aDispatcher : TLSPBaseDispatcher; aOwner : Boolean); virtual;
     Constructor Create(aOwner : Boolean);
     destructor Destroy; override;
-    Class Destructor Done;
-    Function NextMessageID : Integer;
-    class Function HaveLog : Boolean;
     Function Execute(aRequest : TJSONData) : TJSONData;
+    function NextMessageID: Integer;
+    // logging
+    class Function HaveLog : Boolean;
     Class Procedure Log(const Msg : String);
     Class Procedure Log(const Fmt : String; Const Args : Array of const);
     Class Property LogFile : String Read GetLogFile Write SetLogFile;
   published
     Property LastMessageID: Integer Read FLastMessageID;
+    // The transport class for sending messages;
+    Property Transport : TMessageTransport Read FTransport;
+    // The dispatcher that actually executes requests
     Property Dispatcher : TLSPBaseDispatcher Read FDispatcher Write SetDispatcher;
+    // Do we own the dispatcher.
     Property DispatcherOwner : Boolean Read FDispatcherOwner Write FDispatcherOwner;
   end;
 
@@ -160,9 +208,18 @@ end;
 
 { TLSPLocalDispatcher }
 
-constructor TLSPLocalDispatcher.Create;
+function TLSPLocalDispatcher.GetTransport: TMessageTransport;
 begin
+  Result:=FTransport;
+end;
+
+constructor TLSPLocalDispatcher.Create(aTransport: TMessageTransport;
+  aOwnsTransport: Boolean);
+begin
+  FTransport:=aTransport;
+  FOwnsTransport:=aOwnsTransport;
   FJSONDispatcher:=TJSONRPCDispatcher.Create(Nil);
+  FJSONDispatcher.Transport:=Self.Transport;
 end;
 
 destructor TLSPLocalDispatcher.Destroy;
@@ -175,6 +232,27 @@ function TLSPLocalDispatcher.ExecuteRequest(aRequest: TJSONData): TJSONData;
 
 begin
   Result:=FJSONDispatcher.Execute(aRequest);
+end;
+
+{ TLSPContextCustomJSONRPCHandler }
+
+procedure TLSPContextCustomJSONRPCHandler.DoLog(const Msg: String);
+begin
+  if Assigned(Transport) then
+      Transport.SendDiagnostic(Msg);
+end;
+
+procedure TLSPContextCustomJSONRPCHandler.DoLog(const Fmt: String;
+  const Args: array of const);
+begin
+  if Assigned(Transport) then
+      Transport.SendDiagnostic(Fmt,Args);
+end;
+
+procedure TLSPContextCustomJSONRPCHandler.LogError(const Msg: String;
+  E: Exception);
+begin
+  DoLog('% : Error %s with message "%s"',[Msg,E.ClassName,E.Message]);
 end;
 
 
@@ -192,6 +270,8 @@ var
   ElementType: PTypeInfo;
 
 begin
+  if (Transport=Nil) then
+    Raise EArgumentNilException.Create('No transport available');
   Streamer:=Nil;
   Input := specialize TLSPStreaming<T>.ToObject(Params);
   try
@@ -215,6 +295,7 @@ begin
         case ElementType^.Kind of
           tkClass:
             begin
+
               Result := specialize TLSPStreaming<U>.ToJSON(TObjectArray(Output));
 
               // Free all objects
@@ -240,10 +321,17 @@ begin
   end;
 end;
 
+{ TOutGoingID }
+
+constructor TOutGoingID.Create(aTransport: TMessageTransport);
+begin
+  FTransport:=aTransport;
+end;
+
 { TLSPOutgoingRequest }
 
 
-class procedure TLSPOutgoingRequest.Execute(Params: T; Method: String);
+procedure TLSPOutgoingRequest.Execute(Params: T; Method: String);
 
 var
   Message: TRequestMessage;
@@ -255,7 +343,7 @@ begin
     Inc(OutgoingRequestIndex);
     Message.params := Params;
     Message.method := Method;
-    Message.Send;
+    Message.Send(Self.Transport);
   finally
     Message.Free;
   end;
@@ -276,7 +364,18 @@ begin
   result := nil;
 end;
 
+{ TLSPBaseDispatcher }
+
+
 { TLSPDispatcher }
+
+function TJSONRPCDispatcher.ExecuteHandler(H: TCustomJSONRPCHandler; Params,
+  ID: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
+begin
+  if H is TLSPContextCustomJSONRPCHandler then
+    TLSPContextCustomJSONRPCHandler(H).Transport:=Self.FTransport;
+  Result:=Inherited ExecuteHandler(H,Params,ID,AContext);
+end;
 
 function TJSONRPCDispatcher.ExecuteMethod(const AClassName, AMethodName: TJSONStringType;
     Params, ID: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
@@ -367,8 +466,8 @@ begin
   DoLog(Format(Fmt,Args));
 end;
 
-constructor TLSPContext.Create(aDispatcher: TLSPBaseDispatcher; aOwner: Boolean
-  );
+constructor TLSPContext.Create(aTransport: TMessageTransport;
+  aDispatcher: TLSPBaseDispatcher; aOwner: Boolean);
 begin
   Create(aOwner);
   Dispatcher:=aDispatcher;
@@ -421,6 +520,7 @@ begin
       end;
   end;
 end;
+
 
 class procedure TLSPContext.Log(const Msg: String);
 begin

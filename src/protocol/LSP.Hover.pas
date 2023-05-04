@@ -29,23 +29,28 @@ uses
   { Code Tools }
   CodeToolManager, CodeCache,
   { Protocol }
-  LSP.Base, LSP.Basic;
+  LSP.BaseTypes,LSP.Base, LSP.Basic;
 
 type
   
   { THoverResponse }
 
-  THoverResponse = class(TPersistent)
+  THoverResponse = class(TLSPStreamable)
   private
     fContents: TMarkupContent;
     fRange: TRange;
+    procedure SetContents(AValue: TMarkupContent);
+    procedure SetRange(AValue: TRange);
+  Public
+    Constructor Create; override;
+    Destructor Destroy; override;
   published
     // The hover's content
-    property contents: TMarkupContent read fContents write fContents;
+    property contents: TMarkupContent read fContents write SetContents;
 
     // An optional range is a range inside a text document
     // that is used to visualize a hover, e.g. by changing the background color.
-    property range: TRange read fRange write fRange;
+    property range: TRange read fRange write SetRange;
   end;
 
   { THoverRequest }
@@ -57,6 +62,34 @@ type
 implementation
 uses
   SysUtils;
+
+{ THoverResponse }
+
+procedure THoverResponse.SetContents(AValue: TMarkupContent);
+begin
+  if fContents=AValue then Exit;
+  fContents.Assign(AValue);
+end;
+
+procedure THoverResponse.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
+
+constructor THoverResponse.Create;
+begin
+  inherited Create;
+  fContents:=TMarkupContent.Create;
+  fRange:=TRange.Create;
+end;
+
+destructor THoverResponse.Destroy;
+begin
+  FreeAndNil(fContents);
+  FreeAndNil(fRange);
+  inherited Destroy;
+end;
 
 { THoverRequest }
 
@@ -81,8 +114,7 @@ begin with Params do
     except
       on E: Exception do
         begin
-          writeln(StdErr, 'Hover Error: ', E.ClassName, ' ', E.Message);
-          flush(StdErr);
+          LogError('Hover Error',E);
           exit(nil);
         end;
     end;
@@ -92,8 +124,9 @@ begin with Params do
     Hint:='```pascal'+#10+Hint+#10+'```';
 
     Result := THoverResponse.Create;
-    Result.contents := TMarkupContent.Create(Hint, false);
-    Result.range := TRange.Create(Y, X);
+    Result.contents.PlainText:=False;
+    Result.contents.value:=Hint;
+    Result.range.SetRange(Y, X);
   end;
 end;
 

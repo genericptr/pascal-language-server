@@ -42,6 +42,11 @@ type
   private
     fLabel: string;
     fDocumentation: TMarkupContent;
+    procedure SetDocumentation(AValue: TMarkupContent);
+  Public
+    Constructor Create(ACollection: TCollection); override;
+    Destructor Destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
     // The label of this parameter information.
     //
@@ -55,7 +60,7 @@ type
 
     // The human-readable doc-comment of this parameter. Will be shown
     // in the UI but can be omitted.
-    property documentation: TMarkupContent read fDocumentation write fDocumentation;
+    property documentation: TMarkupContent read fDocumentation write SetDocumentation;
   end;
 
   TParameterInformationCollection = specialize TGenericCollection<TParameterInformation>;
@@ -71,6 +76,11 @@ type
     fLabel: string;
     fDocumentation: TMarkupContent;
     fParameters: TParameterInformationCollection;
+    procedure SetDocumentation(AValue: TMarkupContent);
+    procedure SetParameters(AValue: TParameterInformationCollection);
+  Public
+    Constructor Create(ACollection: TCollection); override;
+    destructor Destroy; override;
   published
     // The label of this signature. Will be shown in
     // the UI.
@@ -78,10 +88,10 @@ type
 
     // The human-readable doc-comment of this signature. Will be shown
     // in the UI but can be omitted.
-    property documentation: TMarkupContent read fDocumentation write fDocumentation;
+    property documentation: TMarkupContent read fDocumentation write SetDocumentation;
 
     // The parameters of this signature.
-    property parameters: TParameterInformationCollection read fParameters write fParameters;
+    property parameters: TParameterInformationCollection read fParameters write SetParameters;
   end;
 
   TSignatureInformationCollection = specialize TGenericCollection<TSignatureInformation>;
@@ -92,14 +102,18 @@ type
     Signature help represents the signature of something callable.
     There can be multiple signature but only one active and only one active parameter. }
 
-  TSignatureHelp = class(TPersistent)
+  TSignatureHelp = class(TLSPStreamable)
   private
     fSignatures: TSignatureInformationCollection;
     fActiveSignature: integer;
     fActiveParameter: integer;
+    procedure SetSignatures(AValue: TSignatureInformationCollection);
+  Public
+    Constructor Create; override;
+    Destructor Destroy; override;
   published
     // One or more signatures.
-    property signatures: TSignatureInformationCollection read fSignatures write fSignatures;
+    property signatures: TSignatureInformationCollection read fSignatures write SetSignatures;
 
     // The active signature. If omitted or the value lies outside the
     // range of `signatures` the value defaults to zero or is ignored if
@@ -141,6 +155,88 @@ uses
   FindDeclarationTool, CodeTree, PascalParserTool,
   { Protocol }
   LSP.Diagnostics;
+
+{ TParameterInformation }
+
+procedure TParameterInformation.SetDocumentation(AValue: TMarkupContent);
+begin
+  if fDocumentation=AValue then Exit;
+  fDocumentation.Assign(AValue);
+end;
+
+constructor TParameterInformation.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fDocumentation:=TMarkupContent.Create;
+end;
+
+destructor TParameterInformation.Destroy;
+begin
+  FreeAndNil(fDocumentation);
+  Inherited;
+end;
+
+procedure TParameterInformation.Assign(Source: TPersistent);
+var
+  Src: TParameterInformation absolute Source;
+begin
+  if Source is TParameterInformation then
+    begin
+    fLabel:=Src.fLabel;
+    Documentation.Assign(Src.documentation);
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TSignatureInformation }
+
+procedure TSignatureInformation.SetDocumentation(AValue: TMarkupContent);
+begin
+  if fDocumentation=AValue then Exit;
+  fDocumentation.Assign(AValue);
+end;
+
+procedure TSignatureInformation.SetParameters(
+  AValue: TParameterInformationCollection);
+begin
+  if fParameters=AValue then Exit;
+  fParameters.Assign(AValue);
+end;
+
+constructor TSignatureInformation.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fDocumentation:=TMarkupContent.Create;
+  fParameters:=TParameterInformationCollection.Create;
+end;
+
+destructor TSignatureInformation.Destroy;
+begin
+  FreeAndNil(fDocumentation);
+  FreeAndNil(fParameters);
+  inherited Destroy;
+end;
+
+{ TSignatureHelp }
+
+procedure TSignatureHelp.SetSignatures(AValue: TSignatureInformationCollection);
+begin
+  if fSignatures=AValue then Exit;
+  fSignatures.Assign(AValue);
+end;
+
+constructor TSignatureHelp.Create;
+begin
+  inherited Create;
+  fSignatures:=TSignatureInformationCollection.Create;
+end;
+
+destructor TSignatureHelp.Destroy;
+begin
+  FreeAndNil(fSignatures);
+  inherited Destroy;
+end;
 
 { TSignatureHelpRequest }
 
@@ -213,7 +309,9 @@ var
   Parameter: TParameterInformation;
   Head: String;
   ParamList: TStringList;
-begin with Params do
+begin
+  Result:=Nil;
+  with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
@@ -223,7 +321,7 @@ begin with Params do
     try
       if not CodeToolBoss.FindCodeContext(Code, X + 1, Y + 1, CodeContext) or (CodeContext = nil) or (CodeContext.Count = 0) then
         begin
-          PublishDiagnostic;
+          PublishDiagnostic(Transport);
           exit(nil);
         end;
 
@@ -238,7 +336,7 @@ begin with Params do
           Item := CodeContext[ItemIndex];
           ExtractProcParts(Item, Head, ParamList);
 
-          Signature := TSignatureInformation(Result.signatures.Add);
+          Signature := Result.signatures.Add;
           Signature.&label := CodeContext.ProcName+Head;
 
           if ParamList <> nil then
@@ -258,9 +356,7 @@ begin with Params do
     except
       on E: Exception do
         begin
-          writeln(StdErr, 'Signature Error: ', E.ClassName, ' ', E.Message);
-          flush(StdErr);
-          exit(nil);
+          Transport.SendDiagnostic('Signature Error: %s %s',[E.ClassName,E.Message]);
         end;
     end;
 

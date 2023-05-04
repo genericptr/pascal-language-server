@@ -31,7 +31,7 @@ uses
   { Protocols }
   LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.DocumentSymbol,
   { Other }
-  PasLS.CodeUtils, LSP.Streaming;
+  PasLS.CodeUtils, LSP.Streaming, LSP.Messages;
 
 type
 
@@ -115,7 +115,11 @@ type
   { TSymbolDatabase }
 
   TSymbolDatabase = class(TSQLiteDatabase)
+  private
+    FTransport: TMessageTransport;
   protected
+    procedure DoLog(const Msg : String); overload;
+    procedure DoLog(const Fmt : String; const Args : Array of const); overload;
     procedure LogError(errmsg: pansichar); override;
   public
     constructor Create(Path: String);
@@ -131,12 +135,14 @@ type
     procedure TouchFile(Path: String);
     function FileModified(Path: String): boolean;
     procedure InsertFile(Path: String);
+    Property Transport : TMessageTransport Read FTransport Write FTransport;
   end;
 
   { TSymbolManager }
 
   TSymbolManager = class
   private
+    fTransport: TMessageTransport;
     SymbolTable: TFPHashObjectList;
     ErrorList: TStringList;
     fDatabase: TSymbolDatabase;
@@ -146,7 +152,11 @@ type
     procedure AddError(Message: String); 
     function GetEntry(Code: TCodeBuffer): TSymbolTableEntry;
     function GetDatabase: TSymbolDatabase;
+    procedure setTransport(AValue: TMessageTransport);
     property Database: TSymbolDatabase read GetDatabase;
+  Protected
+    Procedure DoLog(const Msg : String); overload;
+    Procedure DoLog(const Fmt : String; const Args : Array of const); overload;
   public
 
     { Constructors }
@@ -166,6 +176,7 @@ type
     procedure Reload(Path: String; Always: Boolean = false); overload;
     procedure Scan(Path: String; SearchSubDirs: Boolean);
     procedure FileModified(Code: TCodeBuffer);
+    Property Transport : TMessageTransport Read fTransport Write setTransport;
   end;
 
 var
@@ -295,8 +306,6 @@ var
 begin
   SerializedItems := specialize TLSPStreaming<TSymbolItems>.ToJSON(Symbols) as TJSONArray;
   
-  //writeln(stderr, 'serialize ', key, ': ', SerializedItems.count);flush(stderr);
-
   for i := 0 to SerializedItems.Count - 1 do
     begin
       Symbol := TSymbol(Symbols.Items[i]);
@@ -784,11 +793,27 @@ begin
     LogError(errmsg);
 end;
 
-procedure TSymbolDatabase.LogError(errmsg: pansichar); 
+procedure TSymbolDatabase.DoLog(const Msg: String);
+begin
+  if Assigned(Transport) then
+    Transport.SendDiagnostic(Msg);
+end;
+
+procedure TSymbolDatabase.DoLog(const Fmt: String; const Args: array of const);
+begin
+  if Assigned(Transport) then
+    Transport.SendDiagnostic(Fmt,Args);
+end;
+
+procedure TSymbolDatabase.LogError(errmsg: pansichar);
+
+var
+  S : String;
+
 begin
   // sql errors are fatal right now
-  writeln(stderr, errmsg);
-  flush(stderr);
+  S:=errmsg;
+  DoLog(S);
   halt(-1);
 end;
 
@@ -887,15 +912,11 @@ const
                        ')'#0;
 begin
   // give the user some feedback on where it's loading from
-  writeln(Stderr, 'Loading symbol database at ', Path);
-  Flush(Stderr);
-
+  DoLog('Loading symbol database at %s',[Path]);
   Path += #0;
   if sqlite3_open(@Path[1], @Database) <> SQLITE_OK then
     begin
-      writeln(stderr, 'Failed to load database ',Path);
-      Flush(stderr);
-      Assert(False, 'Failed to load database '+Path);
+      DoLog('Failed to load database %s',[Path]);
       halt(-1);
     end;
 
@@ -909,8 +930,31 @@ function TSymbolManager.GetDatabase: TSymbolDatabase;
 begin
   if (fDatabase = nil) and 
     (ServerSettings.symbolDatabase <> '') then 
+    begin
     fDatabase := TSymbolDatabase.Create(ExpandFileName(ServerSettings.symbolDatabase));
+    fDatabase.Transport:=fTransport;
+    end;
   Result := fDatabase;
+end;
+
+procedure TSymbolManager.setTransport(AValue: TMessageTransport);
+begin
+  if fTransport=AValue then Exit;
+  fTransport:=AValue;
+  if assigned(fDatabase) then
+    fDatabase.Transport:=fTransport;
+end;
+
+procedure TSymbolManager.DoLog(const Msg: String);
+begin
+  if Assigned(Transport) then
+    Transport.SendDiagnostic(Msg);
+end;
+
+procedure TSymbolManager.DoLog(const Fmt: String; const Args: array of const);
+begin
+  if Assigned(Transport) then
+    Transport.SendDiagnostic(Fmt,Args);
 end;
 
 procedure TSymbolManager.RemoveFile(FileName: String);
@@ -960,11 +1004,7 @@ end;
 
 procedure TSymbolManager.AddError(Message: String); 
 begin
-  // todo: diagnostics is not really working right now
-  // so just log to stderr instead
-  //ErrorList.Add(Message);
-  writeln(StdErr, Message);
-  Flush(stderr);
+  DoLog(Message);
 end;
 
 procedure TSymbolManager.FileModified(Code: TCodeBuffer);
@@ -1101,7 +1141,8 @@ begin
   if not CodeToolBoss.Explore(Code, Tool, false, false) then
     begin
       {$ifdef SYMBOL_DEBUG}
-      writeln(StdErr, ExtractFileName(Code.FileName), ' -> ', CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
+      With CodeToolBoss do
+        DoLog('%s -> %s @ %d:%d', [ExtractFileName(Code.FileName), ErrorMessage,ErrorLine,CodeToolBoss.ErrorColumn]);
       {$endif}
       // todo: these errors are overwhelming on startup so we probably need a better way
       //AddError(ExtractFileName(Code.FileName)+' -> '+CodeToolBoss.ErrorMessage+' @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn));
@@ -1119,8 +1160,7 @@ begin
 
   Entry.SerializeSymbols;
 
-  writeln(StdErr, 'Reloaded ', Code.FileName, ' in ', MilliSecondsBetween(Now,StartTime),'ms');
-  Flush(StdErr);
+  DoLog('Reloaded %s in %d ms', [Code.FileName, MilliSecondsBetween(Now,StartTime)]);
 end;
 
 procedure TSymbolManager.Reload(Path: String; Always: Boolean = false);

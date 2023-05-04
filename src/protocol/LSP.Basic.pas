@@ -38,11 +38,12 @@ type
 
   { TPosition }
 
-  TPosition = class(TPersistent)
+  TPosition = class(TLSPStreamable)
   private
     fLine: Integer;
     fCharacter: Integer;
   public
+    constructor Create; override;
     constructor Create(l, c: integer); overload;
     procedure Assign(Source : TPersistent); override;
   published
@@ -59,7 +60,7 @@ type
 
   { TRange }
 
-  TRange = class(TPersistent)
+  TRange = class(TLSPStreamable)
   private
     fStart: TPosition;
     fEnd: TPosition;
@@ -71,9 +72,12 @@ type
     // The range's end position.
     property &end: TPosition read fEnd write SetEnd;
   public
+    Constructor Create; override;
     constructor Create(line, column: integer); overload;
     constructor Create(line, column, len: integer); overload;
     constructor Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
+    Procedure  SetRange(line, column: integer; len: integer = 0); overload;
+    Procedure  SetRange(startLine, startColumn: integer; endLine, endColumn: integer); overload;
     Destructor destroy; override;
 
     function ToString: String; override;
@@ -81,13 +85,13 @@ type
 
   { TLocation }
 
-  TLocation = class(TPersistent)
+  TLocation = class(TLSPStreamable)
   private
     fUri: TDocumentUri;
     fRange: TRange;
     procedure SetRange(AValue: TRange);
   public
-    constructor Create; overload;
+    constructor Create; override;
     constructor Create(Path: String; Line, Column, Span: Integer); overload;
     procedure Assign(Source : TPersistent); override;
   published
@@ -107,7 +111,7 @@ type
   Public
     Constructor Create(ACollection: TCollection); override;
     destructor destroy; override;
-    Procedure Assign(source : TPersistent); override;
+    Procedure Assign(Source : TPersistent); override;
   published
     property uri: TDocumentUri read fUri write fUri;
     property range: TRange read fRange write SetRange;
@@ -117,7 +121,7 @@ type
 
   { TLocationLink }
 
-  TLocationLink = class(TPersistent)
+  TLocationLink = class(TLSPStreamable)
   private
     fOriginSelectionRange: TRange;
     fTargetUri: TDocumentUri;
@@ -127,7 +131,7 @@ type
     procedure SetTargetRange(AValue: TRange);
     procedure SetTargetSelectionRange(AValue: TRange);
   public
-    Constructor Create;
+    Constructor Create; override;
     Destructor Destroy; override;
     Procedure Assign(aSource : TPersistent); override;
   published
@@ -153,7 +157,7 @@ type
 
   { TTextDocumentIdentifier }
 
-  TTextDocumentIdentifier = class(TPersistent)
+  TTextDocumentIdentifier = class(TLSPStreamable)
   private
     fUri: TDocumentUri;
   Public
@@ -173,6 +177,7 @@ type
     fVersion: TOptionalInteger;
   public
     Procedure Assign(aSource : TPersistent); override;
+    Destructor Destroy; override;
   published
     // The version number of this document. If a versioned text
     // document identifier is sent from the server to the client and
@@ -232,7 +237,7 @@ type
 
   { TTextDocumentItem }
 
-  TTextDocumentItem = class(TPersistent)
+  TTextDocumentItem = class(TLSPStreamable)
   private
     fUri: TDocumentUri;
     fLanguageId: string;
@@ -254,14 +259,14 @@ type
 
   { TTextDocumentPositionParams }
 
-  TTextDocumentPositionParams = class(TPersistent)
+  TTextDocumentPositionParams = class(TLSPStreamable)
   private
     fTextDocument: TTextDocumentIdentifier;
     fPosition: TPosition;
     procedure SetPosition(AValue: TPosition);
     procedure SetTextDocument(AValue: TTextDocumentIdentifier);
   Public
-    Constructor Create;
+    Constructor Create; override;
     Destructor Destroy; override;
     procedure Assign(Source : TPersistent); override;
   published
@@ -297,17 +302,21 @@ type
     *Please Note* that clients might sanitize the return markdown. A client could decide to
     remove HTML from the markdown to avoid script execution. }
 
-  TMarkupContent = class(TPersistent)
+  TMarkupContent = class(TLSPStreamable)
   private
     fKind: string;
     fValue: string;
+    function GetPlainText: Boolean;
+    procedure SetPlainText(AValue: Boolean);
   published
     // The type of the Markup
     property kind: string read FKind write FKind;
     // The content itself
     property value: string read fValue write fValue;
   public
-    constructor Create(content: string; plainText: boolean = true);
+    constructor create; override;
+    constructor Create(content: string; _plainText: boolean = true);
+    Property PlainText : Boolean Read GetPlainText Write SetPlainText;
     procedure Assign(Source : TPersistent) ; override;
   end;
 
@@ -346,7 +355,7 @@ type
   Public
     Constructor Create(ACollection: TCollection); override;
     destructor destroy; override;
-    Procedure Assign(Source: TPersistent); override;
+    Procedure Assign(Source : TPersistent); override;
   published
     // The location of this related diagnostic information.
     property location: TLocation read fLocation write SetLocation;
@@ -369,7 +378,7 @@ type
   Public
     Constructor Create(ACollection: TCollection); override;
     destructor destroy; override;
-    Procedure Assign(Source: TPersistent); override;
+    Procedure Assign(Source : TPersistent); override;
   published
     // The range at which the message applies.
     property range: TRange read fRange write SetRange;
@@ -408,16 +417,16 @@ type
     Alternatively the tool extension code could handle the command. 
     The protocol currently doesn’t specify a set of well-known commands. }
 
-  TCommand = class(TPersistent)
+  TCommand = class(TLSPStreamable)
   private
     fTitle: string;
     fCommand: string;
     fArguments: TStrings;
     procedure SetArguments(AValue: TStrings);
   public
-    Constructor Create;
+    Constructor Create; override;
     destructor destroy; override;
-    Procedure Assign(Source: TPersistent); override;
+    Procedure Assign(Source : TPersistent); override;
   published
     // Title of the command, like `save`.
     property title: string read fTitle write fTitle;
@@ -439,7 +448,7 @@ type
     If the client can handle versioned document edits and if documentChanges are present, 
     the latter are preferred over changes. }
   
-  TWorkspaceEdit = class(TPersistent)
+  TWorkspaceEdit = class(TLSPStreamable)
   private
     fChanges: TCollection;
     fDocumentChanges: TTextDocumentEdits;
@@ -519,7 +528,7 @@ begin
   inherited;
 end;
 
-procedure TTextEdit.Assign(aSource: TPersistent);
+procedure TTextEdit.Assign(aSource : TPersistent);
 
 var
   Src : TTextEdit absolute aSource;
@@ -564,7 +573,7 @@ begin
   inherited;
 end;
 
-procedure TTextDocumentEdit.Assign(Source: TPersistent);
+procedure TTextDocumentEdit.Assign(Source : TPersistent);
 
 var
   Src : TTextDocumentEdit absolute Source;
@@ -581,7 +590,7 @@ end;
 
 { TTextDocumentItem }
 
-procedure TTextDocumentItem.Assign(Source: TPersistent);
+procedure TTextDocumentItem.Assign(Source : TPersistent);
 
 var
   Src : TTextDocumentItem absolute Source;
@@ -626,7 +635,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TTextDocumentPositionParams.Assign(Source: TPersistent);
+procedure TTextDocumentPositionParams.Assign(Source : TPersistent);
 
 var
   Src : TTextDocumentPositionParams absolute source;
@@ -661,7 +670,7 @@ begin
   inherited destroy;
 end;
 
-procedure TCommand.Assign(Source: TPersistent);
+procedure TCommand.Assign(Source : TPersistent);
 
 var
   Src : TCommand absolute Source;
@@ -679,13 +688,18 @@ end;
 
 { TPosition }
 
+constructor TPosition.Create;
+begin
+  Create(0,0);
+end;
+
 constructor TPosition.Create(l, c: integer);
 begin
   line := l;
   character := c;
 end;
 
-procedure TPosition.Assign(Source: TPersistent);
+procedure TPosition.Assign(Source : TPersistent);
 
 var
   Src : TPosition absolute source;
@@ -719,7 +733,7 @@ begin
   fRange := TRange.Create(Line, Column, Span);
 end;
 
-procedure TLocation.Assign(Source: TPersistent);
+procedure TLocation.Assign(Source : TPersistent);
 
 var
   Src : TLocation absolute source;
@@ -754,7 +768,7 @@ begin
   inherited destroy;
 end;
 
-procedure TLocationItem.Assign(source: TPersistent);
+procedure TLocationItem.Assign(Source : TPersistent);
 
 var
   Src : TLocationItem absolute source;
@@ -791,6 +805,7 @@ end;
 
 constructor TLocationLink.Create;
 begin
+  Inherited Create;
   fOriginSelectionRange:=TRange.Create;
   fTargetRange:=TRange.Create;
   fTargetSelectionRange:=TRange.Create;
@@ -804,7 +819,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TLocationLink.Assign(aSource: TPersistent);
+procedure TLocationLink.Assign(aSource : TPersistent);
 
 var
   Src :  TLocationLink absolute aSource;
@@ -823,7 +838,7 @@ end;
 
 { TTextDocumentIdentifier }
 
-procedure TTextDocumentIdentifier.Assign(aSource: TPersistent);
+procedure TTextDocumentIdentifier.Assign(aSource : TPersistent);
 
 Var
   Src : TTextDocumentIdentifier absolute aSource;
@@ -839,7 +854,7 @@ end;
 
 { TVersionedTextDocumentIdentifier }
 
-procedure TVersionedTextDocumentIdentifier.Assign(aSource: TPersistent);
+procedure TVersionedTextDocumentIdentifier.Assign(aSource : TPersistent);
 
 Var
   Src : TVersionedTextDocumentIdentifier absolute aSource;
@@ -850,6 +865,12 @@ begin
     Version:=Src.Version;
     end;
   inherited Assign(aSource);
+end;
+
+destructor TVersionedTextDocumentIdentifier.Destroy;
+begin
+  FreeAndNil(fVersion);
+  inherited Destroy;
 end;
 
 { TRange }
@@ -866,22 +887,42 @@ begin
   fStart.Assign(AValue);
 end;
 
+constructor TRange.Create;
+begin
+  fStart := TPosition.Create(0,0);
+  fEnd := TPosition.Create(0,0);
+end;
+
 constructor TRange.Create(line, column: integer);
 begin
-  fStart := TPosition.Create(line, column);
-  fEnd := TPosition.Create(line, column);
+  Create;
+  SetRange(Line,Column,0);
 end;
 
 constructor TRange.Create(line, column, len: integer);
 begin
-  fStart := TPosition.Create(line, column);
-  fEnd := TPosition.Create(line, column + len);
+  Create;
+  SetRange(Line,Column,Len);
 end;
 
 constructor TRange.Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
 begin
-  fStart := TPosition.Create(startLine, startColumn);
-  fEnd := TPosition.Create(endLine, endColumn);
+  Create;
+  SetRange(startLine, startColumn,endLine, endColumn);
+end;
+
+procedure TRange.SetRange(line, column: integer; len: integer);
+begin
+  SetRange(Line,Column,Line,Column+Len);
+end;
+
+procedure TRange.SetRange(startLine, startColumn: integer; endLine,
+  endColumn: integer);
+begin
+  fStart.Line:=StartLine;
+  fStart.Character:=startColumn;
+  fEnd.Line:=endLine;
+  fEnd.Character:=endColumn;
 end;
 
 destructor TRange.destroy;
@@ -898,16 +939,33 @@ end;
 
 { TMarkupContent }
 
-constructor TMarkupContent.Create(content: string; plainText: boolean = true);
+function TMarkupContent.GetPlainText: Boolean;
 begin
-  value := content;
-  if plainText then
+  Result:=(Kind=TMarkupKind.PlainText)
+end;
+
+procedure TMarkupContent.SetPlainText(AValue: Boolean);
+begin
+  if aValue then
     kind := TMarkupKind.PlainText
   else
     kind := TMarkupKind.Markdown;
 end;
 
-procedure TMarkupContent.Assign(Source: TPersistent);
+constructor TMarkupContent.create;
+begin
+  inherited create;
+  kind:=TMarkupKind.PlainText
+end;
+
+constructor TMarkupContent.Create(content: string; _plainText: boolean = true);
+begin
+  Create;
+  value := content;
+  PlainText:=_plainText;
+end;
+
+procedure TMarkupContent.Assign(Source : TPersistent);
 
 var
   Src : TMarkupContent absolute source;
@@ -942,7 +1000,7 @@ begin
   inherited destroy;
 end;
 
-procedure TDiagnosticRelatedInformation.Assign(Source: TPersistent);
+procedure TDiagnosticRelatedInformation.Assign(Source : TPersistent);
 
 var
   Src : TDiagnosticRelatedInformation absolute source;
@@ -975,7 +1033,7 @@ begin
   inherited destroy;
 end;
 
-procedure TDiagnostic.Assign(Source: TPersistent);
+procedure TDiagnostic.Assign(Source : TPersistent);
 var
   Src : TDiagnostic absolute source;
 begin

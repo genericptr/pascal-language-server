@@ -24,20 +24,39 @@ unit PasLS.TextLoop;
 interface
 
 uses
-  Classes, SysUtils, LSP.Base, fpjson;
+  Classes, SysUtils, LSP.Base, LSP.Messages, fpjson;
 
-Procedure SetupTextLoop;
+Type
+
+  { TTextLSPContext }
+  PText = ^Text;
+
+  { TLSPTextTransport }
+
+  TLSPTextTransport = class(TMessageTransport)
+    FOutput : PText;
+    FError : PText;
+  Public
+    constructor Create(aOutput,aError : PText); reintroduce;
+    Procedure SendMessage(aMessage: TJSONData); override;
+    Procedure SendDiagnostic(const aMessage: UTF8String); override;
+  end;
+
+
+
+Procedure SetupTextLoop(var aInput,aOutput,aError : Text);
 Procedure RunMessageLoop(var aInput,aOutput,aError : Text; aContext : TLSPContext);
 procedure DebugSendMessage(var aFile : Text; aContext : TLSPContext; const aMethod, aParams: String);
 
 implementation
 
-Procedure SetupTextLoop;
+Procedure SetupTextLoop(var aInput,aOutput,aError : Text);
 
 begin
   TJSONData.CompressedJSON := True;
-  SetTextLineEnding(Input, #13#10);
-  SetTextLineEnding(Output, #13#10);
+  SetTextLineEnding(aInput, #13#10);
+  SetTextLineEnding(aOutput, #13#10);
+  SetTextLineEnding(aError, #13#10);
 end;
 
 
@@ -167,6 +186,34 @@ begin
   finally
     Request.Free;
   end;
+end;
+
+{ TTextLSPContext }
+
+constructor TLSPTextTransport.Create(aOutput, aError: PText);
+begin
+  FOutput:=aOutput;
+  FError:=aError;
+end;
+
+procedure TLSPTextTransport.SendMessage(aMessage: TJSONData);
+
+Var
+  Content : TJSONStringType;
+
+begin
+  Content:=aMessage.AsJSON;
+  WriteLn(Foutput^,'Content-Type: ', ContentType);
+  WriteLn(Foutput^,'Content-Length: ', Length(Content));
+  WriteLn(Foutput^);
+  Write(Foutput^);
+  Flush(Foutput^);
+end;
+
+procedure TLSPTextTransport.SendDiagnostic(const aMessage: UTF8String);
+begin
+  WriteLn(FError^,aMessage);
+  Flush(FError^);
 end;
 
 
