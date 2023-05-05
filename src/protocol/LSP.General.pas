@@ -479,7 +479,7 @@ const
       result := true;
     except
       on E: EFPMError do
-        DoLog, '🔴 FPM Error: '+E.Message);
+        DoLog('🔴 FPM Error: '+E.Message);
       on E: EFPMNotFound do
         // nothing was found so exit and use other config options
     end;
