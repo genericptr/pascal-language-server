@@ -311,7 +311,7 @@ end;
 
 procedure TWorkspaceSymbolParams.Assign(Source: TPersistent);
 var
-  Src: TWorkspaceSymbolParams;
+  Src: TWorkspaceSymbolParams absolute Source;
 
 begin
   if Source is TWorkspaceSymbolParams then
