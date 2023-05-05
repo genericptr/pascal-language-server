@@ -32,7 +32,7 @@ type
 
   { TLSPStreaming }
 
-  generic TLSPStreaming<T> = class
+  generic TLSPStreaming<T: TPersistent> = class
   type
     PObject = ^TObject;
   private
