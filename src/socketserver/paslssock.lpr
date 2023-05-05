@@ -152,6 +152,7 @@ begin
   Writeln('-t  --threaded       Use threading for connections.');
   Writeln('-u  --unix=FILE      Listen on unix socket FILE (only on unix-like systems)');
   Writeln('Only one of -p or -u may be specified, if none is specified then the default is to listen on port 9898');
+  ExitCode:=Ord(aError<>'')
 end;
 
 var
