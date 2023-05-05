@@ -81,7 +81,7 @@ begin with Params do
     else
       begin
         Result := nil;
-        PublishDiagnostic;
+        PublishDiagnostic(Transport);
       end;
   end;
 end;

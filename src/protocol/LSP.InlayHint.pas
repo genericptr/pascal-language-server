@@ -52,6 +52,8 @@ type
     fKind: TOptionalInlayHintKind;
     fTextEdits: TTextEdits;
     fTooltip: String;
+  public
+    Constructor Create(ACollection: TCollection); override;
   published
     // The position of this hint.
     property position: TPosition read fPosition write fPosition;
@@ -62,6 +64,7 @@ type
     property &label: String read fLabel write fLabel;
     // The kind of this hint. Can be omitted in which case the client
     // should fall back to a reasonable default.
+    // owned by the inlayhint
     property kind: TOptionalInlayHintKind read fKind write fKind;
     // Optional text edits that are performed when accepting this inlay hint.
     //
@@ -88,16 +91,19 @@ type
 
     A parameter literal used in inlay hint requests. }
 
-  TInlayHintParams = class(TPersistent)
+  TInlayHintParams = class(TLSPStreamable)
   private
     fTextDocument: TTextDocumentIdentifier;
     fRange: TRange;
+    procedure SetRange(AValue: TRange);
+    procedure SetTextDocument(AValue: TTextDocumentIdentifier);
   published
     // The text document.
-    property textDocument: TTextDocumentIdentifier read fTextDocument write fTextDocument;
+    property textDocument: TTextDocumentIdentifier read fTextDocument write SetTextDocument;
     // The visible document range for which inlay hints should be computed.
-    property range: TRange read fRange write fRange;
+    property range: TRange read fRange write SetRange;
   public
+    constructor create; override;
     destructor Destroy; override;
   end;
 
@@ -114,14 +120,41 @@ implementation
 
 { TInlayHint }
 
+constructor TInlayHint.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fPosition:=TPosition.Create;
+  fTextEdits:=TTextEdits.Create;
+end;
+
 destructor TInlayHint.Destroy;
 begin
   FreeAndNil(fPosition);
   FreeAndNil(fKind);
+  FreeAndNil(fTextEdits);
   inherited;
 end;
 
 { TInlayHintParams }
+
+procedure TInlayHintParams.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
+
+procedure TInlayHintParams.SetTextDocument(AValue: TTextDocumentIdentifier);
+begin
+  if fTextDocument=AValue then Exit;
+  fTextDocument.Assign(AValue);
+end;
+
+constructor TInlayHintParams.create;
+begin
+  inherited create;
+  ftextDocument:=TTextDocumentIdentifier.Create;
+  frange:=TRange.Create;
+end;
 
 destructor TInlayHintParams.Destroy;
 begin

@@ -26,9 +26,9 @@ interface
 
 uses
   { RTL }
-  Classes,
+  SysUtils, Classes,
   { Protocol }
-  LSP.Base, LSP.Basic, LSP.BaseTypes;
+  LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.Streaming;
 
 type
   
@@ -70,6 +70,12 @@ type
     fIsPreferred: boolean;
     fEdit: TWorkspaceEdit;
     fCommand: TCommand;
+    procedure SetCommand(AValue: TCommand);
+    procedure SetDiagnostics(AValue: TDiagnosticItems);
+    procedure SetEdit(AValue: TWorkspaceEdit);
+  Public
+    constructor Create(ACollection: TCollection); override;
+    destructor Destroy; override;
   published
     // A short, human-readable, title for this code action.
     property title: string read fTitle write fTitle;
@@ -77,7 +83,7 @@ type
     // Used to filter code actions.
     property kind: string read fKind write fKind;
     // The diagnostics that this code action resolves.
-    property diagnostics: TDiagnosticItems read fDiagnostics write fDiagnostics;
+    property diagnostics: TDiagnosticItems read fDiagnostics write SetDiagnostics;
     // Marks this as a preferred action. Preferred actions are used by the `auto fix` command and can be targeted
     // by keybindings.
     // 
@@ -87,11 +93,11 @@ type
     // @since 3.15.0
     property isPreferred: boolean read fIsPreferred write fIsPreferred;
     // The workspace edit this code action performs.
-    property edit: TWorkspaceEdit read fEdit write fEdit;
+    property edit: TWorkspaceEdit read fEdit write SetEdit;
     // A command this code action executes. If a code action
     // provides an edit and a command, first the edit is
     // executed and then the command.
-    property command: TCommand read fCommand write fCommand;
+    property command: TCommand read fCommand write SetCommand;
   end;
 
   TCodeActionItems = specialize TGenericCollection<TCodeAction>;
@@ -101,38 +107,49 @@ type
     Contains additional diagnostic information about the context in which
     a code action is run. }
 
-  TCodeActionContext = class(TPersistent)
+  TCodeActionContext = class(TLSPStreamable)
   private
     fDiagnostics: TDiagnosticItems;
     fOnly: TStrings;
+    procedure SetDiagnostics(AValue: TDiagnosticItems);
+    procedure SetOnly(AValue: TStrings);
+  public
+    Constructor Create; override;
+    Destructor Destroy; override;
+    Procedure Assign(Source : TPersistent); override;
   published
     // An array of diagnostics known on the client side overlapping the range provided to the
     // `textDocument/codeAction` request. They are provided so that the server knows which
     // errors are currently presented to the user for the given range. There is no guarantee
     // that these accurately reflect the error state of the resource. The primary parameter
     // to compute code actions is the provided range.
-    property diagnostics: TDiagnosticItems read fDiagnostics write fDiagnostics;
+    property diagnostics: TDiagnosticItems read fDiagnostics write SetDiagnostics;
 
     // (OPTIONAL) Requested kind of actions to return.
     // Actions not of this kind are filtered out by the client before being shown. So servers
     // can omit computing them.
-    property only: TStrings read fOnly write fOnly;
+    property only: TStrings read fOnly write SetOnly;
   end;
 
   { TCodeActionParams }
 
-  TCodeActionParams = class(TPersistent)
+  TCodeActionParams = class(TLSPStreamable)
   private
     fTextDocument: TTextDocumentIdentifier;
     fRange: TRange;
     fContext: TCodeActionContext;
+    procedure SetContext(AValue: TCodeActionContext);
+  Public
+    constructor create; override;
+    destructor Destroy; override;
+    Procedure Assign(Source : TPersistent); override;
   published
     // The document in which the command was invoked.
     property textDocument: TTextDocumentIdentifier read fTextDocument write fTextDocument;
     // The range for which the command was invoked.
     property range: TRange read fRange write fRange;
     // Context carrying additional information.
-    property context: TCodeActionContext read fContext write fContext;
+    property context: TCodeActionContext read fContext write SetContext;
   end;
 
   { TCodeActionRequest
@@ -152,6 +169,121 @@ type
   end;
 
 implementation
+
+{ TCodeAction }
+
+procedure TCodeAction.SetCommand(AValue: TCommand);
+begin
+  if fCommand=AValue then Exit;
+  fCommand.Assign(AValue);
+end;
+
+procedure TCodeAction.SetDiagnostics(AValue: TDiagnosticItems);
+begin
+  if fDiagnostics=AValue then Exit;
+  fDiagnostics.Assign(AValue);
+end;
+
+procedure TCodeAction.SetEdit(AValue: TWorkspaceEdit);
+begin
+  if fEdit=AValue then Exit;
+  fEdit.Assign(AValue);
+end;
+
+constructor TCodeAction.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fDiagnostics:=TDiagnosticItems.Create;
+  fEdit:=TWorkspaceEdit.Create;
+  fCommand:=TCommand.Create;
+end;
+
+destructor TCodeAction.Destroy;
+begin
+  FreeAndNil(fDiagnostics);
+  FreeAndNil(fEdit);
+  FreeAndNil(fCommand);
+  inherited Destroy;
+end;
+
+{ TCodeActionContext }
+
+procedure TCodeActionContext.SetDiagnostics(AValue: TDiagnosticItems);
+begin
+  if fDiagnostics=AValue then Exit;
+  fDiagnostics.Assign(AValue);
+end;
+
+procedure TCodeActionContext.SetOnly(AValue: TStrings);
+begin
+  if fOnly=AValue then Exit;
+  fOnly.Assign(AValue);
+end;
+
+constructor TCodeActionContext.Create;
+begin
+  inherited Create;
+  fDiagnostics:=TDiagnosticItems.Create;
+  fOnly:=TStringList.Create;
+end;
+
+destructor TCodeActionContext.Destroy;
+begin
+  FreeAndNil(fDiagnostics);
+  FreeAndNil(fOnly);
+  inherited Destroy;
+end;
+
+procedure TCodeActionContext.Assign(Source: TPersistent);
+var
+  src: TCodeActionContext absolute source;
+begin
+  if Source is TCodeActionContext then
+    begin
+      Diagnostics.Assign(Src.diagnostics);
+      Only.Assign(Src.Only);
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TCodeActionParams }
+
+procedure TCodeActionParams.SetContext(AValue: TCodeActionContext);
+begin
+  if fContext=AValue then Exit;
+  fContext:=AValue;
+end;
+
+constructor TCodeActionParams.create;
+begin
+  inherited create;
+  fTextDocument:=TTextDocumentIdentifier.Create;
+  fRange:=TRange.Create;
+  fContext:=TCodeActionContext.Create;
+end;
+
+destructor TCodeActionParams.Destroy;
+begin
+  FreeAndNil(fTextDocument);
+  FreeAndNil(fRange);
+  FreeAndNil(fContext);
+  inherited Destroy;
+end;
+
+procedure TCodeActionParams.Assign(Source: TPersistent);
+var
+  Src: TCodeActionParams absolute Source;
+begin
+  if Source is TCodeActionParams then
+    begin
+      TextDocument.Assign(Src.textDocument);
+      Range.Assign(Src.Range);
+      Context.Assign(Src.context);
+    end
+  else
+    inherited Assign(Source);
+end;
 
 function TCodeActionRequest.Process(var Params: TCodeActionParams): TCodeActionItems;
 begin with Params do

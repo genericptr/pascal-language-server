@@ -126,16 +126,12 @@ begin
           end;
           end;
       finally
-        FReeAndNil(Pil);
+        FreeAndNil(Pil);
       end;
       // TODO: StreamChildren is private so we can't support it
       If (jsoStreamChildren in Options) and (AObject is TComponent) then
-        begin
           //Result.Add(ChildProperty,StreamChildren(TComponent(AObject)));
-          writeln(StdErr, 'jsoStreamChildren not supported');
-          Flush(StdErr);
-          Halt(-1);
-        end;
+          Raise Exception.Create('jsoStreamChildren not supported');
       If Assigned(AfterStreamObject) then
         AfterStreamObject(Self,AObject,Result);
       end;
@@ -279,6 +275,7 @@ begin
     inherited DoRestoreProperty(AObject, PropInfo, PropData)
 end;
 
+
 { TLSPStreaming }
 
 class procedure TLSPStreaming.GetObject(Sender: TOBject; AObject: TObject;
@@ -288,7 +285,8 @@ var
   C: TClass;
 begin
   C := GetTypeData(Info^.PropType)^.ClassType;
-  if C.InheritsFrom(TPersistent) then AValue := C.Create;
+  if C.InheritsFrom(TLSPStreamable) then
+    AValue := TLSPStreamableClass(C).Create;
 end;
 
 class constructor TLSPStreaming.Create;

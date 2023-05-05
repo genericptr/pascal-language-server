@@ -27,13 +27,13 @@ uses
   { RTL }
   SysUtils, Classes,
   { Protocol }
-  LSP.Options, LSP.DocumentSymbol, PasLS.Settings, PasLS.Symbols;
+  LSP.BaseTypes, LSP.Options, LSP.DocumentSymbol, PasLS.Settings, PasLS.Symbols;
 
 type
 
   { TWorkspaceClientCapabilities }
 
-  TWorkspaceClientCapabilities = class(TPersistent)
+  TWorkspaceClientCapabilities = class(TLSPStreamable)
   private
     fApplyEdit: Boolean;
     fWorkspaceFolders: boolean;
@@ -54,7 +54,7 @@ type
 
   { TWorkspaceFoldersServerCapabilities }
 
-  TWorkspaceFoldersServerCapabilities = class(TPersistent)
+  TWorkspaceFoldersServerCapabilities = class(TLSPStreamable)
   private
     fSupported: boolean;
     fChangeNotifications: boolean;
@@ -75,34 +75,34 @@ type
 
   { TWorkspaceServerCapabilities }
 
-  TWorkspaceServerCapabilities = class(TPersistent)
+  TWorkspaceServerCapabilities = class(TLSPStreamable)
   private
     fWorkspaceFolders: TWorkspaceFoldersServerCapabilities;
     procedure SetWorkspaceFolders(AValue: TWorkspaceFoldersServerCapabilities);
+  public
+    constructor Create; override;
+    Destructor Destroy; override;
+    Procedure Assign(Source : TPersistent); override;
   published
     // The server supports workspace folder.
     property workspaceFolders: TWorkspaceFoldersServerCapabilities read fWorkspaceFolders write SetWorkspaceFolders;
-  public
-    constructor Create;
-    Destructor Destroy; override;
-    Procedure Assign(Source : TPersistent); override;
   end;
 
   { TTextDocumentClientCapabilities }
 
-  TTextDocumentClientCapabilities = class(TPersistent)
+  TTextDocumentClientCapabilities = class(TLSPStreamable)
   end;
 
   { TClientCapabilities }
 
-  TClientCapabilities = class(TPersistent)
+  TClientCapabilities = class(TLSPStreamable)
   private
     fWorkspace: TWorkspaceClientCapabilities;
     fTextDocument: TTextDocumentClientCapabilities;
     procedure SetTextDocument(AValue: TTextDocumentClientCapabilities);
     procedure SetWorkspace(AValue: TWorkspaceClientCapabilities);
   Public
-    constructor Create;
+    constructor Create; override;
     destructor destroy; override;
     Procedure Assign(Source : TPersistent); override;
   published
@@ -112,7 +112,7 @@ type
 
   { TServerCapabilities }
 
-  TServerCapabilities = class(TPersistent)
+  TServerCapabilities = class(TLSPStreamable)
   private
     fTextDocumentSync: TTextDocumentSyncOptions;
     fWorkspace: TWorkspaceServerCapabilities;
@@ -136,6 +136,7 @@ type
     procedure SetTextDocumentSync(AValue: TTextDocumentSyncOptions);
     procedure SetWorkspace(AValue: TWorkspaceServerCapabilities);
   public
+    constructor Create; override;
     constructor Create(settings: TServerSettings);
     destructor destroy; override;
     procedure ApplySettings(settings: TServerSettings); virtual;
@@ -162,7 +163,7 @@ implementation
 
 { TWorkspaceClientCapabilities }
 
-procedure TWorkspaceClientCapabilities.Assign(Source: TPersistent);
+procedure TWorkspaceClientCapabilities.Assign(Source : TPersistent);
 
 var
   Src : TWorkspaceClientCapabilities absolute Source;
@@ -180,7 +181,7 @@ end;
 
 { TWorkspaceFoldersServerCapabilities }
 
-procedure TWorkspaceFoldersServerCapabilities.Assign(Source: TPersistent);
+procedure TWorkspaceFoldersServerCapabilities.Assign(Source : TPersistent);
 
 var
   Src : TWorkspaceFoldersServerCapabilities absolute source;
@@ -206,6 +207,7 @@ end;
 
 constructor TWorkspaceServerCapabilities.Create;
 begin
+  Inherited;
   FWorkspaceFolders := TWorkspaceFoldersServerCapabilities.Create;
 end;
 
@@ -215,7 +217,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TWorkspaceServerCapabilities.Assign(Source: TPersistent);
+procedure TWorkspaceServerCapabilities.Assign(Source : TPersistent);
 
 var
   Src : TWorkspaceServerCapabilities absolute Source;
@@ -247,6 +249,7 @@ end;
 
 constructor TClientCapabilities.Create;
 begin
+  Inherited;
   fWorkspace:=TWorkspaceClientCapabilities.Create;
   fTextDocument:=TTextDocumentClientCapabilities.Create;
 end;
@@ -258,7 +261,7 @@ begin
   inherited destroy;
 end;
 
-procedure TClientCapabilities.Assign(Source: TPersistent);
+procedure TClientCapabilities.Assign(Source : TPersistent);
 
 Var
   CP : TClientCapabilities absolute source;
@@ -318,14 +321,14 @@ begin
   fWorkspace.Assign(AValue);
 end;
 
-constructor TServerCapabilities.Create(settings: TServerSettings);
-
+constructor TServerCapabilities.Create;
 begin
+  inherited Create;
   ftextDocumentSync := TTextDocumentSyncOptions.Create;
+  fworkspace := TWorkspaceServerCapabilities.Create;
 
   ftextDocumentSync.change := TTextDocumentSyncKind.Full;
 
-  fworkspace := TWorkspaceServerCapabilities.Create;
   workspace.workspaceFolders.supported := true;
   workspace.workspaceFolders.changeNotifications := true;
 
@@ -341,9 +344,6 @@ begin
   // finlayHintProvider:= TInlayHintOptions.Create;
 
   documentSymbolProvider := Assigned(SymbolManager);
-  if Assigned(Settings) then
-    ApplySettings(Settings);
-
   fcompletionProvider := TCompletionOptions.Create;
   completionProvider.triggerCharacters.Add('.');
   completionProvider.triggerCharacters.Add('^');
@@ -352,6 +352,14 @@ begin
   signatureHelpProvider.triggerCharacters.Add('(');
   signatureHelpProvider.triggerCharacters.Add(')');
   signatureHelpProvider.triggerCharacters.Add(',');
+end;
+
+constructor TServerCapabilities.Create(settings: TServerSettings);
+
+begin
+  Create;
+  if Assigned(Settings) then
+    ApplySettings(Settings);
 end;
 
 destructor TServerCapabilities.destroy;
@@ -373,7 +381,7 @@ begin
   workspaceSymbolProvider := settings.CanProvideWorkspaceSymbols;
 end;
 
-procedure TServerCapabilities.Assign(Source: TPersistent);
+procedure TServerCapabilities.Assign(Source : TPersistent);
 
 var
   Src : TServerCapabilities absolute source;

@@ -24,7 +24,7 @@ unit PasLS.Settings;
 
 interface
 uses
-  Classes, FGL;
+  Classes, FGL, LSP.BaseTypes;
 
 { Global String Constants }
 const
@@ -42,7 +42,7 @@ type
 
   { TServerSettings }
 
-  TServerSettings = class(TPersistent)
+  TServerSettings = class(TLSPStreamable)
   private
     fBooleans: array[0..32] of Boolean;
     fProgram: String;
@@ -96,7 +96,7 @@ type
 
     function CanProvideWorkspaceSymbols: boolean;
   public
-    constructor Create;
+    constructor Create; override;
     Destructor Destroy; override;
     procedure ReplaceMacros(Macros: TMacroMap);
     Procedure Assign(aSource : TPersistent); override;
@@ -104,7 +104,7 @@ type
 
   { TClientInfo }
 
-  TClientInfo = class(TPersistent)
+  TClientInfo = class(TLSPStreamable)
   private
     fName: string;
     fVersion: string;
@@ -119,7 +119,7 @@ type
 
   { TConfigEnvironmentSettings }
 
-  TConfigEnvironmentSettings = class(TPersistent)
+  TConfigEnvironmentSettings = class(TLSPStreamable)
   Private
     ffpcDir: string;
     ffpcTarget: string;
@@ -127,7 +127,7 @@ type
     flazarusDir: string;
     fpp: string;
   Public
-    Constructor Create;
+    Constructor Create; override;
     Procedure Assign(aSource : TPersistent); override;
   published
     property fpcDir : string Read ffpcDir Write ffpcDir;
@@ -215,7 +215,7 @@ begin
     end;
 end;
 
-procedure TServerSettings.Assign(aSource: TPersistent);
+procedure TServerSettings.Assign(aSource : TPersistent);
 
 var
   src : TServerSettings absolute aSource;
@@ -283,7 +283,7 @@ end;
 
 { TClientInfo }
 
-procedure TClientInfo.Assign(aSource: TPersistent);
+procedure TClientInfo.Assign(aSource : TPersistent);
 
 var
   Src : TClientInfo absolute aSource;
@@ -317,7 +317,7 @@ begin
   MaybeSet('FPCTARGETCPU',ffpcTargetCPU);
 end;
 
-procedure TConfigEnvironmentSettings.Assign(aSource: TPersistent);
+procedure TConfigEnvironmentSettings.Assign(aSource : TPersistent);
 var
   src : TConfigEnvironmentSettings absolute aSource;
 begin

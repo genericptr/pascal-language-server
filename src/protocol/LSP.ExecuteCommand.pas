@@ -26,7 +26,7 @@ uses
   { RTL }
   SysUtils, Classes, FPJSON,
   { Protocol }
-  LSP.Base, LSP.Basic, LSP.Streaming, LSP.WorkDoneProgress;
+  LSP.BaseTypes, LSP.Base, LSP.Basic, LSP.Streaming, LSP.WorkDoneProgress;
 
 type
   { TExecuteCommandParams
@@ -62,8 +62,8 @@ type
       error: code and message set in case an exception happens during the request.
   }
 
-  TExecuteCommandRequest = class(specialize TLSPRequest<TExecuteCommandParams, TPersistent>)
-    function Process(var Params: TExecuteCommandParams): TPersistent; override;
+  TExecuteCommandRequest = class(specialize TLSPRequest<TExecuteCommandParams, TLSPStreamable>)
+    function Process(var Params: TExecuteCommandParams): TLSPStreamable; override;
   end;
 
 implementation
@@ -77,7 +77,7 @@ begin
   inherited;
 end;
 
-function TExecuteCommandRequest.Process(var Params: TExecuteCommandParams): TPersistent;
+function TExecuteCommandRequest.Process(var Params: TExecuteCommandParams): TLSPStreamable;
 var
   documentURI: TDocumentUri;
   position: TPosition;
@@ -90,7 +90,11 @@ begin with Params do
         begin
           documentURI := arguments.Strings[0];
           position := specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[1].AsJSON);
-          CompleteCode(documentURI, position.line, position.character);
+          try
+            CompleteCode(Transport,documentURI, position.line, position.character);
+          finally
+            Position.Free;
+          end;
         end;
     end;
   end;

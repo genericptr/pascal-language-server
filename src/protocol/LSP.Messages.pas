@@ -8,6 +8,15 @@ uses
   Classes, SysUtils, LSP.Streaming, fpJSON, LSP.BaseTypes;
 
 Type
+  // We cannot assume stdout to send out-of-band messages.
+
+  { TMessageTransport }
+
+  TMessageTransport = class
+    Procedure SendMessage(aMessage : TJSONData); virtual; abstract;
+    Procedure SendDiagnostic(const aMessage : UTF8String); virtual; abstract;
+    Procedure SendDiagnostic(const Fmt : String; const args : Array of const); overload;
+  end;
 
   { TAbstractMessage
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#abstractMessage
@@ -15,13 +24,13 @@ Type
     A general message as defined by JSON-RPC. The language server
     protocol always uses “2.0” as the jsonrpc version. }
 
-  TAbstractMessage = class(TPersistent)
+  TAbstractMessage = class(TLSPStreamable)
   private
     function GetJSONRPC: String;
   published
     property jsonrpc: String read GetJSONRPC;
   public
-    procedure Send;
+    procedure Send(aTransport : TMessageTransport);
   end;
 
   { TRequestMessage
@@ -34,14 +43,14 @@ Type
   protected
     fID: TOptionalAny; // integer | string
     fMethod: string;
-    fParams: TPersistent;
+    fParams: TLSPStreamable;
   published
     // The request id.
     property id: TOptionalAny read fID write fID;
     // The method to be invoked.
     property method: string read fMethod write fMethod;
     // The notification's params.
-    property params: TPersistent read fParams write fParams;
+    property params: TLSPStreamable read fParams write fParams;
   end;
 
   { TNotificationMessage
@@ -53,19 +62,29 @@ Type
   TNotificationMessage = class(TAbstractMessage)
   protected
     fMethod: string;
-    fParams: TPersistent;
+    fParams: TLSPStreamable;
   published
     // The method to be invoked.
     property method: string read fMethod write fMethod;
     // The notification's params.
-    property params: TPersistent read fParams write fParams;
+    property params: TLSPStreamable read fParams write fParams;
   end;
+
+
 
 const
   ContentType = 'application/vscode-jsonrpc; charset=utf-8';
 
 
 implementation
+
+{ TMessageTransport }
+
+procedure TMessageTransport.SendDiagnostic(const Fmt: String;
+  const args: array of const);
+begin
+  SendDiagnostic(Format(Fmt,Args));
+end;
 
 { TAbstractMessage }
 
@@ -74,23 +93,16 @@ begin
   result := '2.0';
 end;
 
-procedure TAbstractMessage.Send;
+procedure TAbstractMessage.Send(aTransport : TMessageTransport);
 var
   Data: TJSONData;
-  Content: String;
+
 begin
   Data := specialize
   TLSPStreaming<TAbstractMessage>.ToJSON(self);
   if Data <> nil then
     begin
-      Content := Data.AsJSON;
-
-      WriteLn('Content-Type: ', ContentType);
-      WriteLn('Content-Length: ', Content.Length);
-      WriteLn;
-      Write(Content);
-      Flush(Output);
-
+      aTransport.SendMessage(Data);
       Data.Free;
     end;
 end;

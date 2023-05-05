@@ -52,10 +52,12 @@ type
 
   // Contains additional information about the context in which a
   // completion request is triggered.
-  TCompletionContext = class(TPersistent)
+  TCompletionContext = class(TLSPStreamable)
   private
     fTriggerKind: TCompletionTriggerKind;
     fTriggerCharacter: string;
+  Public
+    Procedure Assign(Source : TPersistent); override;
   published
     // How the completion was triggered.
     property triggerKind: TCompletionTriggerKind read fTriggerKind write fTriggerKind;
@@ -70,12 +72,17 @@ type
   TCompletionParams = class(TTextDocumentPositionParams)
   private
     fContext: TCompletionContext;
+    procedure SetContext(AValue: TCompletionContext);
+  public
+    constructor Create; override;
+    Destructor Destroy; override;
+    Procedure Assign(Source : TPersistent); override;
   published
     // The completion context. This is only available if the client
     // specifies to send this using
     // `ClientCapabilities.textDocument.completion.contextSupport ===
     // true`
-    property context: TCompletionContext read fContext write fContext;
+    property context: TCompletionContext read fContext write SetContext;
   end;
 
   { TInsertTextFormat }
@@ -159,6 +166,14 @@ type
   private
     // the following private fields are for private us and not part of LSP
     overloadCount: integer;
+    SeyDocumentation: TMarkupContent;
+    procedure SetAdditionalTextEdits(AValue: TTextEdits);
+    procedure SetCommitCharacters(AValue: TStrings);
+    procedure SetDocumentation(AValue: TMarkupContent);
+    procedure SetTextEdit(AValue: TTextEdit);
+  public
+    constructor Create(ACollection: TCollection); override;
+    destructor destroy; override;
   published
     // The label of this completion item. By default also the text
     // that is inserted when selecting this completion.
@@ -175,7 +190,7 @@ type
     // item, like type or symbol information.
     property detail: string read fDetail write fDetail;
     // A human-readable string that represents a doc-comment.
-    property documentation: TMarkupContent read fDocumentation write fDocumentation;
+    property documentation: TMarkupContent read fDocumentation write SetDocumentation;
     // Select this item when showing.
     //
     // *Note* that only one completion item can be selected and that
@@ -211,7 +226,7 @@ type
     // *Note:* The range of the edit must be a single line range and
     // it must contain the position at which completion has been
     // requested.
-    property textEdit: TTextEdit read fTextEdit write fTextEdit;
+    property textEdit: TTextEdit read fTextEdit write SetTextEdit;
     // An optional array of additional text edits that are applied
     // when selecting this completion. Edits must not overlap
     // (including the same insert position) with the main edit nor
@@ -221,12 +236,12 @@ type
     // to the current cursor position (for example adding an import
     // statement at the top of the file if the completion item will
     // insert an unqualified type).
-    property additionalTextEdits: TTextEdits read fAdditionalTextEdits write fAdditionalTextEdits;
+    property additionalTextEdits: TTextEdits read fAdditionalTextEdits write SetAdditionalTextEdits;
     // An optional set of characters that when pressed while this
     // completion is active will accept it first and then type that
     // character. *Note* that all commit characters should have
     // `length=1` and that superfluous characters will be ignored.
-    property commitCharacters: TStrings read fCommitCharacters write fCommitCharacters;
+    property commitCharacters: TStrings read fCommitCharacters write SetCommitCharacters;
   end;
 
   TCompletionItems = specialize TGenericCollection<TCompletionItem>;
@@ -234,21 +249,27 @@ type
   { TCompletionList
     Represents a collection of completion items to be presented in the editor. }
 
-  TCompletionList = class(TPersistent)
+  TCompletionList = class(TLSPStreamable)
   private
     fIsIncomplete: Boolean;
     fItems: TCompletionItems;
+    procedure SetItems(AValue: TCompletionItems);
+  Public
+    constructor Create; override;
+    destructor Destroy; override;
+    procedure Assign(Source : TPersistent); override;
   published
     // This list it not complete. Further typing should result in
     // recomputing this list.
     property isIncomplete: Boolean read fIsIncomplete write fIsIncomplete;
     // The completion items.
-    property items: TCompletionItems read fItems write fItems;
+    property items: TCompletionItems read fItems write SetItems;
   end;
 
   { TCompletion }
 
   TCompletion = class(specialize TLSPRequest<TCompletionParams, TCompletionList>)
+    function KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
     function Process(var Params: TCompletionParams): TCompletionList; override;
   end;
 
@@ -256,9 +277,136 @@ implementation
 
 uses
   SysUtils, Contnrs,
-  PasLS.CodeUtils, LSP.Diagnostics, PasLS.Settings;
+  PasLS.CodeUtils, LSP.Diagnostics, PasLS.Settings, LSP.Messages;
 
-function KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
+{ TCompletionContext }
+
+procedure TCompletionContext.Assign(Source: TPersistent);
+var
+  Src: TCompletionContext absolute Source;
+begin
+  if Source is TCompletionContext  then
+    begin
+    fTriggerKind:=Src.triggerKind;
+    fTriggerCharacter:=Src.triggerCharacter;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TCompletionParams }
+
+procedure TCompletionParams.SetContext(AValue: TCompletionContext);
+begin
+  if fContext=AValue then Exit;
+  fContext.Assign(AValue);
+end;
+
+constructor TCompletionParams.Create;
+begin
+  inherited Create;
+  fContext:=TCompletionContext.Create;
+end;
+
+destructor TCompletionParams.Destroy;
+begin
+  FreeAndNil(fContext);
+  inherited Destroy;
+end;
+
+procedure TCompletionParams.Assign(Source: TPersistent);
+var
+  Src: TCompletionParams absolute Source;
+begin
+  if Source is TCompletionParams then
+    begin
+      Context.Assign(Src.context)
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TCompletionItem }
+
+procedure TCompletionItem.SetAdditionalTextEdits(AValue: TTextEdits);
+begin
+  if fAdditionalTextEdits=AValue then Exit;
+  if fAdditionalTextEdits=Nil then
+    fAdditionalTextEdits:=TTextEdits.Create;
+  fAdditionalTextEdits.Assign(AValue);
+end;
+
+procedure TCompletionItem.SetCommitCharacters(AValue: TStrings);
+begin
+  if fCommitCharacters=AValue then Exit;
+  fCommitCharacters.Assign(AValue);
+end;
+
+procedure TCompletionItem.SetDocumentation(AValue: TMarkupContent);
+begin
+  if fDocumentation=AValue then Exit;
+  fDocumentation.Assign(AValue);
+end;
+
+
+procedure TCompletionItem.SetTextEdit(AValue: TTextEdit);
+begin
+  if fTextEdit=AValue then Exit;
+  if fTextEdit=Nil then
+    fTextedit:=TTextEdit.Create(Nil);
+  fTextEdit.Assign(AValue);
+end;
+
+constructor TCompletionItem.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fDocumentation:=TMarkupContent.Create;
+  fCommitCharacters:=TStringList.Create;
+end;
+
+destructor TCompletionItem.destroy;
+begin
+  FreeAndNil(fDocumentation);
+  FreeAndNil(fTextEdit);
+  FreeAndNil(fAdditionalTextEdits);
+  FreeAndNil(fCommitCharacters);
+  inherited destroy;
+end;
+
+{ TCompletionList }
+
+procedure TCompletionList.SetItems(AValue: TCompletionItems);
+begin
+  if fItems=AValue then Exit;
+  fItems.Assign(AValue);
+end;
+
+constructor TCompletionList.Create;
+begin
+  inherited Create;
+  fItems:=TCompletionItems.Create;
+end;
+
+destructor TCompletionList.Destroy;
+begin
+  FreeAndnil(fItems);
+  inherited Destroy;
+end;
+
+procedure TCompletionList.Assign(Source: TPersistent);
+var
+  src: TCompletionList absolute source;
+begin
+  if Source is TCompletionList then
+    begin
+      isIncomplete:=Src.isIncomplete;
+      Items.Assign(Src.Items);
+    end
+  else
+    inherited Assign(Source);
+end;
+
+function TCompletion.KindForIdentifier(Identifier: TIdentifierListItem): TCompletionItemKind;
 begin
   // the identifier has no node so we consider this a text item
   if Identifier.Node = nil then
@@ -325,7 +473,7 @@ begin
     ctnEnumIdentifier:
       result := TCompletionItemKind.EnumMemberItem;
     otherwise
-      //writeln(StdErr, 'Default kind for '+Identifier.Identifier, ' (', Identifier.Node.DescAsString, ')');
+      Transport.SendDiagnostic('Default kind for %s (%s)', [Identifier.Identifier, Identifier.Node.DescAsString]);
       //PrintIdentifierTree(Identifier);
       result := TCompletionItemKind.KeywordItem;
   end;   
@@ -379,9 +527,7 @@ var
   Completions: TCompletionItems;
   Identifier: TIdentifierListItem;
   Completion: TCompletionItem;
-
   OverloadMap: TFPHashList;
-
   IdentContext, IdentDetails: ShortString;
   ObjectMember: boolean;
   Kind: TCompletionItemKind;
@@ -397,8 +543,10 @@ begin with Params do
     CodeToolBoss.IdentifierList.Prefix := Copy(Line, PStart, PEnd - PStart);
 
     OverloadMap := TFPHashList.Create;
-    Completions := TCompletionItems.Create;
+
     Result := TCompletionList.Create;
+    // Alias
+    Completions:=Result.items;
 
     try
       if CodeToolBoss.GatherIdentifiers(Code, X + 1, Y + 1) then
@@ -443,7 +591,7 @@ begin with Params do
                   if (ServerSettings.ignoreTextCompletions) and (Kind = TCompletionItemKind.TextItem) then
                     continue;
 
-                  Completion := TCompletionItem(Completions.Add);
+                  Completion := Completions.Add;
                   Completion.primaryText := Identifier.Identifier;
                   Completion.secondaryText := IdentContext;
                   Completion.kind := Kind;
@@ -475,7 +623,7 @@ begin with Params do
                   if (ServerSettings.ignoreTextCompletions) and (Kind = TCompletionItemKind.TextItem) then
                     continue;
 
-                  Completion := TCompletionItem(Completions.Add);
+                  Completion := Completions.Add;
                   if not ServerSettings.minimalisticCompletions then
                     begin
                       Completion.secondaryText := IdentContext;
@@ -494,23 +642,20 @@ begin with Params do
                 end;
             end;
         end else begin
-          PublishDiagnostic;
+          PublishDiagnostic(Self.Transport,'');
           Result.isIncomplete := true;
         end;
     except
       on E: Exception do
         begin
-          writeln(StdErr, 'Completion Error: ', E.ClassName, ' ', E.Message);
-          Flush(StdErr);
+          LogError('Completion', E);
           Result.isIncomplete := true;
         end;
     end;
 
     // todo: make this a verbosity option
-    //writeln(StdErr, 'got completions ', Completions.Count, ' in ', MilliSecondsBetween(Now, GatherTime), 'ms and processed in ', MilliSecondsBetween(Now, StartTime),'ms');
-    //Flush(StdErr);
-      
-    Result.items := Completions;
+    // DoLog('got completions %d in %d ms and processed in %d ms', [Completions.Count,MilliSecondsBetween(Now, GatherTime),MilliSecondsBetween(Now, StartTime));
+
   end;
 
   FreeAndNil(OverloadMap);

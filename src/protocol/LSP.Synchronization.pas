@@ -27,18 +27,22 @@ interface
 uses
   Classes, DateUtils, URIParser, 
   CodeToolManager, CodeCache,
-  LSP.Base, LSP.Basic, PasLS.Symbols;
+  LSP.BaseTypes, LSP.Base, LSP.Basic, PasLS.Symbols;
 
 type
-
   { TDidOpenTextDocumentParams }
 
-  TDidOpenTextDocumentParams = class(TPersistent)
+  TDidOpenTextDocumentParams = class(TLSPStreamable)
   private
     fTextDocument: TTextDocumentItem;
+    procedure SetTextDocument(AValue: TTextDocumentItem);
+  Public
+    Constructor Create; override;
+    Destructor Destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
     // The document that was opened.
-    property textDocument: TTextDocumentItem read fTextDocument write fTextDocument;
+    property textDocument: TTextDocumentItem read fTextDocument write SetTextDocument;
   end;
 
   { TDidOpenTextDocument }
@@ -49,13 +53,18 @@ type
 
   { TDidSaveTextDocumentParams }
 
-  TDidSaveTextDocumentParams = class(TPersistent)
+  TDidSaveTextDocumentParams = class(TLSPStreamable)
   private
     fTextDocument: TTextDocumentItem;
     fText: string;
+    procedure SetTextDocument(AValue: TTextDocumentItem);
+  Public
+    Constructor Create; override;
+    Destructor Destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
     // The document that was saved.
-    property textDocument: TTextDocumentItem read fTextDocument write fTextDocument;
+    property textDocument: TTextDocumentItem read fTextDocument write SetTextDocument;
     // Optional the content when saved. Depends on the includeText value
     // when the save notification was requested.
     property text: string read fText write fText;
@@ -69,12 +78,17 @@ type
 
   { TDidCloseTextDocumentParams }
 
-  TDidCloseTextDocumentParams = class(TPersistent)
+  TDidCloseTextDocumentParams = class(TLSPStreamable)
   private
     fTextDocument: TTextDocumentItem;
+    procedure SetTextDocument(AValue: TTextDocumentItem);
+  Public
+    Constructor Create; override;
+    Destructor Destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
     // The document that was closed.
-    property textDocument: TTextDocumentItem read fTextDocument write fTextDocument;
+    property textDocument: TTextDocumentItem read fTextDocument write SetTextDocument;
   end;
 
   { TDidCloseTextDocument }
@@ -92,25 +106,34 @@ type
   private
     fText: string;
     fRange: TRange;
+    procedure SetRange(AValue: TRange);
+  Public
+    constructor Create(ACollection: TCollection); override;
+    destructor Destroy; override;
   published
     // The range of the document that changed.
-    property range: TRange read fRange write fRange;
+    property range: TRange read fRange write SetRange;
     // The new text of the whole document.
     property text: string read fText write fText;
   end;
 
+  TContentChanges = specialize TGenericCollection<TTextDocumentContentChangeEvent>;
+
   { TDidChangeTextDocumentParams }
 
-  TDidChangeTextDocumentParams = class(TPersistent)
+  TDidChangeTextDocumentParams = class(TLSPStreamable)
   private
     fTextDocument: TVersionedTextDocumentIdentifier;
-    fContentChanges: TCollection;
+    fContentChanges: TContentChanges;
+    procedure SetContentChanges(AValue: TContentChanges);
+    procedure SetTextDocument(AValue: TVersionedTextDocumentIdentifier);
   public
-    constructor Create;
+    constructor Create; override;
+    Destructor Destroy; override;
   published
     // The document that did change. The version number points to the
     // version after all provided content changes have been applied.
-    property textDocument: TVersionedTextDocumentIdentifier read fTextDocument write fTextDocument;
+    property textDocument: TVersionedTextDocumentIdentifier read fTextDocument write SetTextDocument;
     // The actual content changes. The content changes describe single
     // state changes to the document. So if there are two content
     // changes c1 (at array index 0) and c2 (at array index 1) for a
@@ -125,7 +148,7 @@ type
     //   you recevie them.
     // - apply the `TextDocumentContentChangeEvent`s in a single
     //   notification in the order you receive them.
-    property contentChanges: TCollection read fContentChanges write fContentChanges;
+    property contentChanges: TContentChanges read fContentChanges write SetContentChanges;
   end;
 
   { TDidChangeTextDocument }
@@ -140,9 +163,63 @@ uses
 
 { TDidChangeTextDocumentParams }
 
+procedure TDidChangeTextDocumentParams.SetContentChanges(AValue: TContentChanges
+  );
+begin
+  if fContentChanges=AValue then Exit;
+  fContentChanges.Assign(AValue);
+end;
+
+procedure TDidChangeTextDocumentParams.SetTextDocument(
+  AValue: TVersionedTextDocumentIdentifier);
+begin
+  if fTextDocument=AValue then Exit;
+  fTextDocument.Assign(AValue);
+end;
+
 constructor TDidChangeTextDocumentParams.Create;
 begin
-  contentChanges := TCollection.Create(TTextDocumentContentChangeEvent);
+  fTextDocument := TVersionedTextDocumentIdentifier.Create;
+  fcontentChanges := TContentChanges.Create;
+end;
+
+destructor TDidChangeTextDocumentParams.Destroy;
+begin
+  FreeAndNil(fTextDocument);
+  FreeAndNil(fContentChanges);
+  inherited Destroy;
+end;
+
+{ TDidOpenTextDocumentParams }
+
+procedure TDidOpenTextDocumentParams.SetTextDocument(AValue: TTextDocumentItem);
+begin
+  if fTextDocument=AValue then Exit;
+  fTextDocument.Assign(aValue);
+end;
+
+constructor TDidOpenTextDocumentParams.Create;
+begin
+  inherited Create;
+  fTextDocument:=TTextDocumentItem.Create;
+end;
+
+destructor TDidOpenTextDocumentParams.Destroy;
+begin
+  FreeAndNil(fTextDocument);
+  inherited Destroy;
+end;
+
+procedure TDidOpenTextDocumentParams.Assign(Source: TPersistent);
+var
+  Src: TDidOpenTextDocumentParams absolute source;
+begin
+  if Source is TDidOpenTextDocumentParams then
+    begin
+      TextDocument.Assign(Src.textDocument)
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TDidOpenTextDocument }
@@ -166,13 +243,45 @@ begin with Params do
     if Code = nil then
       Code := CodeToolBoss.LoadFile(Path, False, False);
       
-    CheckSyntax(Code);
+    CheckSyntax(Transport,Code);
 
     //if SymbolManager <> nil then
     //  SymbolManager.FileModified(Code);
     if SymbolManager <> nil then
       SymbolManager.Reload(Code, True);
   end;
+end;
+
+{ TDidSaveTextDocumentParams }
+
+procedure TDidSaveTextDocumentParams.SetTextDocument(AValue: TTextDocumentItem);
+begin
+  if fTextDocument=AValue then Exit;
+  fTextDocument.Assign(AValue);
+end;
+
+constructor TDidSaveTextDocumentParams.Create;
+begin
+  inherited Create;
+  fTextDocument:=TTextDocumentItem.Create;
+end;
+
+destructor TDidSaveTextDocumentParams.Destroy;
+begin
+  FreeAndNil(fTextDocument);
+  inherited Destroy;
+end;
+
+procedure TDidSaveTextDocumentParams.Assign(Source: TPersistent);
+var
+  Src: TDidSaveTextDocumentParams absolute source;
+begin
+  if Source is TDidSaveTextDocumentParams then
+    begin
+      TextDocument.Assign(Src.textDocument)
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TDidSaveTextDocument }
@@ -187,9 +296,42 @@ begin with Params do
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
     if SymbolManager <> nil then
       SymbolManager.FileModified(Code);
-    CheckSyntax(Code);
-    ClearDiagnostics(Code);
+    CheckSyntax(Transport,Code);
+    ClearDiagnostics(Transport,Code);
   end;
+end;
+
+{ TDidCloseTextDocumentParams }
+
+procedure TDidCloseTextDocumentParams.SetTextDocument(AValue: TTextDocumentItem
+  );
+begin
+  if fTextDocument=AValue then Exit;
+  fTextDocument:=AValue;
+end;
+
+constructor TDidCloseTextDocumentParams.Create;
+begin
+  inherited Create;
+  fTextDocument:=TTextDocumentItem.Create;
+end;
+
+destructor TDidCloseTextDocumentParams.Destroy;
+begin
+  FreeAndNil(fTextDocument);
+  inherited Destroy;
+end;
+
+procedure TDidCloseTextDocumentParams.Assign(Source: TPersistent);
+var
+  Src: TDidCloseTextDocumentParams absolute source;
+begin
+  if Source is TDidCloseTextDocumentParams then
+    begin
+      TextDocument.Assign(Src.textDocument)
+    end
+  else
+  inherited Assign(Source);
 end;
 
 { TDidCloseTextDocument }
@@ -206,6 +348,26 @@ begin with Params do
   end;
 end;
 
+{ TTextDocumentContentChangeEvent }
+
+procedure TTextDocumentContentChangeEvent.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
+
+constructor TTextDocumentContentChangeEvent.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fRange := TRange.Create;
+end;
+
+destructor TTextDocumentContentChangeEvent.Destroy;
+begin
+  FreeAndNil(fRange);
+  inherited Destroy;
+end;
+
 
 { TDidChangeTextDocument }
 
@@ -215,9 +377,9 @@ var
   Code: TCodeBuffer;
   Change: TCollectionItem;
 {  Range: TRange;
-  StartPos, EndPos: integer;
+  StartPos, EndPos: integer;}
 
-  }
+
 begin with Params do
   begin
 
@@ -227,22 +389,22 @@ begin with Params do
       begin
         // note(ryan): can't get this working yet
         // and I'm not even sure if it's worth it
-        {Range := TTextDocumentContentChangeEvent(Change).range;
+{
+        Range := TTextDocumentContentChangeEvent(Change).range;
         if Range <> nil then
           begin
             //Code.LineColToPosition(Range.start.line + 1, Range.start.character + 1, StartPos);
             //Code.LineColToPosition(Range.&end.line + 1, Range.&end.character + 1, EndPos);
-            writeln(StdErr, 'insert: ', StartPos,' -> ',EndPos, ' text=',TTextDocumentContentChangeEvent(Change).text);
+            DoLog('insert: %d -> %d  text=%s',[StartPos,EndPos, TTextDocumentContentChangeEvent(Change).text]);
             //Code.Replace(StartPos, EndPos - StartPos, TTextDocumentContentChangeEvent(Change).text);
           end
-        else}
+        else }
         Code.Source := TTextDocumentContentChangeEvent(Change).text;
 
         //if SymbolManager <> nil then
         //  SymbolManager.FileModified(Code);
       end;
-      //writeln(StdErr, 'Synched text in ', MilliSecondsBetween(Now, StartTime),'ms');
-      //Flush(StdErr);
+      // DoLog( 'Synched text in %d ms',[MilliSecondsBetween(Now, StartTime)]);
     end;
 end;
 

@@ -142,9 +142,13 @@ type
 
   { TDocumentSymbolParams }
 
-  TDocumentSymbolParams = class(TPersistent)
+  TDocumentSymbolParams = class(TLSPStreamable)
   private
     fTextDocument: TTextDocumentIdentifier;
+  public
+    Constructor Create; override;
+    Destructor Destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
     // The text document.
     property textDocument: TTextDocumentIdentifier read fTextDocument write fTextDocument;
@@ -158,7 +162,7 @@ type
       Then neither the symbol’s location range nor the symbol’s container name should be used to infer a hierarchy.
     * DocumentSymbol[] which is a hierarchy of symbols found in a given text document. }
 
-  TDocumentSymbolRequest = class(specialize TLSPRequest<TDocumentSymbolParams, TPersistent>)
+  TDocumentSymbolRequest = class(specialize TLSPRequest<TDocumentSymbolParams, TLSPStreamable>)
     function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
   end;
 
@@ -237,6 +241,32 @@ begin
   else if (kind = 'Event') then result := TSymbolKind._Event
   else if (kind = 'Operator') then result := TSymbolKind._Operator
   else if (kind = 'TypeParameter') then result := TSymbolKind._TypeParameter
+end;
+
+{ TDocumentSymbolParams }
+
+constructor TDocumentSymbolParams.Create;
+begin
+  inherited Create;
+  fTextDocument:=TTextDocumentIdentifier.Create;
+end;
+
+destructor TDocumentSymbolParams.Destroy;
+begin
+  FreeAndNil(fTextDocument);
+  inherited Destroy;
+end;
+
+procedure TDocumentSymbolParams.Assign(Source: TPersistent);
+var
+  Src: TDocumentSymbolParams absolute Source;
+begin
+  if Source is TDocumentSymbolParams then
+    begin
+      textDocument.Assign(Src.textDocument);
+    end
+  else
+    inherited Assign(Source);
 end;
 
 { TDocumentSymbolRequest }

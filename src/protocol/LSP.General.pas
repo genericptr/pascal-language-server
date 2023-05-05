@@ -30,7 +30,7 @@ uses
   FPMConfig, FPMUtils,
   {$endif}
   { RTL }
-  Classes, URIParser, LazUTF8, 
+  Classes, URIParser, LazUTF8, typinfo,
   { Code Tools }
   CodeToolManager, CodeToolsConfig, 
   { Protocol }
@@ -59,7 +59,7 @@ type
 
   { TVoidParams }
 
-  TVoidParams = class(TPersistent);
+  TVoidParams = class(TLSPStreamable);
 
   { TInitializationOptions }
 
@@ -68,7 +68,7 @@ type
 
   { TInitializeParams }
 
-  TInitializeParams = class(TPersistent)
+  TInitializeParams = class(TLSPStreamable)
   private
     fProcessId: integer;
     fClientInfo: TClientInfo;
@@ -104,19 +104,19 @@ type
     // configured.
     property workspaceFolders: TWorkspaceFolderItems read fWorkspaceFolders write SetWorkspaceFolders;
   public
-    constructor create;
+    constructor create; override;
     destructor Destroy; override;
     procedure Assign(Source : TPersistent); override;
   end;
 
   { TInitializeResult }
 
-  TInitializeResult = class(TPersistent)
+  TInitializeResult = class(TLSPStreamable)
   private
     fCapabilities: TServerCapabilities;
     procedure SetCapabilities(AValue: TServerCapabilities);
   Public
-    constructor Create;
+    constructor Create; override;
     destructor Destroy; override;
   published
     property capabilities: TServerCapabilities read fCapabilities write SetCapabilities;
@@ -140,7 +140,7 @@ type
 
   { TCancelParams }
 
-  TCancelParams = class(TPersistent)
+  TCancelParams = class(TLSPStreamable)
   private
     fId: Integer;
   published
@@ -149,8 +149,8 @@ type
 
   { TShutdown }
 
-  TShutdown = class(specialize TLSPRequest<TVoidParams, TPersistent>)
-    function Process(var Params : TVoidParams): TPersistent; override;
+  TShutdown = class(specialize TLSPRequest<TVoidParams, TLSPStreamable>)
+    function Process(var Params : TVoidParams): TLSPStreamable; override;
   end;
 
   { TExit }
@@ -171,7 +171,7 @@ uses
 
 { TWorkspaceFolder }
 
-procedure TWorkspaceFolder.assign(Source: TPersistent);
+procedure TWorkspaceFolder.assign(Source : TPersistent);
 
 var
   WF : TWorkspaceFolder absolute source;
@@ -233,7 +233,7 @@ begin
   inherited;
 end;
 
-procedure TInitializeParams.Assign(Source: TPersistent);
+procedure TInitializeParams.Assign(Source : TPersistent);
 
 var
   Src : TInitializeParams absolute Source;
@@ -332,52 +332,64 @@ const
   kStatusPrefix = '✓ ';
   kFailedPrefix = '⚠️ ';
 
+  Procedure DoLog(const Msg : String);
+  begin
+    Transport.SendDiagnostic(Msg);
+  end;
+  Procedure DoLog(const Fmt : String; Const args : Array of const);
+  begin
+    Transport.SendDiagnostic(Fmt,Args);
+  end;
+  Procedure DoLog(const Msg : String; aBool : Boolean);
+  begin
+    Transport.SendDiagnostic(Msg+BoolToStr(aBool,'True','False'));
+  end;
+
   procedure ShowConfigStatus(CodeToolsOptions: TCodeToolsOptions); 
   begin
-    writeln(StdErr, kStatusPrefix+'Server: ',{$INCLUDE %DATE%});
-    writeln(StdErr, kStatusPrefix+'Client: ', Params.clientInfo.name, ' ', Params.clientInfo.version);
+    DoLog( kStatusPrefix+'Server: ' + {$INCLUDE %DATE%});
+    DoLog( kStatusPrefix+'Client: ' + Params.clientInfo.name + ' ' + Params.clientInfo.version);
 
-    writeln(StdErr, kStatusPrefix+'FPCPath: ', CodeToolsOptions.FPCPath);
-    writeln(StdErr, kStatusPrefix+'FPCSrcDir: ', CodeToolsOptions.FPCSrcDir);
-    writeln(StdErr, kStatusPrefix+'TargetOS: ', CodeToolsOptions.TargetOS);
-    writeln(StdErr, kStatusPrefix+'TargetProcessor: ', CodeToolsOptions.TargetProcessor);
+    DoLog( kStatusPrefix+'FPCPath: ' + CodeToolsOptions.FPCPath);
+    DoLog( kStatusPrefix+'FPCSrcDir: ' + CodeToolsOptions.FPCSrcDir);
+    DoLog( kStatusPrefix+'TargetOS: ' + CodeToolsOptions.TargetOS);
+    DoLog( kStatusPrefix+'TargetProcessor: '+ CodeToolsOptions.TargetProcessor);
 
-    writeln(StdErr, kStatusPrefix+'Working directory: ', GetCurrentDir);
+    DoLog( kStatusPrefix+'Working directory: ' + GetCurrentDir);
 
     if CodeToolsOptions.FPCOptions <> '' then
-      writeln(stderr, kStatusPrefix+'FPCOptions: ', CodeToolsOptions.FPCOptions)
+      DoLog( kStatusPrefix+'FPCOptions: '+CodeToolsOptions.FPCOptions)
     else
-      writeln(stderr, kStatusPrefix+'FPCOptions: [unspecified]');
+      DoLog( kStatusPrefix+'FPCOptions: [unspecified]');
 
     if ServerSettings.&program <> '' then
-      writeln(StdErr, kStatusPrefix+'Main program file: ', ServerSettings.&program);
+      DoLog( kStatusPrefix+'Main program file: ' + ServerSettings.&program);
 
     if CodeToolsOptions.ProjectDir <> '' then
-      writeln(stderr, kStatusPrefix+'ProjectDir: ', CodeToolsOptions.ProjectDir)
+      DoLog( kStatusPrefix+'ProjectDir: ' + CodeToolsOptions.ProjectDir)
     else
-      writeln(stderr, kStatusPrefix+'ProjectDir: [unspecified]');
+      DoLog( kStatusPrefix+'ProjectDir: [unspecified]');
     
     if ServerSettings.symbolDatabase <> '' then
-      writeln(stderr, kStatusPrefix+'Symbol Database: ', ServerSettings.symbolDatabase)
+      DoLog( kStatusPrefix+'Symbol Database: ' + ServerSettings.symbolDatabase)
     else
-      writeln(stderr, kStatusPrefix+'Symbol Database: [unspecified]');
+      DoLog( kStatusPrefix+'Symbol Database: [unspecified]');
 
     // other settings
-    writeln(stderr, kStatusPrefix+'Settings:');
-    writeln(stderr, '  ► maximumCompletions: ', ServerSettings.maximumCompletions);
-    writeln(stderr, '  ► overloadPolicy: ', ServerSettings.overloadPolicy);
-    writeln(stderr, '  ► insertCompletionsAsSnippets: ', ServerSettings.insertCompletionsAsSnippets);
-    writeln(stderr, '  ► insertCompletionProcedureBrackets: ', ServerSettings.insertCompletionProcedureBrackets);
-    writeln(stderr, '  ► includeWorkspaceFoldersAsUnitPaths: ', ServerSettings.includeWorkspaceFoldersAsUnitPaths);
-    writeln(stderr, '  ► includeWorkspaceFoldersAsIncludePaths: ', ServerSettings.includeWorkspaceFoldersAsIncludePaths);
-    writeln(stderr, '  ► checkSyntax: ', ServerSettings.checkSyntax);
-    writeln(stderr, '  ► publishDiagnostics: ', ServerSettings.publishDiagnostics);
-    writeln(stderr, '  ► workspaceSymbols: ', ServerSettings.workspaceSymbols);
-    writeln(stderr, '  ► documentSymbols: ', ServerSettings.documentSymbols);
-    writeln(stderr, '  ► minimalisticCompletions: ', ServerSettings.minimalisticCompletions);
-    writeln(stderr, '  ► showSyntaxErrors: ', ServerSettings.showSyntaxErrors);
+    DoLog(kStatusPrefix+'Settings:');
+    DoLog('  ► maximumCompletions: %d', [ServerSettings.maximumCompletions]);
+    DoLog('  ► overloadPolicy: %s', [GetEnumName(TypeInfo(TOverloadPolicy),Ord(ServerSettings.overloadPolicy))]);
+    DoLog('  ► insertCompletionsAsSnippets: ', ServerSettings.insertCompletionsAsSnippets);
+    DoLog('  ► insertCompletionProcedureBrackets: ', ServerSettings.insertCompletionProcedureBrackets);
+    DoLog('  ► includeWorkspaceFoldersAsUnitPaths: ', ServerSettings.includeWorkspaceFoldersAsUnitPaths);
+    DoLog('  ► includeWorkspaceFoldersAsIncludePaths: ', ServerSettings.includeWorkspaceFoldersAsIncludePaths);
+    DoLog('  ► checkSyntax: ', ServerSettings.checkSyntax);
+    DoLog('  ► publishDiagnostics: ', ServerSettings.publishDiagnostics);
+    DoLog('  ► workspaceSymbols: ', ServerSettings.workspaceSymbols);
+    DoLog('  ► documentSymbols: ', ServerSettings.documentSymbols);
+    DoLog('  ► minimalisticCompletions: ', ServerSettings.minimalisticCompletions);
+    DoLog('  ► showSyntaxErrors: ', ServerSettings.showSyntaxErrors);
   
-    Flush(stderr);
   end;
 
   function FindAllFiles(path: string): TStringArray;
@@ -449,7 +461,7 @@ const
     try
       config := TFPMConfig.Create(Path);
       
-      writeln(StdErr, '► Loading from FPM: ', Path);
+      DoLog( '► Loading from FPM: '+ Path);
       // set the CodeTools project directory to match
       CodeToolsOptions.ProjectDir := Path;
 
@@ -467,7 +479,7 @@ const
       result := true;
     except
       on E: EFPMError do
-        writeln(StdErr, '🔴 FPM Error: '+E.Message);
+        DoLog, '🔴 FPM Error: '+E.Message);
       on E: EFPMNotFound do
         // nothing was found so exit and use other config options
     end;
@@ -508,8 +520,8 @@ begin
         end;
 
       // print the root URI so we know which workspace folder is default
-      writeln(StdErr, '► RootURI: ', rootUri);
-      writeln(StdErr, '► ProjectDir: ', CodeToolsOptions.ProjectDir);
+      DoLog( '► RootURI: '+rootUri);
+      DoLog( '► ProjectDir: '+CodeToolsOptions.ProjectDir);
 
       {
         For more information on CodeTools see:
@@ -564,7 +576,7 @@ begin
           Path := ExpandFileName(initializationOptions.CodeToolsConfig);
           if FileExists(Path) then
             begin
-              writeln(StdErr, 'Loading config file: ', Path);
+              DoLog('Loading config file: '+ Path);
               LoadFromFile(Path);
             end;
 
@@ -613,7 +625,7 @@ begin
                 ServerSettings.&program := Path
               else
                 begin
-                  writeln(StdErr, kFailedPrefix+'Main program file ', Path, ' can''t be found.');
+                  DoLog(kFailedPrefix+'Main program file '+ Path+ ' can''t be found.');
                   ServerSettings.&program := '';
                 end;
             end;
@@ -645,7 +657,7 @@ end;
 
 { TShutdown }
 
-function TShutdown.Process(var Params : TVoidParams): TPersistent;
+function TShutdown.Process(var Params : TVoidParams): TLSPStreamable;
 begin
   // do nothing
   result := nil;

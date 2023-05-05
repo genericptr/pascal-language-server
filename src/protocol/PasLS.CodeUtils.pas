@@ -30,7 +30,7 @@ uses
   { CodeTools }
   CodeCache, CodeTree, PascalReaderTool, PascalParserTool, IdentCompletionTool, BasicCodeTools,
   { Pasls }
-  LSP.Basic;
+  LSP.Basic, LSP.Messages;
 
 type
   
@@ -243,18 +243,17 @@ begin
   end;
 end;
 
-procedure PrintIdentifierTree(Identifier: TIdentifierListItem);
+procedure PrintIdentifierTree(aTransport : TMessageTransport; Identifier: TIdentifierListItem);
 var
   Node: TCodeTreeNode;
   Details: ShortString;
   ObjectMember: boolean;
 begin
-  writeln(StdErr, Identifier.Identifier, ' -> ', IdentifierContext(Identifier, Details, ObjectMember));
+  aTransport.SendDiagnostic('%s -> %s',[Identifier.Identifier, IdentifierContext(Identifier, Details, ObjectMember)]);
   Node := Identifier.Node;
   while Node <> nil do
     begin
-      writeln(StdErr, '  ', Node.DescAsString, ' children=', Node.ChildCount);
-      writeln(StdErr);
+      aTransport.SendDiagnostic('  %s children=%d', [Node.DescAsString, Node.ChildCount]);
       Node := Node.Parent;
     end;
 end;

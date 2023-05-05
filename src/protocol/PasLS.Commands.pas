@@ -26,9 +26,9 @@ uses
   { RTL }
   SysUtils, Classes, URIParser, FPJSON,
   { LSP }
-  LSP.Basic;
+  LSP.Basic, LSP.Messages ;
 
-procedure CompleteCode(documentURI: TDocumentUri; line, column: integer);
+procedure CompleteCode(aTRansport : TMessageTransport; documentURI: TDocumentUri; line, column: integer);
 
 implementation
 uses
@@ -39,11 +39,13 @@ uses
   { Protocols }
   LSP.Workspace;
 
-procedure ApplyEdit(documentURI, Text: String; range: TRange);
+procedure ApplyEdit(aTransport : TMessageTransport; documentURI, Text: String; range: TRange);
+
 var
   params: TApplyWorkspaceEditParams;
   edit: TWorkspaceEdit;
   textEdit: TTextEdit;
+  Msg: TWorkspaceApplyEditRequest;
   textDocumentEdit: TTextDocumentEdit;
 begin
   params := TApplyWorkspaceEditParams.Create;
@@ -65,10 +67,15 @@ begin
   params.edit := edit;
 
   // TODO: the class should know it's method name
-  TWorkspaceApplyEditRequest.Execute(params, 'workspace/applyEdit');
+  Msg:=TWorkspaceApplyEditRequest.Create(aTransport);
+  try
+    Msg.Execute(params, 'workspace/applyEdit');
+  finally
+    Msg.Free;
+  end;
 end;
 
-procedure CompleteCode(documentURI: TDocumentUri; line, column: integer);
+procedure CompleteCode(aTransport : TMessageTransport; documentURI: TDocumentUri; line, column: integer);
 var
   Path: String;
   Code, NewCode: TCodeBuffer;
@@ -88,16 +95,16 @@ begin
   //Code := CodeToolBoss.LoadFile(URI.path + URI.Document, false, false);
   Path := URI.path + URI.Document;
   Code := CodeToolBoss.FindFile(Path);
-  writeln(StdErr, '▶️ complete code: ', Path, ' Code: ', assigned(Code));
+  aTransport.SendDiagnostic('▶️ complete code: '+ Path + ' Code: ' + BoolToStr(assigned(Code),'True','False'));
   if CodeToolBoss.CompleteCode(Code, column, line, {TopLine}line, NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine, false) then
     begin
-      writeln(StdErr, '✅ Sucesss NewX:',NewX, ' NewY:', NewY, ' NewTopLine: ', NewTopLine, ' BlockTopLine: ', BlockTopLine, ' BlockBottomLine: ', BlockBottomLine);
+      aTransport.SendDiagnostic( '✅ Sucesss NewX: %d NewY: %d NewTopLine: %d BlockTopLine: %d BlockBottomLine: %d', [NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine]);
       //procedure AbsoluteToLineCol(Position: integer; out Line, Column: integer);
-      writeln(StdErr, '- Position: ', Code[Code.Count - 1].Position, ': ', Code.GetLineStart(Code[Code.Count - 1].Position));
-      writeln(StdErr, '- Length: ', Code[Code.Count - 1].Len);
+      With Code[Code.Count - 1] do
+        aTransport.SendDiagnostic( '- Position: %d : %d - Length: %d', [Position, Code.GetLineStart(Position),Len]);
 
       // TODO: we need to get character offsets and get the text out of the source
-      ApplyEdit(documentURI, Code.Source, TRange.Create(0, 0, MaxInt, MaxInt));
+      ApplyEdit(aTransport,documentURI, Code.Source, TRange.Create(0, 0, MaxInt, MaxInt));
       // TODO: we can do this in one pass with multiple TTextEdits!
       // move the cursor
       //ApplyEdit(documentURI, '', TRange.Create({NewY, NewX}0,0));
@@ -107,9 +114,8 @@ begin
       //range := TRange.Create(NewY, NewX, )
     end
   else
-    writeln(StdErr, '🔴 CompleteCode Failed');
+    aTransport.SendDiagnostic( '🔴 CompleteCode Failed');
 
-  Flush(StdErr);
 end;
 
 end.

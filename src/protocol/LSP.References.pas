@@ -31,13 +31,13 @@ uses
   { LazUtils }
   LazFileUtils, Laz_AVL_Tree,
   { Protocol }
-  LSP.Base, LSP.Basic, LSP.General;
+  LSP.BaseTypes, LSP.Base, LSP.Basic, LSP.General, LSP.Messages;
 
 type
 
   { TReferenceContext }
 
-  TReferenceContext = class(TPersistent)
+  TReferenceContext = class(TLSPStreamable)
   private
     fIncludeDeclaration: boolean;
   published
@@ -50,8 +50,13 @@ type
   TReferenceParams = class(TTextDocumentPositionParams)
   private
     fContext: TReferenceContext;
+    procedure SetContext(AValue: TReferenceContext);
+  public
+    Constructor Create; override;
+    Destructor Destroy; override;
+    Procedure Assign(Source: TPersistent); override;
   published
-    property context: TReferenceContext read fContext write fContext;
+    property context: TReferenceContext read fContext write SetContext;
   end;
 
   { TReferencesRequest }
@@ -60,17 +65,49 @@ type
     project-wide references for the symbol denoted by the given text document position. }
 
   TReferencesRequest = class(specialize TLSPRequest<TReferenceParams, TLocationItems>)
+    procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
     function Process(var Params: TReferenceParams): TLocationItems; override;
   end;
 
-procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
 
 implementation
 
 uses
   PasLS.Settings, LSP.Diagnostics;
+
+{ TReferenceParams }
+
+procedure TReferenceParams.SetContext(AValue: TReferenceContext);
+begin
+  if fContext=AValue then Exit;
+  fContext.Assign(AValue);
+end;
+
+constructor TReferenceParams.Create;
+begin
+  inherited Create;
+  fContext:=TReferenceContext.Create;
+end;
+
+destructor TReferenceParams.Destroy;
+begin
+  FreeAndNil(fContext);
+  inherited Destroy;
+end;
+
+procedure TReferenceParams.Assign(Source: TPersistent);
+var
+  Src: TReferenceParams absolute Source;
+begin
+  if Source is TReferenceParams then
+    begin
+      Context.Assign(Src.context);
+    end
+  else
+    inherited Assign(Source);
+end;
   
-procedure FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
+procedure TReferencesRequest.FindReferences(Filename, MainFilename: String; X, Y: Integer; Items: TLocationItems);
 var
   DeclCode, StartSrcCode, Code: TCodeBuffer;
   ListOfPCodeXYPosition: TFPList;
@@ -95,14 +132,14 @@ begin
     X,Y,
     DeclCode,DeclX,DeclY,DeclTopLine) then
   begin
-    PublishDiagnostic('FindMainDeclaration failed in '+StartSrcCode.FileName+' at '+IntToStr(Y)+':'+IntToStr(X));
+    PublishDiagnostic(Transport,'FindMainDeclaration failed in '+StartSrcCode.FileName+' at '+IntToStr(Y)+':'+IntToStr(X));
     ExitCode:=-1;
     exit;
   end;
 
   // Step 3: get identifier
   CodeToolBoss.GetIdentifierAt(DeclCode,DeclX,DeclY,Identifier);
-  writeln(StdErr, 'Found identifier: ',Identifier);
+  DoLog('Found identifier: %s',[Identifier]);
 
   // Step 4: collect all modules of program
   Files:=TStringList.Create;
@@ -132,10 +169,10 @@ begin
 
     // Step 5: find references in all files
     for i:=0 to Files.Count-1 do begin
-      writeln(Stderr, 'Searching ', Files[i], '...');
+      DoLog('Searching "%s"...',[Files[i]]);
       Code:=CodeToolBoss.LoadFile(Files[i],true,false);
       if Code=nil then begin
-        writeln(stderr, 'unable to load "',Files[i],'"');
+        DoLog('unable to load "%s"',[Files[i]]);
         continue;
       end;
       // search references
@@ -144,7 +181,7 @@ begin
         DeclCode,DeclX,DeclY,
         Code, true, ListOfPCodeXYPosition, Cache) then
       begin
-        PublishDiagnostic('FindReferences failed in "'+Code.Filename+'"');
+        PublishDiagnostic(Transport,'FindReferences failed in "'+Code.Filename+'"');
         continue;
       end;
       if ListOfPCodeXYPosition=nil then continue;
@@ -164,10 +201,11 @@ begin
     ANode:=TreeOfPCodeXYPosition.FindHighest;
     while ANode<>nil do begin
       CodePos:=PCodeXYPosition(ANode.Data);
-      Loc := TLocationItem(Items.Add);
+      Loc := Items.Add;
       Loc.URI := PathToURI(CodePos^.Code.Filename);
-      Loc.Range := TRange.Create(CodePos^.Y - 1, CodePos^.X - 1);
-      writeln(StdErr, '  Found: ', CodePos^.Code.Filename, ' @ ', CodePos^.Y, ',',CodePos^.X);
+      Loc.Range.SetRange(CodePos^.Y - 1, CodePos^.X - 1);
+   {   With CodePos^ do
+        DoLog('Found: %s @ %d,%d', [Code.Filename, Y,X]);}
       ANode:=TreeOfPCodeXYPosition.FindPrecessor(ANode);
     end;
 
@@ -176,7 +214,6 @@ begin
     CodeToolBoss.FreeListOfPCodeXYPosition(ListOfPCodeXYPosition);
     CodeToolBoss.FreeTreeOfPCodeXYPosition(TreeOfPCodeXYPosition);
     Cache.Free;
-    Flush(stderr);
   end;
 end;
 

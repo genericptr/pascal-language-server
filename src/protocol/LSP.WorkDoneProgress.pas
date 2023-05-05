@@ -25,13 +25,13 @@ unit LSP.WorkDoneProgress;
 interface
 uses
   { RTL }
-  Classes;
+  Classes, LSP.BaseTypes;
 
 type
   TProgressToken = String; { integer | string }
 
 type
-  TWorkDoneProgressParams = class(TPersistent)
+  TWorkDoneProgressParams = class(TLSPStreamable)
     private
       fWorkDoneToken: TProgressToken;
     published

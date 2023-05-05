@@ -25,7 +25,7 @@ interface
 
 uses
   { RTL }
-  Classes, 
+  SysUtils, Classes,
   { Code Tools }
   CodeToolManager,
   { Protocol }
@@ -45,7 +45,7 @@ type
 
   { TShowMessageParams }
 
-  TShowMessageParams = class(TPersistent)
+  TShowMessageParams = class(TLSPStreamable)
   private
     fType: TMessageType;
     fMessage: string;
@@ -64,6 +64,7 @@ type
 
   TShowMessageNotification = class(TNotificationMessage)
   public
+    constructor Create; override;
     constructor Create(_type: TMessageType; Message: String);
     destructor Destroy; override;
   end;
@@ -78,23 +79,32 @@ type
 
   TMessageActionItems = specialize TGenericCollection<TMessageActionItem>;
 
-  { TShowMessageRequstParams }
+  { TShowMessageRequestParams }
 
-  TShowMessageRequstParams = class(TShowMessageParams)
+  TShowMessageRequestParams = class(TShowMessageParams)
   private
     fActions: TMessageActionItems;
+    procedure SetActions(AValue: TMessageActionItems);
   published
+    Constructor Create; override;
+    Destructor Destroy; override;
     // The message action items to present.
-    property actions: TMessageActionItems read fActions write fActions;
+    property actions: TMessageActionItems read fActions write SetActions;
   end;
 
 implementation
 
 { TShowMessageNotification }
 
+constructor TShowMessageNotification.Create;
+begin
+  inherited Create;
+  params := TShowMessageParams.Create;
+end;
+
 constructor TShowMessageNotification.Create(_type: TMessageType; Message: String);
 begin
-  params := TShowMessageParams.Create;
+  Create;
   TShowMessageParams(params).&type := _type;
   TShowMessageParams(params).message := Message;
   method := 'window/showMessage';
@@ -104,6 +114,26 @@ destructor TShowMessageNotification.Destroy;
 begin
   params.Free;
   inherited;
+end;
+
+{ TShowMessageRequstParams }
+
+procedure TShowMessageRequestParams.SetActions(AValue: TMessageActionItems);
+begin
+  if fActions=AValue then Exit;
+  fActions.Assign(AValue);
+end;
+
+constructor TShowMessageRequestParams.Create;
+begin
+  inherited Create;
+  fActions:=TMessageActionItems.Create;
+end;
+
+destructor TShowMessageRequestParams.Destroy;
+begin
+  FreeAndNil(fActions);
+  inherited Destroy;
 end;
 
 end.
