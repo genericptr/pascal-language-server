@@ -82,6 +82,13 @@ type
     fRange: TRange;
     fSelectionRange: TRange;
     fChildren: TDocumentSymbolItems;
+    procedure SetChildren(AValue: TDocumentSymbolItems);
+    procedure SetRange(AValue: TRange);
+    procedure SetSelectionRange(AValue: TRange);
+  Public
+    constructor Create(ACollection: TCollection); override;
+    destructor Destroy; override;
+    procedure Assign(Source : TPersistent); override;
   published
     // The name of this symbol. Will be displayed in the user interface and therefore must not be
     // an empty string or a string only consisting of white spaces.
@@ -95,12 +102,12 @@ type
     // The range enclosing this symbol not including leading/trailing whitespace but everything else
     // like comments. This information is typically used to determine if the clients cursor is
     // inside the symbol to reveal in the symbol in the UI.
-    property range: TRange read fRange write fRange;
+    property range: TRange read fRange write SetRange;
     // The range that should be selected and revealed when this symbol is being picked, e.g the name of a function.
     // Must be contained by the `range`.
-    property selectionRange: TRange read fSelectionRange write fSelectionRange;
+    property selectionRange: TRange read fSelectionRange write SetSelectionRange;
     // Children of this symbol, e.g. properties of a class.
-    property children: TDocumentSymbolItems read fChildren write fChildren;
+    property children: TDocumentSymbolItems read fChildren write SetChildren;
   end;
 
   { TSymbolInformation }
@@ -114,6 +121,11 @@ type
     fDeprecated: TOptionalBoolean;
     fLocation: TLocation;
     fContainerName: string;
+    procedure SetLocation(AValue: TLocation);
+  Public
+    constructor Create(ACollection: TCollection); override;
+    destructor Destroy; override;
+    procedure Assign(Source : TPersistent); override;
   published
     // The name of this symbol.
     property name: string read fName write fName;
@@ -130,7 +142,7 @@ type
     // The range doesn't have to denote a node range in the sense of a abstract
     // syntax tree. It can therefore not be used to re-construct a hierarchy of
     // the symbols.
-    property location: TLocation read fLocation write fLocation;
+    property location: TLocation read fLocation write SetLocation;
     // The name of the symbol containing this symbol. This information is for
     // user interface purposes (e.g. to render a qualifier in the user interface
     // if necessary). It can't be used to re-infer a hierarchy for the document
@@ -243,6 +255,105 @@ begin
   else if (kind = 'TypeParameter') then result := TSymbolKind._TypeParameter
 end;
 
+{ TDocumentSymbol }
+
+procedure TDocumentSymbol.SetChildren(AValue: TDocumentSymbolItems);
+begin
+  if fChildren=AValue then Exit;
+  fChildren.Assign(AValue);
+end;
+
+procedure TDocumentSymbol.SetRange(AValue: TRange);
+begin
+  if fRange=AValue then Exit;
+  fRange.Assign(AValue);
+end;
+
+procedure TDocumentSymbol.SetSelectionRange(AValue: TRange);
+begin
+  if fSelectionRange=AValue then Exit;
+  fSelectionRange.assign(AValue);
+end;
+
+constructor TDocumentSymbol.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fRange:=TRange.Create;
+  fSelectionRange:=TRange.Create;
+  fChildren:=TDocumentSymbolItems.Create;
+end;
+
+destructor TDocumentSymbol.Destroy;
+begin
+  FreeAndNil(fRange);
+  FreeAndNil(fSelectionRange);
+  FreeAndNil(fChildren);
+  inherited Destroy;
+end;
+
+procedure TDocumentSymbol.Assign(Source: TPersistent);
+var
+  Src: TDocumentSymbol absolute Source;
+begin
+  if Source is TDocumentSymbol then
+    begin
+    Name:=Src.Name;
+    Detail:=Src.Detail;
+    Kind:=Src.Kind;
+    Deprecated:=Src.deprecated;
+    Range:=Src.Range;
+    SelectionRange:=Src.selectionRange;
+    Children:=Src.Children;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TSymbolInformation }
+
+procedure TSymbolInformation.SetLocation(AValue: TLocation);
+begin
+  if fLocation=AValue then Exit;
+  fLocation.Assign(AValue);
+end;
+
+constructor TSymbolInformation.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  fLocation:=TLocation.Create;
+end;
+
+destructor TSymbolInformation.Destroy;
+begin
+  FreeAndNil(fLocation);
+  FreeAndNil(fDeprecated);
+  inherited Destroy;
+end;
+
+procedure TSymbolInformation.Assign(Source: TPersistent);
+var
+  Src : TSymbolInformation absolute source;
+begin
+  if Source is TSymbolInformation then
+    begin
+      Name:=Src.Name;
+      Kind:=Src.Kind;
+      if Assigned(Src.deprecated) then
+        begin
+          if not assigned(fDeprecated) then
+            fDeprecated:=TOptionalBoolean.Create(Src.deprecated.Value)
+          else
+            fDeprecated.Value:=Src.deprecated.Value;
+        end
+      else
+        FreeAndNil(fDeprecated);
+      Location:=Src.Location;
+      ContainerName:=Src.ContainerName;
+    end
+  else
+    inherited Assign(Source);
+end;
+
 { TDocumentSymbolParams }
 
 constructor TDocumentSymbolParams.Create;
@@ -278,11 +389,15 @@ var
   Path: String;
 begin
   Input := specialize TLSPStreaming<TDocumentSymbolParams>.ToObject(Params);
-  URI := ParseURI(Input.textDocument.uri);
-  Path := URI.Path + URI.Document;
-  Result := SymbolManager.FindDocumentSymbols(Path);
-  if not Assigned(Result) then
-    Result := TJSONNull.Create;
+  try
+    URI := ParseURI(Input.textDocument.uri);
+    Path := URI.Path + URI.Document;
+    Result := SymbolManager.FindDocumentSymbols(Path);
+    if not Assigned(Result) then
+      Result := TJSONNull.Create;
+  finally
+    Input.Free;
+  end;
 end;
 
 initialization
