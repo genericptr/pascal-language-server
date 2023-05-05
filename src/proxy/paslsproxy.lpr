@@ -129,6 +129,8 @@ end;
 procedure TLSPProxyApplication.Usage(const aError: String);
 
 begin
+  if aError<>'' then
+    Writeln('Error: ',aError);
   Writeln('Pascal Language Server Proxy [',{$INCLUDE %DATE%},']');
   Writeln('Usage: ', ExeName, ' [options]');
   Writeln('Where options is one or more of:');
@@ -139,6 +141,7 @@ begin
   Writeln('-t  --test           Interpret non-option arguments as call/param file pairs and send to server');
   Writeln('-u  --unix=FILE      Listen on unix socket FILE (only on unix-like systems. Default: ',DefaultSocketUnix,')');
   Writeln('Only one of -p or -u may be specified, if none is specified then the default is to listen on port 9898');
+  ExitCode:=Ord(aError<>'');
 end;
 
 
@@ -174,7 +177,7 @@ var
 begin
   Result:=Nil;
   aSock:=Nil;
-  SetupTextLoop;
+  SetupTextLoop(Input,Output,StdErr);
   TLSPContext.LogFile:=FConfig.LogFile;
 {$IFDEF UNIX}
   // Todo: Add some code to start the socket server, e.g. when the file does not exist.

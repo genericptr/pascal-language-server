@@ -166,7 +166,6 @@ type
   private
     // the following private fields are for private us and not part of LSP
     overloadCount: integer;
-    SeyDocumentation: TMarkupContent;
     procedure SetAdditionalTextEdits(AValue: TTextEdits);
     procedure SetCommitCharacters(AValue: TStrings);
     procedure SetDocumentation(AValue: TMarkupContent);
@@ -473,7 +472,7 @@ begin
     ctnEnumIdentifier:
       result := TCompletionItemKind.EnumMemberItem;
     otherwise
-      Transport.SendDiagnostic('Default kind for %s (%s)', [Identifier.Identifier, Identifier.Node.DescAsString]);
+      // Transport.SendDiagnostic('Default kind for %s (%s)', [Identifier.Identifier, Identifier.Node.DescAsString]);
       //PrintIdentifierTree(Identifier);
       result := TCompletionItemKind.KeywordItem;
   end;   
