@@ -441,7 +441,7 @@ const
   end;
 
   {$ifdef FreePascalMake}
-  function LoadFromFPM(ConfigFile: String; CodeToolsOptions: TCodeToolsOptions): Boolean;
+  function LoadFromFPM(ConfigFile: String; InitializationOptions: TInitializationOptions; CodeToolsOptions: TCodeToolsOptions): Boolean;
   var
     Path, Flag: String;
     Config: TFPMConfig;
@@ -467,12 +467,12 @@ const
 
       // add the FPM config by default as unit/include paths
       // since it's implied these location will be available to FPM
-      ServerSettings.FPCOptions.Add('-Fu'+Path);
-      ServerSettings.FPCOptions.Add('-Fi'+Path);
+      initializationOptions.FPCOptions.Add('-Fu'+Path);
+      initializationOptions.FPCOptions.Add('-Fi'+Path);
 
-      ServerSettings.&program := config.target.ProgramFile;
+      initializationOptions.&program := config.target.ProgramFile;
       for flag in config.GetCodeToolOptions do
-        ServerSettings.FPCOptions.Add(flag);
+        initializationOptions.FPCOptions.Add(flag);
 
       config.Free;
 
@@ -551,8 +551,8 @@ begin
         config files also but there is no guarentee the workspaces will
         arrive in order to the language server, so we can make no assumptions
         based on ambigous ordering. }
-      if ((initializationOptions.config <> '') and LoadFromFPM(initializationOptions.config, CodeToolsOptions)) or
-        ((workspaceFolders.Count = 1) and LoadFromFPM(CodeToolsOptions.ProjectDir, CodeToolsOptions)) then
+      if ((initializationOptions.config <> '') and LoadFromFPM(initializationOptions.config, initializationOptions, CodeToolsOptions)) or
+        ((workspaceFolders.Count = 1) and LoadFromFPM(CodeToolsOptions.ProjectDir, initializationOptions, CodeToolsOptions)) then
         begin
           // disable other settings which may interfer with FPM
           ServerSettings.includeWorkspaceFoldersAsUnitPaths := false;
