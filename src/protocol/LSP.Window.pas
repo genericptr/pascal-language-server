@@ -49,6 +49,8 @@ type
   private
     fType: TMessageType;
     fMessage: string;
+  Public
+    Procedure Assign(Source: TPersistent); override;
   published
     // The message type.
     property &type: TMessageType read fType write fType;
@@ -85,7 +87,7 @@ type
   private
     fActions: TMessageActionItems;
     procedure SetActions(AValue: TMessageActionItems);
-  published
+  public
     Constructor Create; override;
     Destructor Destroy; override;
     // The message action items to present.
@@ -93,6 +95,21 @@ type
   end;
 
 implementation
+
+{ TShowMessageParams }
+
+procedure TShowMessageParams.Assign(Source: TPersistent);
+Var
+  Src: TShowMessageParams absolute Source;
+begin
+  if Source is TShowMessageParams then
+    begin
+      fType:= Src.fType;
+      fMessage:= Src.fMessage;
+    end
+  else
+    inherited Assign(Source);
+end;
 
 { TShowMessageNotification }
 
