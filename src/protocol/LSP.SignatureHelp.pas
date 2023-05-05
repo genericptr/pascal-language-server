@@ -305,7 +305,7 @@ var
   CodeContext: TCodeContextInfo;
   Item: TCodeContextInfoItem;
   Signature: TSignatureInformation;
-  Parameters: TParameterInformationCollection;
+
   Parameter: TParameterInformation;
   Head: String;
   ParamList: TStringList;
@@ -326,7 +326,6 @@ begin
         end;
 
       Result := TSignatureHelp.Create;
-      Result.signatures := TSignatureInformationCollection.Create;
 
       // TODO: how do we know which one is active given the current parameters?
       Result.activeSignature := 0;
@@ -341,13 +340,11 @@ begin
 
           if ParamList <> nil then
             begin
-              Parameters := TParameterInformationCollection.Create;
               for I := 0 to ParamList.Count - 1 do
                 begin
-                  Parameter := TParameterInformation(Parameters.Add);
+                  Parameter := Signature.Parameters.Add;
                   Parameter.&label := ParamList[I];
                 end;
-              Signature.parameters := Parameters;
               ParamList.Free;
             end;
         end;
