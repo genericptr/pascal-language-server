@@ -79,7 +79,7 @@ type
     Procedure  SetRange(line, column: integer; len: integer = 0); overload;
     Procedure  SetRange(startLine, startColumn: integer; endLine, endColumn: integer); overload;
     Destructor destroy; override;
-
+    Procedure Assign(Source : TPersistent); override;
     function ToString: String; override;
   end;
 
@@ -940,9 +940,22 @@ begin
   inherited destroy;
 end;
 
+procedure TRange.Assign(Source: TPersistent);
+var
+  Src : TRange absolute Source;
+begin
+  if Source is TRange then
+    begin
+    Self.start.Assign(Src.start);
+    Self.&end.Assign(Src.&end);
+    end
+  else
+    inherited Assign(Source);
+end;
+
 function TRange.ToString: String;
 begin
-  result := 'start: ['+Start.line.ToString+':'+start.character.ToString+'], end:'+&end.line.ToString+':'+&end.character.ToString+']';
+  result := 'start: ['+Start.line.ToString+':'+start.character.ToString+'], end: ['+&end.line.ToString+':'+&end.character.ToString+']';
 end;
 
 { TMarkupContent }
