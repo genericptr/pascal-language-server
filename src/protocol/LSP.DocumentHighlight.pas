@@ -43,7 +43,7 @@ type
 
   { TDocumentHighlight }
 
-  TDocumentHighlight = class(TLSPStreamable)
+  TDocumentHighlight = class(TCollectionItem)
   private
     fRange: TRange;
     fKind: TDocumentHighlightKind;
@@ -55,13 +55,13 @@ type
     // The highlight kind, default is DocumentHighlightKind.Text.
     property kind: TDocumentHighlightKind read fKind write fKind;
   public
-    constructor Create; override;
+    constructor Create(aCollection : TCollection); override;
     // _range will be owned.
-    constructor Create(_kind: TDocumentHighlightKind; _range: TRange);
+    constructor Create(aCollection : TCollection; _kind: TDocumentHighlightKind; _range: TRange);
     Destructor Destroy; override;
   end;
 
-  TDocumentHighlightItems = array of TDocumentHighlight;
+  TDocumentHighlightItems = Specialize TGenericCollection<TDocumentHighlight>;
 
   { DocumentHighlightParams }
 
@@ -91,15 +91,14 @@ begin
   fRange.Assign(AValue);
 end;
 
-constructor TDocumentHighlight.Create;
+constructor TDocumentHighlight.Create(aCollection: TCollection);
 begin
-  Inherited Create;
-  Create(TDocumentHighlightKind.__UNUSED__,TRange.Create);
+  Create(aCollection,TDocumentHighlightKind.__UNUSED__,TRange.Create);
 end;
 
-constructor TDocumentHighlight.Create(_kind: TDocumentHighlightKind; _range: TRange);
+constructor TDocumentHighlight.Create(aCollection : TCollection; _kind: TDocumentHighlightKind; _range: TRange);
 begin
-  Inherited Create;
+  Inherited Create(aCollection);
   kind := _kind;
   FRange := _range;
 end;
@@ -118,7 +117,9 @@ var
   NewCode: TCodeBuffer;
   NewX, NewY, NewTopLine: integer;
 
-begin with Params do
+begin
+  Result:=TDocumentHighlightItems.Create;
+  with Params do
   begin
     URI := ParseURI(textDocument.uri);
     Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
@@ -130,10 +131,8 @@ begin with Params do
         // Show start/end indentifier if the range spans more than 1 line
         if NewY - Y <> 0 then
           begin
-            result := [
-              TDocumentHighlight.Create(TDocumentHighlightKind.Text, GetIdentifierRangeAtPos(NewCode, NewX, NewY - 1)),
-              TDocumentHighlight.Create(TDocumentHighlightKind.Text, GetIdentifierRangeAtPos(NewCode, X, Y - 1))
-            ];
+            TDocumentHighlight.Create(Result,TDocumentHighlightKind.Text, GetIdentifierRangeAtPos(NewCode, NewX, NewY - 1));
+            TDocumentHighlight.Create(Result,TDocumentHighlightKind.Text, GetIdentifierRangeAtPos(NewCode, X, Y - 1))
           end
         else
           begin
@@ -141,11 +140,9 @@ begin with Params do
             //Item := TDocumentHighlight(Result.Add);
             //Item.kind := TDocumentHighlightKind.Text;
             //Item.range := TRange.Create(NewY - 1, NewX - 1, Y - 1, X - 1);
-            Result := nil;
           end;
       end
     else
-      result := nil;
   end;
 end;
 

@@ -56,7 +56,7 @@ Type
     Property Transport : TMessageTransport Read FTransport Write FTransport;
   end;
 
-  generic TLSPRequest<T: TLSPStreamable; U> = class(TLSPContextCustomJSONRPCHandler)
+  generic TLSPRequest<T: TPersistent; U : TPersistent> = class(TLSPContextCustomJSONRPCHandler)
   protected
     function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
     function Process(var Params : T): U; virtual; abstract;
@@ -295,21 +295,26 @@ begin
         case ElementType^.Kind of
           tkClass:
             begin
-
-              Result := specialize TLSPStreaming<U>.ToJSON(TObjectArray(Output));
-
-              // Free all objects
-              for AObject in TObjectArray(Output) do
-                AObject.Free;
+              if GetTypeData(ElementType)^.ClassType.InheritsFrom(TLSPStreamable) then
+                begin
+                Result := specialize TLSPStreaming<TLSPStreamable>.ToJSON(TObjectArray(Output));
+                // Free all objects
+                for AObject in TObjectArray(Output) do
+                  AObject.Free;
+                end;
             end;
           otherwise
             raise EUnknownErrorCode.Create('Dynamic array element type "'+Integer(ElementType^.Kind).ToString+'" is not supported for responses.');
         end;
       end
     else if GetTypeKind(U) = tkClass then
+
       begin
-        Result := specialize TLSPStreaming<U>.ToJSON(TObject(Output));
-        TObject(Output).Free;
+         begin
+         Result := specialize TLSPStreaming<U>.ToJSON(TObject(Output));
+         TObject(Output).Free;
+
+         end;
       end;
 
     if Result = nil then

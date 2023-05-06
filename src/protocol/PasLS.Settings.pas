@@ -336,4 +336,5 @@ end;
 finalization
   _ServerSettings.Free;
   _ClientInfo.Free;
+  _EnvironmentSettings.Free;
 end.

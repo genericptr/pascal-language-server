@@ -244,8 +244,11 @@ begin
   if (fRawJSON = '') and (SymbolManager.Database <> nil) then
     begin
       JSON := SymbolManager.Database.FindAllSymbols(Code.FileName);
-      fRawJSON := JSON.AsJson;
-      JSON.Free;
+      try
+        fRawJSON := JSON.AsJson;
+      finally
+        JSON.Free;
+      end;
     end;
   Result := fRawJSON;
 end;
@@ -281,18 +284,19 @@ begin
 end;
 
 function TSymbolTableEntry.AddSymbol(Name: String; Kind: TSymbolKind; FileName: String; Line, Column, RangeLen: Integer): TSymbol;
+
 var
   Symbol: TSymbol;
+
 begin
-  Symbol := TSymbol(Symbols.Add);
+  Symbol := Symbols.Add;
   Symbol.name := Name;
   Symbol.kind := Kind;
-  Symbol.location := TLocation.Create(FileName, Line - 1, Column - 1, RangeLen);
-
-  { TODO: In the latest version of LSP container name is supported 
+  Symbol.location.URI:=PathToURI(FileName);
+  Symbol.location.Range.SetRange(Line-1,Column-1,RangeLen);
+  { TODO: In the latest version of LSP container name is supported
     so consider adding some context for the hierarchy }
   //Symbol.containerName := 'Interface > TClass > Function';
-
   result := Symbol;
 end;
 
@@ -305,33 +309,34 @@ var
   Symbol: TSymbol;
 begin
   SerializedItems := specialize TLSPStreaming<TSymbolItems>.ToJSON(Symbols) as TJSONArray;
-  
-  for i := 0 to SerializedItems.Count - 1 do
-    begin
-      Symbol := TSymbol(Symbols.Items[i]);
-      Symbol.RawJSON := SerializedItems[i].AsJson;
-    end;
+  Try
+    for i := 0 to SerializedItems.Count - 1 do
+      begin
+        Symbol := Symbols.Items[i];
+        Symbol.RawJSON := SerializedItems[i].AsJson;
+      end;
 
-  // if a database is available then insert serialized symbols in batches
-  if SymbolManager.Database <> nil then
-    begin
-      Next := 0;
-      Start := 0;
-      Total := SerializedItems.Count;
-      while Start < Total do
-        begin
-          Next := Start + BATCH_COUNT;
-          if Next >= Total then
-            Next := Total - 1;
-          SymbolManager.Database.InsertSymbols(Symbols, Start, Next);
-          Start := Next + 1;
-        end;
-    end;
+    // if a database is available then insert serialized symbols in batches
+    if SymbolManager.Database <> nil then
+      begin
+        Next := 0;
+        Start := 0;
+        Total := SerializedItems.Count;
+        while Start < Total do
+          begin
+            Next := Start + BATCH_COUNT;
+            if Next >= Total then
+              Next := Total - 1;
+            SymbolManager.Database.InsertSymbols(Symbols, Start, Next);
+            Start := Next + 1;
+          end;
+      end;
 
-  fRawJSON := SerializedItems.AsJSON;
-
-  SerializedItems.Free;
-  Symbols.Clear;
+    fRawJSON := SerializedItems.AsJSON;
+  Finally
+    SerializedItems.Free;
+    Symbols.Clear;
+  end;
 end;
 
 procedure TSymbolTableEntry.Clear;
@@ -1155,11 +1160,13 @@ begin
   // now that we have a symbol table entry we can extract
   // relevant symbols from the node tree
   Extractor := TSymbolExtractor.Create(Entry, Code, Tool);
-  Extractor.ExtractCodeSection(Tool.Tree.Root);
-  Extractor.Free;
+  try
+    Extractor.ExtractCodeSection(Tool.Tree.Root);
+  finally
+    Extractor.Free;
+  end;
 
   Entry.SerializeSymbols;
-
   DoLog('Reloaded %s in %d ms', [Code.FileName, MilliSecondsBetween(Now,StartTime)]);
 end;
 
@@ -1175,7 +1182,7 @@ end;
 
 constructor TSymbolManager.Create;
 begin
-  SymbolTable := TFPHashObjectList.Create;
+  SymbolTable := TFPHashObjectList.Create(True);
   ErrorList := TStringList.Create;
 end;
 

@@ -93,6 +93,7 @@ type
   public
     constructor Create; override;
     constructor Create(Path: String; Line, Column, Span: Integer); overload;
+    Destructor Destroy; override;
     procedure Assign(Source : TPersistent); override;
   published
     property uri: TDocumentUri read fUri write fUri;
@@ -695,6 +696,7 @@ end;
 
 constructor TPosition.Create(l, c: integer);
 begin
+  Inherited Create;
   line := l;
   character := c;
 end;
@@ -731,6 +733,12 @@ constructor TLocation.Create(Path: String; Line, Column, Span: Integer);
 begin
   uri := PathToURI(Path);
   fRange := TRange.Create(Line, Column, Span);
+end;
+
+destructor TLocation.Destroy;
+begin
+  FreeAndNil(Frange);
+  inherited Destroy;
 end;
 
 procedure TLocation.Assign(Source : TPersistent);
