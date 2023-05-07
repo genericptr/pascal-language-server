@@ -11,10 +11,19 @@ Type
   // We cannot assume stdout to send out-of-band messages.
 
   { TMessageTransport }
+  TMessageLog = procedure(sender : TObject; Const Msg : UTF8String) of object;
 
   TMessageTransport = class
-    Procedure SendMessage(aMessage : TJSONData); virtual; abstract;
-    Procedure SendDiagnostic(const aMessage : UTF8String); virtual; abstract;
+  Protected
+    Procedure DoSendMessage(aMessage : TJSONData); virtual; abstract;
+    Procedure DoSendDiagnostic(const aMessage : UTF8String); virtual; abstract;
+    Procedure DoLog(Const Msg : UTF8String); overload;
+    Procedure DoLog(Const Fmt : UTF8String; Const args : array of const); overload;
+  Public
+    Class Var OnLog : TMessageLog;
+  Public
+    Procedure SendMessage(aMessage : TJSONData);
+    Procedure SendDiagnostic(const aMessage : UTF8String);
     Procedure SendDiagnostic(const Fmt : String; const args : Array of const); overload;
   end;
 
@@ -49,7 +58,7 @@ Type
     property id: TOptionalAny read fID write fID;
     // The method to be invoked.
     property method: string read fMethod write fMethod;
-    // The notification's params.
+    // The notification's params. Not freed when message is freed.
     property params: TLSPStreamable read fParams write fParams;
   end;
 
@@ -79,6 +88,30 @@ const
 implementation
 
 { TMessageTransport }
+
+procedure TMessageTransport.DoLog(const Msg: UTF8String);
+begin
+  If Assigned(OnLog) then
+    OnLog(Self,Msg);
+end;
+
+procedure TMessageTransport.DoLog(const Fmt: UTF8String;
+  const args: array of const);
+begin
+  DoLog(Format(Fmt,Args));
+end;
+
+procedure TMessageTransport.SendMessage(aMessage: TJSONData);
+begin
+  DoLog('Sending message: %s',[aMessage.AsJSON]);
+  DoSendMessage(aMessage);
+end;
+
+procedure TMessageTransport.SendDiagnostic(const aMessage: UTF8String);
+begin
+  DoLog('Sending diagnostic: %s',[aMessage]);
+  DoSendDiagnostic(aMessage);
+end;
 
 procedure TMessageTransport.SendDiagnostic(const Fmt: String;
   const args: array of const);
