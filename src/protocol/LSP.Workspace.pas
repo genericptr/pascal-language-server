@@ -212,7 +212,7 @@ end;
 destructor TApplyWorkspaceEditParams.Destroy;
 begin
   &Label:=Nil;
-  edit:=Nil;
+  FreeAndNil(fEdit);
   inherited Destroy;
 end;
 
