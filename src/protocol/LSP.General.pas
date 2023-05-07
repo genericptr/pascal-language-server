@@ -565,6 +565,7 @@ begin
         begin
         SymbolManager := TSymbolManager.Create;
         Result.capabilities.documentSymbolProvider:=True;
+        Result.capabilities.workspaceSymbolProvider := ServerSettings.CanProvideWorkspaceSymbols;
         end;
 
 
