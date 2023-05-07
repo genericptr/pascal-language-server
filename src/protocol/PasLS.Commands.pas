@@ -20,13 +20,14 @@
 unit PasLS.Commands;
 
 {$mode objfpc}{$H+}
+{$codepage UTF8}
 
 interface
 uses
   { RTL }
   SysUtils, Classes, URIParser, FPJSON,
   { LSP }
-  LSP.Basic, LSP.Messages ;
+  LSP.BaseTypes, LSP.Basic, LSP.Messages ;
 
 procedure CompleteCode(aTRansport : TMessageTransport; documentURI: TDocumentUri; line, column: integer);
 
@@ -48,29 +49,26 @@ var
   Msg: TWorkspaceApplyEditRequest;
   textDocumentEdit: TTextDocumentEdit;
 begin
+  Msg:=nil;
   params := TApplyWorkspaceEditParams.Create;
-
-  // TODO: & breaks the syntax coloring in code block
-  //params.&label := 'hello';
-
-  edit := TWorkspaceEdit.Create;
-
-  textDocumentEdit := TTextDocumentEdit(edit.documentChanges.Add);
-  textDocumentEdit.textDocument := TVersionedTextDocumentIdentifier.Create;
-  textDocumentEdit.textDocument.uri := documentURI;
-  textDocumentEdit.textDocument.version := nil; // send nil since we know we have the current master copy
-
-  textEdit := TTextEdit(textDocumentEdit.edits.Add);
-  textEdit.range := range;
-  textEdit.newText := Text;
-
-  params.edit := edit;
-
-  // TODO: the class should know it's method name
-  Msg:=TWorkspaceApplyEditRequest.Create(aTransport);
   try
+    // TODO: & breaks the syntax coloring in code block
+    //params.&label := 'hello';
+
+    edit:=params.edit;
+
+    textDocumentEdit:=edit.documentChanges.Add;
+    textDocumentEdit.textDocument.uri := documentURI;
+    textDocumentEdit.textDocument.version := TOptionalInteger.Create(0); // send nil since we know we have the current master copy
+
+    textEdit := textDocumentEdit.edits.Add;
+    textEdit.range:=range;
+    textEdit.newText:=Text;
+    // TODO: the class should know it's method name
+    Msg:=TWorkspaceApplyEditRequest.Create(aTransport);
     Msg.Execute(params, 'workspace/applyEdit');
   finally
+    Params.Free;
     Msg.Free;
   end;
 end;
@@ -81,6 +79,8 @@ var
   Code, NewCode: TCodeBuffer;
   URI: TURI;
   NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: Integer;
+  aRange : TRange;
+
 begin
   // https://wiki.lazarus.freepascal.org/Lazarus_IDE_Tools#Code_Completion
 
@@ -95,16 +95,20 @@ begin
   //Code := CodeToolBoss.LoadFile(URI.path + URI.Document, false, false);
   Path := URI.path + URI.Document;
   Code := CodeToolBoss.FindFile(Path);
-  aTransport.SendDiagnostic('▶️ complete code: '+ Path + ' Code: ' + BoolToStr(assigned(Code),'True','False'));
+  aTransport.SendDiagnostic(' ▶️ complete code: '+ Path + ' Code: ' + BoolToStr(assigned(Code),'True','False'));
   if CodeToolBoss.CompleteCode(Code, column, line, {TopLine}line, NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine, false) then
     begin
-      aTransport.SendDiagnostic( '✅ Sucesss NewX: %d NewY: %d NewTopLine: %d BlockTopLine: %d BlockBottomLine: %d', [NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine]);
+      aTransport.SendDiagnostic(' ✅ Sucesss NewX: %d NewY: %d NewTopLine: %d BlockTopLine: %d BlockBottomLine: %d', [NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine]);
       //procedure AbsoluteToLineCol(Position: integer; out Line, Column: integer);
       With Code[Code.Count - 1] do
-        aTransport.SendDiagnostic( '- Position: %d : %d - Length: %d', [Position, Code.GetLineStart(Position),Len]);
-
+        aTransport.SendDiagnostic( 'Position: %d : %d - Length: %d', [Position, Code.GetLineStart(Position),Len]);
       // TODO: we need to get character offsets and get the text out of the source
-      ApplyEdit(aTransport,documentURI, Code.Source, TRange.Create(0, 0, MaxInt, MaxInt));
+      aRange:=TRange.Create(0, 0, MaxInt, MaxInt);
+      try
+        ApplyEdit(aTransport,documentURI, Code.Source, aRange);
+      finally
+        aRange.Free;
+      end;
       // TODO: we can do this in one pass with multiple TTextEdits!
       // move the cursor
       //ApplyEdit(documentURI, '', TRange.Create({NewY, NewX}0,0));
@@ -115,7 +119,6 @@ begin
     end
   else
     aTransport.SendDiagnostic( '🔴 CompleteCode Failed');
-
 end;
 
 end.
