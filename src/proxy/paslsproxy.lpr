@@ -22,13 +22,16 @@ program paslsproxy;
 {$mode objfpc}{$H+}
 
 uses
+  {$ifdef unix}
+  cwstring,
+  {$endif}
   { RTL }
   SysUtils, Classes, fpjson, jsonparser, jsonscanner,
   ssockets, custapp, types,
 
   { LSP }
 
-  LSP.Base, PasLS.TextLoop, PasLS.SocketDispatcher,
+  LSP.Messages, LSP.Base, PasLS.TextLoop, PasLS.SocketDispatcher,
 
   { Pasls }
    PasLSProxy.Config;
@@ -72,7 +75,12 @@ begin
     lptmDiagnostic:
       aFile:=@StdErr;
     lptmMessage:
+      begin
       aFile:=@Output;
+      WriteLn(aFile^,'Content-Type: ', ContentType);
+      WriteLn(aFile^,'Content-Length: ', Length(aFrame.PayloadString));
+      WriteLn(aFile^);
+      end;
   else
     aFile:=Nil;
   end;
