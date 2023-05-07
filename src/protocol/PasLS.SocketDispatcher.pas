@@ -90,8 +90,8 @@ Type
     Destructor Destroy; override;
     function NextID : Cardinal;
     // TMessageTRansport methods
-    Procedure SendMessage(aMessage: TJSONData); override;
-    Procedure SendDiagnostic(const aMessage : UTF8String); override;
+    Procedure DoSendMessage(aMessage: TJSONData); override;
+    Procedure DoSendDiagnostic(const aMessage : UTF8String); override;
     function ReadFrame(Out Msg: TLSPFrame) : Boolean;
     function SendFrame(const Msg: TLSPFrame) : Boolean;
     // Read frames till a frame with type aType is read.
@@ -258,12 +258,12 @@ begin
   inherited Destroy;
 end;
 
-procedure TLSPSocketTransport.SendMessage(aMessage: TJSONData);
+procedure TLSPSocketTransport.DoSendMessage(aMessage: TJSONData);
 begin
   SendJSON(lptmMessage,aMessage);
 end;
 
-procedure TLSPSocketTransport.SendDiagnostic(const aMessage: UTF8String);
+procedure TLSPSocketTransport.DoSendDiagnostic(const aMessage: UTF8String);
 Var
   Msg : TLSPFrame;
 
