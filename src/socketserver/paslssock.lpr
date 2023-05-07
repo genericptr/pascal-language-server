@@ -25,9 +25,9 @@ program paslssock;
 
 uses
   {$IFDEF UNIX}
-  cthreads,
+  cthreads, cwstring,
   {$ENDIF}
-  Classes, SysUtils, CustApp, IniFiles, LSP.AllCommands,
+  Classes, SysUtils, CustApp, IniFiles, LSP.AllCommands,  LSP.Messages,
   LSP.Base, PasLS.Settings, PasLSSock.Config, PasLS.SocketDispatcher;
 
 type
@@ -38,6 +38,7 @@ type
   Private
     FConfig : TLSPSocketServerConfig;
     procedure ConfigureLSP;
+    procedure DoMessageLog(sender: TObject; const Msg: UTF8String);
     function ParseOptions: Boolean;
   protected
     procedure DoRun; override;
@@ -87,6 +88,13 @@ begin
     fpcTarget:=FConfig.TargetOS;
     fpcTargetCPU:=FConfig.TargetCPU;
     end;
+  TMessageTransport.OnLog:=@DoMessageLog;
+end;
+
+procedure TPasLSPSocketServerApp.DoMessageLog(sender: TObject;
+  const Msg: UTF8String);
+begin
+  TLSPContext.Log(Msg);
 end;
 
 procedure TPasLSPSocketServerApp.DoRun;
