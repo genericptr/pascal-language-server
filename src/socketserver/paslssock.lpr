@@ -95,6 +95,7 @@ procedure TPasLSPSocketServerApp.DoMessageLog(sender: TObject;
   const Msg: UTF8String);
 begin
   TLSPContext.Log(Msg);
+  if Sender<>Nil then;
 end;
 
 procedure TPasLSPSocketServerApp.DoRun;

@@ -27,8 +27,18 @@ uses
 
   SysUtils, Classes, FPJson, JSONParser, JSONScanner,
   { Protocol }
-  LSP.AllCommands,
-  LSP.Base, LSP.Basic, PasLS.TextLoop;
+  LSP.AllCommands, PasLS.Settings,
+  LSP.Base, LSP.Basic, PasLS.TextLoop, PasLS.LSConfig;
+
+Type
+
+  { TLSPLogContext }
+
+  TLSPLogContext = Class(TLSPContext)
+  Public
+    procedure DoTransportLog(sender : TObject; Const Msg : UTF8String);
+
+  end;
 
 Function ExecuteCommandLineMessages(aContext : TLSPContext) : Boolean;
 
@@ -45,6 +55,7 @@ begin
     writeln('Invalid parameter count of '+ParamCount.ToString+' (must be pairs of 2)');
     Exit(false);
     end;
+  TLSPContext.Log('Command-line Message loop');
   I:=1;
   while i <= ParamCount do
     begin
@@ -60,10 +71,32 @@ begin
   end;
 end;
 
+Procedure ConfigEnvironment(aConfig : TLSPServerConfig);
+
+begin
+  With EnvironmentSettings do
+    begin
+    pp:=aConfig.Compiler;
+    fpcDir:=aConfig.FPCDir;
+    lazarusDir:=aConfig.LazarusDir;
+    fpcTarget:=aConfig.TargetOS;
+    fpcTargetCPU:=aConfig.TargetCPU;
+    end;
+end;
+
 var
-  aTransport : TLSPTextTransport;
-  aContext : TLSPContext;
-  aDisp : TLSPLocalDispatcher;
+  aTransport: TLSPTextTransport;
+  aContext: TLSPLogContext;
+  aDisp: TLSPLocalDispatcher;
+  aCfg: TLSPServerConfig;
+
+{ TLSPLogContext }
+
+procedure TLSPLogContext.DoTransportLog(sender: TObject; const Msg: UTF8String);
+begin
+  Log('Transport log: '+Msg);
+end;
+
 
 begin
   // Show help for the server
@@ -72,15 +105,23 @@ begin
     writeln('Pascal Language Server [',{$INCLUDE %DATE%},']');
     Halt;
     end;
-  SetupTextLoop(Input,Output,StdErr);
-  aTransport:=TLSPTextTransport.Create(@Input,@StdErr);
-  aDisp:=TLSPLocalDispatcher.Create(aTransport,True);
-  aContext:=TLSPContext.Create(aTransport,aDisp,True);
+  aContext := nil;
+  aCfg := TLSPServerConfig.Create;
   try
+    aCfg.LoadFromFile(aCfg.DefaultConfigFile);
+    if aCfg.LogFile<>'' then
+      TLSPContext.LogFile := aCfg.LogFile;
+    ConfigEnvironment(aCfg);
+    SetupTextLoop(Input,Output,StdErr);
+    aTransport:=TLSPTextTransport.Create(@Output,@StdErr);
+    aDisp:=TLSPLocalDispatcher.Create(aTransport,True);
+    aContext:=TLSPLogContext.Create(aTransport,aDisp,True);
+    aTransport.OnLog := @aContext.DoTransportLog;
     if not ExecuteCommandLineMessages(aContext) then
       exit;
     RunMessageLoop(Input,Output,StdErr,aContext);
    Finally
      aContext.Free;
+     aCfg.Free;
    end;
 end.

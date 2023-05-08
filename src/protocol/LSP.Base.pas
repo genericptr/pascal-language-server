@@ -127,13 +127,19 @@ Type
   { TLSPLocalDispatcher }
 
   // Dispatches the request locally through a TJSONRPCDispatcher instance.
+  TClientMethodResultEvent = procedure (Sender : TObject; aResponse : TObject; const aID : String; aResult : TJSONData) of object;
+  TClientMethodErrorEvent = procedure (Sender : TObject; aResponse : TObject; const aID : String; aError : TJSONData) of object;
 
   TLSPLocalDispatcher = class(TLSPBaseDispatcher)
   Private
     FJSONDispatcher : TJSONRPCDispatcher;
+    FOnMethodError: TClientMethodErrorEvent;
+    FOnMethodResult: TClientMethodResultEvent;
     FOwnsTransport: Boolean;
     FTransport: TMessageTransport;
   Protected
+    procedure ProcessClientMethodResult(aResponse: TJSONObject; const aID : String; aResult: TJSONData); virtual;
+    procedure ProcessClientMethodError(aResponse: TJSONObject; const aID : String; aResult: TJSONData); virtual;
     function GetTransport: TMessageTransport; override;
   Public
     Constructor Create(aTransport : TMessageTransport; aOwnsTransport : Boolean = False);
@@ -142,6 +148,10 @@ Type
     Property Transport : TMessageTransport Read FTransport;
     // Dispatcher owns transport !
     Property OwnsTransport : Boolean Read FOwnsTransport Write FOwnsTransport;
+    // Called when client (acting as server) returned a result.
+    Property OnMethodResult : TClientMethodResultEvent Read FOnMethodResult Write FOnMethodResult;
+    // Called when client (acting as server) returned a result.
+    Property OnMethodError : TClientMethodErrorEvent Read FOnMethodError Write FOnMethodError;
   end;
 
 
@@ -208,6 +218,7 @@ end;
 
 { TLSPLocalDispatcher }
 
+
 function TLSPLocalDispatcher.GetTransport: TMessageTransport;
 begin
   Result:=FTransport;
@@ -228,10 +239,46 @@ begin
   inherited Destroy;
 end;
 
-function TLSPLocalDispatcher.ExecuteRequest(aRequest: TJSONData): TJSONData;
+procedure TLSPLocalDispatcher.ProcessClientMethodResult(aResponse: TJSONObject;const aID : String;  aResult: TJSONData);
+begin
+  if Assigned(OnMethodResult) then
+    OnMethodResult(Self,aResponse,aID,aResult);
+end;
+
+Procedure TLSPLocalDispatcher.ProcessClientMethodError(aResponse: TJSONObject; const aID : String; aResult : TJSONData);
 
 begin
-  Result:=FJSONDispatcher.Execute(aRequest);
+  if Assigned(OnMethodError) then
+    OnMethodError(Self,aResponse,aID,aResult);
+end;
+
+function TLSPLocalDispatcher.ExecuteRequest(aRequest: TJSONData): TJSONData;
+var
+  Obj: TJSONObject absolute aRequest;
+  Idx: Integer;
+  rID: String;
+
+begin
+  Result:=nil;
+  if Not (aRequest is TJSONObject) then
+    Exit;
+  if (Obj.Get('method','')='') then
+    begin
+    rID:='';
+    Idx:=Obj.IndexOfName('id');
+    if Idx<>-1 then
+      rID:=Obj.Items[Idx].AsString;
+    Idx:=Obj.IndexOfName('result');
+    if (Idx<>-1) then
+      ProcessClientMethodResult(Obj,rID,Obj.Items[Idx])
+    else
+      begin
+      Idx:=Obj.IndexOfName('error');
+      ProcessClientMethodError(Obj,rID,Obj.Items[Idx]);
+      end;
+    end
+  else
+    Result:=FJSONDispatcher.Execute(aRequest);
 end;
 
 { TLSPContextCustomJSONRPCHandler }
@@ -476,6 +523,7 @@ constructor TLSPContext.Create(aTransport: TMessageTransport;
 begin
   Create(aOwner);
   Dispatcher:=aDispatcher;
+  FTransport:=aTransport;
 end;
 
 constructor TLSPContext.Create(aOwner: Boolean);
