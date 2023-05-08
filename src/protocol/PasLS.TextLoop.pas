@@ -125,7 +125,7 @@ begin
     Result:=GetJSON(Content, True);
 end;
 
-Procedure SendResponse(var aFile,aError : text; aContext : TLSPContext; aResponse : TJSONData; aFreeResponse : Boolean = True);
+Procedure SendResponse(aTransport : TMessageTransport; aContext : TLSPContext; aResponse : TJSONData; aFreeResponse : Boolean = True);
 
 Var
   Content : TJSONStringType;
@@ -135,16 +135,11 @@ begin
     if not IsResponseValid(aResponse) then
       begin
       aContext.Log('Response not valid: %s',[aResponse.AsJSON]);
-      Writeln(aError, 'invalid response -> ', aResponse.AsJSON);
-      Flush(aError);
+      aTransport.SendDiagnostic('invalid response -> '+aResponse.AsJSON);
       exit;
       end;
     Content := aResponse.AsJSON;
-    WriteLn(aFile,'Content-Type: ', LSPContentType);
-    WriteLn(aFile,'Content-Length: ', Length(Content));
-    WriteLn(aFile);
-    Write(aFile,Content);
-    Flush(aFile);
+    (aTransport as TLSPTextTransport).EmitMessage(Content);
     aContext.Log('Wrote response to request');
   finally
     if aFreeResponse then
@@ -179,7 +174,7 @@ begin
           writeln(aError, Response.asJSON);
           Flush(aError);
           end;
-        SendResponse(aOutput,aError,aContext, Response,True);
+        SendResponse(aContext.Transport, aContext, Response,True);
         end
       else
         aContext.Log('No response to request');
@@ -200,11 +195,16 @@ end;
 
 procedure TLSPTextTransport.EmitMessage(aMessage: TJSONStringType);
 begin
-  WriteLn(Foutput^,'Content-Type: ', ContentType);
-  WriteLn(Foutput^,'Content-Length: ', Length(aMessage));
-  WriteLn(Foutput^);
-  Write(Foutput^,aMessage);
-  Flush(Foutput^);
+  Try
+    WriteLn(Foutput^,'Content-Type: ', ContentType);
+    WriteLn(Foutput^,'Content-Length: ', Length(aMessage));
+    WriteLn(Foutput^);
+    Write(Foutput^,aMessage);
+    Flush(Foutput^);
+  except
+    on e : exception do
+      DoLog('Exception %s during output: %s',[E.ClassName,E.Message]);
+  end;
 end;
 
 procedure TLSPTextTransport.DoSendMessage(aMessage: TJSONData);
@@ -219,8 +219,13 @@ end;
 
 procedure TLSPTextTransport.DoSendDiagnostic(const aMessage: UTF8String);
 begin
-  WriteLn(FError^,aMessage);
-  Flush(FError^);
+  Try
+    WriteLn(FError^,aMessage);
+    Flush(FError^);
+  except
+    on e : exception do
+      DoLog('Exception %s during diagnostic output: %s',[E.ClassName,E.Message]);
+  end;
 end;
 
 
