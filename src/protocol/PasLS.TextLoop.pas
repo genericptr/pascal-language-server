@@ -36,10 +36,12 @@ Type
   TLSPTextTransport = class(TMessageTransport)
     FOutput : PText;
     FError : PText;
+  Protected
+    Procedure DoSendMessage(aMessage: TJSONData); override;
+    Procedure DoSendDiagnostic(const aMessage: UTF8String); override;
   Public
     constructor Create(aOutput,aError : PText); reintroduce;
-    Procedure SendMessage(aMessage: TJSONData); override;
-    Procedure SendDiagnostic(const aMessage: UTF8String); override;
+    Procedure EmitMessage(aMessage: TJSONStringType);
   end;
 
 
@@ -196,21 +198,26 @@ begin
   FError:=aError;
 end;
 
-procedure TLSPTextTransport.SendMessage(aMessage: TJSONData);
+procedure TLSPTextTransport.EmitMessage(aMessage: TJSONStringType);
+begin
+  WriteLn(Foutput^,'Content-Type: ', ContentType);
+  WriteLn(Foutput^,'Content-Length: ', Length(aMessage));
+  WriteLn(Foutput^);
+  Write(Foutput^,aMessage);
+  Flush(Foutput^);
+end;
+
+procedure TLSPTextTransport.DoSendMessage(aMessage: TJSONData);
 
 Var
   Content : TJSONStringType;
 
 begin
   Content:=aMessage.AsJSON;
-  WriteLn(Foutput^,'Content-Type: ', ContentType);
-  WriteLn(Foutput^,'Content-Length: ', Length(Content));
-  WriteLn(Foutput^);
-  Write(Foutput^);
-  Flush(Foutput^);
+  EmitMessage(Content);
 end;
 
-procedure TLSPTextTransport.SendDiagnostic(const aMessage: UTF8String);
+procedure TLSPTextTransport.DoSendDiagnostic(const aMessage: UTF8String);
 begin
   WriteLn(FError^,aMessage);
   Flush(FError^);

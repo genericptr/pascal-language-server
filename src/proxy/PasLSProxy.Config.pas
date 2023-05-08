@@ -80,7 +80,7 @@ end;
 class function TLSPProxyConfig.DefaultConfigFile: String;
 begin
 {$IFDEF UNIX}
-  Result:='/etc/paslssock.cfg';
+  Result:='/etc/paslsproxy.cfg';
 {$ELSE}
   Result:=ChangeFileExt(ParamStr(0),'.ini');
 {$ENDIF}
