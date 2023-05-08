@@ -135,6 +135,11 @@ Type
     FOnDestroy: TNotifyEvent;
     FTerminated : Boolean;
     FContext : TLSPContext;
+  Protected
+    procedure DoMethodResult(Sender: TObject; aResponse: TObject;
+      const aID: String; aResult: TJSONData);
+    procedure DoMethodError(Sender: TObject; aResponse: TObject;
+      const aID: String; aError: TJSONData);
   Public
     function ExecuteRequest(aRequest: TJSONData): TJSONData; override;
     Constructor Create(aTransport : TLSPSocketTransport); reintroduce;
@@ -422,6 +427,18 @@ end;
 
 { TLSPServerSocketConnectionDispatcher }
 
+procedure TLSPServerSocketConnectionDispatcher.DoMethodResult(Sender: TObject;
+  aResponse: TObject; const aID: String; aResult: TJSONData);
+begin
+  FContext.Log('Result of request "%s" : %s',[aID,aResult.AsJSON]);
+end;
+
+procedure TLSPServerSocketConnectionDispatcher.DoMethodError(Sender: TObject;
+  aResponse: TObject; const aID: String; aError: TJSONData);
+begin
+  FContext.Log('Client reported error for request "%s" : %s',[aID,aError.AsJSON]);
+end;
+
 function TLSPServerSocketConnectionDispatcher.ExecuteRequest(aRequest: TJSONData
   ): TJSONData;
 begin
@@ -429,10 +446,15 @@ begin
 end;
 
 constructor TLSPServerSocketConnectionDispatcher.Create(aTransport : TLSPSocketTransport);
+Var
+  lDisp : TLSPLocalDispatcher;
 
 begin
   inherited Create(aTransport);
-  FContext:=TLSPContext.Create(aTransport,TLSPLocalDispatcher.Create(aTransport,False),True);
+  lDisp:=TLSPLocalDispatcher.Create(aTransport,False);
+  lDisp.OnMethodResult:=@DoMethodResult;
+  lDisp.OnMethodError:=@DoMethodError;
+  FContext:=TLSPContext.Create(aTransport,lDisp,True);
 end;
 
 destructor TLSPServerSocketConnectionDispatcher.Destroy;
