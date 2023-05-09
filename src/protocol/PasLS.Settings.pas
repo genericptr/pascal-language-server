@@ -138,6 +138,13 @@ type
   end;
 
 
+type
+  TClients = class
+  public const
+    SublimeTextLSP = 'Sublime Text LSP';
+    VSCode = 'vscode';
+  end;
+
 Function ServerSettings: TServerSettings;
 Function ClientInfo: TClientInfo;
 Function EnvironmentSettings:TConfigEnvironmentSettings;

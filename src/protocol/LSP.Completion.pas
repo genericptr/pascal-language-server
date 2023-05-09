@@ -492,7 +492,7 @@ type
 
 procedure TCompletionItemHelper.SetPrimaryText(text: string);
 begin
-  if ClientInfo.name = 'Sublime Text LSP' then
+  if ClientInfo.name = TClients.SublimeTextLSP then
     begin
       filterText := text;
     end
@@ -505,7 +505,7 @@ end;
 
 procedure TCompletionItemHelper.SetSecondaryText(text: string);
 begin
-  if ClientInfo.name = 'Sublime Text LSP' then
+  if ClientInfo.name = TClients.SublimeTextLSP then
     begin
       &label := text;
     end
