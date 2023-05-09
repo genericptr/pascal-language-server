@@ -84,6 +84,7 @@ procedure ClearDiagnostics(aTransport : TMessageTransport; Code: TCodeBuffer);
 implementation
 
 uses
+  pparser, pastree,
   SysUtils, PasLS.Settings;
 
 { Publish the last code tools error as a diagnostics }
@@ -154,6 +155,112 @@ end;
 
 { Checks syntax for code buffer and publishes errors as diagnostics }
 
+Type
+  TSimpleEngine = class(TPasTreeContainer)
+  public
+    function CreateElement(AClass: TPTreeElement; const AName: String;
+      AParent: TPasElement; AVisibility: TPasMemberVisibility;
+      const ASourceFilename: String; ASourceLinenumber: Integer): TPasElement;
+      override;
+    function FindElement(const AName: String): TPasElement; override;
+  end;
+          { TSimpleEngine }
+
+function TSimpleEngine.CreateElement(AClass: TPTreeElement; const AName: String;
+  AParent: TPasElement; AVisibility: TPasMemberVisibility;
+  const ASourceFilename: String; ASourceLinenumber: Integer): TPasElement;
+begin
+  Result := AClass.Create(AName, AParent);
+  Result.Visibility := AVisibility;
+  Result.SourceFilename := ASourceFilename;
+  Result.SourceLinenumber := ASourceLinenumber;
+end;
+
+function TSimpleEngine.FindElement(const AName: String): TPasElement;
+
+begin
+  // We could try to use codetools for this.
+  Result := nil;
+end;
+
+
+function StrictSyntaxCheck(aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
+
+     Procedure SendError(E : Exception);
+
+     var
+       MessageString,aFileName : String;
+       aCol,aRow : Integer;
+       ShowMessage : TShowMessageNotification;
+       Notification : TPublishDiagnostics;
+       EParse: EParserError absolute E;
+
+     begin
+       ShowMessage:=nil;
+       Notification:=Nil;
+       try
+         MessageString:=E.Message;
+         if E is EParserError then
+           begin
+           aCol:=EParse.Column;
+           aRow:=EParse.Row;
+           aFileName:=EParse.Filename;
+           end;
+         aTransport.SendDiagnostic('Syntax Error -> %s',[MessageString]);
+         // Show message in the gui also
+         if ServerSettings.showSyntaxErrors then
+           begin
+             ShowMessage := TShowMessageNotification.Create(TMessageType.Error, '⚠️ '+MessageString);
+             try
+               ShowMessage.Send(aTransport);
+             finally
+               ShowMessage.Free;
+             end;
+           end;
+         if not ServerSettings.publishDiagnostics then
+          exit;
+         // Publish diagnostic
+         Notification := TPublishDiagnostics.Create;
+         try
+           Notification.Add(aFileName,
+                           MessageString,
+                           aRow,
+                           aCol,
+                           // TODO: code tools error ID is too large (int64), what should we do?
+                           1{CodeToolBoss.ErrorID},
+                           TDiagnosticSeverity.Error);
+           Notification.Send(aTransport);
+         finally
+           Notification.Free;
+         end;
+       except
+         On Ex : Exception do
+           TLSPContext.Log('Error %s sending diagnostic: %s',[Ex.ClassName,Ex.Message]);
+       end;
+     end;
+
+Var
+  Engine : TSimpleEngine;
+  Module : TPasModule;
+
+begin
+  Result:=False;
+  Module:=nil;
+  Engine:=TSimpleEngine.Create;
+  try
+    try
+      Module:=ParseSource(Engine,[Code.Filename],EnvironmentSettings.fpcTarget,EnvironmentSettings.fpcTargetCPU,[]);
+      Result:=True;
+    except
+      on e : exception do
+        SendError(E);
+    end;
+  finally
+    Module.Free;
+    Engine.Free;
+  end;
+end;
+
 procedure CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
 var
   Tool: TCodeTool;
@@ -166,12 +273,18 @@ begin
     PublishDiagnostic(aTransport)
   else if ServerSettings.publishDiagnostics then
     begin
-      // todo: when we have a document store we can check to see
-      // if we actually have any errors.
-      Notification := TPublishDiagnostics.Create;
-      Notification.Clear(Code.FileName);
-      Notification.Send(aTransport);
-      Notification.Free;
+      if StrictSyntaxCheck(aTransport,Code) then
+        begin
+          // todo: when we have a document store we can check to see
+          // if we actually have any errors.
+          Notification := TPublishDiagnostics.Create;
+          try
+            Notification.Clear(Code.FileName);
+            Notification.Send(aTransport);
+          finally
+            Notification.Free;
+          end;
+        end;
     end;
 end;
 

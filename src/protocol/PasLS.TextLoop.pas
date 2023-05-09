@@ -152,10 +152,16 @@ Procedure RunMessageLoop(var aInput,aOutput,aError : Text; aContext : TLSPContex
 var
   Request, Response: TJSONData;
   VerboseDebugging: boolean = false;
+  IO : TLSPTextTransport;
 
 begin
+  IO:=Nil;
   Request:=Nil;
   try
+    if aContext.Transport is TLSPTextTransport then
+      IO:=aContext.Transport as TLSPTextTransport
+    else
+      IO:=TLSPTextTransport.Create(@aOutput,@aError);
     while not EOF(aInput) do
       begin
       Request:=ReadRequest(aInput,aContext);
@@ -174,13 +180,15 @@ begin
           writeln(aError, Response.asJSON);
           Flush(aError);
           end;
-        SendResponse(aContext.Transport, aContext, Response,True);
+        SendResponse(IO, aContext, Response,True);
         end
       else
         aContext.Log('No response to request');
       FreeAndNil(Request);
       end;
   finally
+    if IO<>aContext.Transport then
+      IO.Free;
     Request.Free;
   end;
 end;
