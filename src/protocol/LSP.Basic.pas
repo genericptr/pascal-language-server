@@ -95,6 +95,7 @@ type
     constructor Create(Path: String; Line, Column, Span: Integer); overload;
     Destructor Destroy; override;
     procedure Assign(Source : TPersistent); override;
+    function LocalPath : String;
   published
     property uri: TDocumentUri read fUri write fUri;
     property range: TRange read fRange write SetRange;
@@ -163,6 +164,7 @@ type
     fUri: TDocumentUri;
   Public
     Procedure Assign(aSource : TPersistent); override;
+    function LocalPath : String;
   published
     property uri: TDocumentUri read fUri write fUri;
   end;
@@ -246,6 +248,7 @@ type
     fText: string;
   Public
     procedure Assign(Source : TPersistent); override;
+    function LocalPath : String;
   published
     // The text document's URI.
     property uri: TDocumentUri read fUri write fUri;
@@ -270,6 +273,7 @@ type
     Constructor Create; override;
     Destructor Destroy; override;
     procedure Assign(Source : TPersistent); override;
+    function LocalPath : String;
   published
     // The text document.
     property textDocument: TTextDocumentIdentifier read fTextDocument write SetTextDocument;
@@ -481,18 +485,35 @@ type
 { Utilities }
 
 function PathToURI(path: String): TDocumentUri;
+function URIToPath(aURI: TDocumentUri): String;
 
 { Optional Operators }
 
 
 implementation
 
+uses URIParser;
 // uses LSP.Base;
 
 
 function PathToURI(path: String): TDocumentUri;
 begin
   result := 'file://'+path;
+end;
+
+function URIToPath(aURI: TDocumentUri): String;
+
+var
+  lURI : TUri;
+
+begin
+  Result := '';
+  if aUri = '' then
+    exit;
+  lURI := ParseURI(aURI);
+  if Not SameText(lURI.Protocol,'file') then
+    Raise EConvertError.Create('URI is not a file, cannot convert to path');
+  Result:=lURI.path + lURI.Document;
 end;
 
 { TWorkspaceEdit }
@@ -608,6 +629,11 @@ begin
     inherited Assign(Source);
 end;
 
+function TTextDocumentItem.LocalPath: String;
+begin
+  Result:=URIToPath(Uri);
+end;
+
 { TTextDocumentPositionParams }
 
 procedure TTextDocumentPositionParams.SetPosition(AValue: TPosition);
@@ -649,6 +675,14 @@ begin
     end
   else
     inherited Assign(Source);
+end;
+
+function TTextDocumentPositionParams.LocalPath: String;
+begin
+  if Assigned(TextDocument) then
+    Result:=URIToPath(textDocument.LocalPath)
+  else
+    Result:='';
 end;
 
 
@@ -756,6 +790,11 @@ begin
     inherited Assign(Source);
 end;
 
+function TLocation.LocalPath: String;
+begin
+  Result:=URIToPath(uri);
+end;
+
 { TLocationItem }
 
 procedure TLocationItem.SetRange(AValue: TRange);
@@ -858,6 +897,11 @@ begin
     end
   else
     inherited Assign(aSource);
+end;
+
+function TTextDocumentIdentifier.LocalPath: String;
+begin
+  Result:=URIToPath(Uri)
 end;
 
 { TVersionedTextDocumentIdentifier }

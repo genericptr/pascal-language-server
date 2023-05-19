@@ -25,7 +25,7 @@ interface
 
 uses
   { RTL }
-  Classes, URIParser, 
+  Classes,
   { Code Tools }
   CodeToolManager, CodeCache, IdentCompletionTool,
   { Protocol }
@@ -299,7 +299,7 @@ function TSignatureHelpRequest.Process(var Params: TTextDocumentPositionParams):
   end;
 
 var
-  URI: TURI;
+
   Code: TCodeBuffer;
   X, Y, I, ItemIndex: Integer;
   CodeContext: TCodeContextInfo;
@@ -313,8 +313,7 @@ begin
   Result:=Nil;
   with Params do
   begin
-    URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    Code := CodeToolBoss.FindFile(URIToPath(textDocument.uri));
     X := position.character;
     Y := position.line;
     CodeContext := nil;

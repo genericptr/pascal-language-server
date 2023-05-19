@@ -25,7 +25,7 @@ interface
 
 uses
   { RTL }
-  Classes, URIParser, CodeToolManager, CodeCache,
+  Classes,  CodeToolManager, CodeCache,
   { Protocol }
   LSP.Base, LSP.Basic;
 
@@ -43,7 +43,6 @@ uses
   
 function TGotoDeclaraction.Process(var Params: TTextDocumentPositionParams): TLocation;
 var
-  URI: TURI;
   Code: TCodeBuffer;
   NewCode: TCodeBuffer;
   X, Y: Integer;
@@ -51,8 +50,7 @@ var
 
 begin with Params do
   begin
-    URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    Code := CodeToolBoss.FindFile(textDocument.LocalPath);
     X := position.character;
     Y := position.line;
 

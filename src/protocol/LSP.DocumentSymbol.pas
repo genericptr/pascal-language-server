@@ -26,7 +26,7 @@ interface
 
 uses
   { RTL }
-  Classes,  URIParser, FPJson, FPJsonRPC,
+  Classes,  FPJson, FPJsonRPC,
   { Code Tools }
   CodeToolManager, LinkScanner,
   { Protocol }
@@ -385,13 +385,11 @@ end;
 function TDocumentSymbolRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
 var
   Input: TDocumentSymbolParams;
-  URI: TURI;
   Path: String;
 begin
   Input := specialize TLSPStreaming<TDocumentSymbolParams>.ToObject(Params);
   try
-    URI := ParseURI(Input.textDocument.uri);
-    Path := URI.Path + URI.Document;
+    Path := Input.textDocument.LocalPath;
     Result := SymbolManager.FindDocumentSymbols(Path);
     if not Assigned(Result) then
       Result := TJSONNull.Create;

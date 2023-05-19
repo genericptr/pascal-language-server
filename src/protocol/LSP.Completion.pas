@@ -26,7 +26,7 @@ unit LSP.Completion;
 interface
 
 uses
-  Classes, DateUtils, URIParser, 
+  Classes, DateUtils,
   CodeToolManager, CodeCache, IdentCompletionTool, BasicCodeTools, CodeTree,
   LSP.Base, LSP.Basic, LSP.BaseTypes;
 
@@ -519,7 +519,7 @@ end;
 
 function TCompletion.Process(var Params: TCompletionParams): TCompletionList;
 var
-  URI: TURI;
+
   Code: TCodeBuffer;
   X, Y, PStart, PEnd, Count, I: Integer;
   Line: String;
@@ -532,9 +532,7 @@ var
   Kind: TCompletionItemKind;
 begin with Params do
   begin
-
-    URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    Code := CodeToolBoss.FindFile(textDocument.LocalPath);
     X := position.character;
     Y := position.line;
     Line := Code.GetLine(Y);

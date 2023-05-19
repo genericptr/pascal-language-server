@@ -25,7 +25,7 @@ unit PasLS.Symbols;
 interface
 uses
   { RTL }
-  Classes, Contnrs, URIParser, fpjson, fpjsonrpc, SQLite3,
+  Classes, Contnrs, fpjson, fpjsonrpc, SQLite3,
   { Code Tools }
   CodeToolManager, CodeCache, CodeTree, LinkScanner,
   { Protocols }
@@ -209,11 +209,9 @@ end;
 { TSymbol }
 
 function TSymbol.Path: String;
-var
-  URI: TURI;
+
 begin
-  URI := ParseURI(location.uri);
-  Result := URI.Path + URI.Document;
+  Result:=Location.LocalPath;
 end;
 
 function TSymbol.IsGlobal: boolean;

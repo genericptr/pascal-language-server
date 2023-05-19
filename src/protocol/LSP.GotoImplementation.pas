@@ -25,7 +25,7 @@ interface
 
 uses
   { RTL }
-  Classes, URIParser, 
+  Classes,
   { Code Tools }
   CodeToolManager, CodeCache,
   { Protocol }
@@ -45,7 +45,6 @@ uses
   
 function TGotoImplementation.Process(var Params: TTextDocumentPositionParams): TLocation;
 var
-  URI: TURI;
   Code: TCodeBuffer;
   NewCode: TCodeBuffer;
   X, Y: Integer;
@@ -53,8 +52,7 @@ var
   RevertableJump: boolean;
 begin with Params do
   begin
-    URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    Code := CodeToolBoss.FindFile(TextDocument.LocalPath);
     X := position.character;
     Y := position.line;
 
