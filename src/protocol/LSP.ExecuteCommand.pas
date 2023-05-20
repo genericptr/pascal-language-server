@@ -79,7 +79,7 @@ end;
 
 function TExecuteCommandRequest.Process(var Params: TExecuteCommandParams): TLSPStreamable;
 var
-  documentURI: TDocumentUri;
+  documentURI,configURI: TDocumentUri;
   position: TPosition;
 begin with Params do
   begin
@@ -95,6 +95,12 @@ begin with Params do
           finally
             Position.Free;
           end;
+        end;
+      'pasls.formatCode':
+        begin
+          documentURI := arguments.Strings[0];
+          configURI := arguments.Strings[1];
+          PrettyPrint(Transport,documentURI,ConfigURI);
         end;
     end;
   end;

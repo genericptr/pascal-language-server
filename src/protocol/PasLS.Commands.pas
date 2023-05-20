@@ -35,6 +35,7 @@ procedure PrettyPrint(ATransport: TMessageTransport; DocumentURI: TDocumentUri; 
 implementation
 uses
   { CodeTools }
+  PasLS.Formatter,
   CodeToolManager, CodeCache,
   FindDeclarationTool,
   SourceChanger,
@@ -123,10 +124,22 @@ begin
     ATransport.SendDiagnostic( '🔴 CompleteCode Failed');
 end;
 
+
 procedure PrettyPrint(ATransport: TMessageTransport; DocumentURI: TDocumentUri; SettingsURI : TDocumentUri);
 
-begin
+var
+  Formatter : TFileFormatter;
+  FilePath,ConfPath : String;
 
+begin
+  FilePath := UriToPath(DocumentURI);
+  ConfPath := UriToPath(SettingsURI);
+  Formatter:=TFileFormatter.Create(aTransport);
+  try
+    Formatter.Process(FilePath,ConfPath);
+  finally
+    Formatter.Free;
+  end;
 end;
 
 end.

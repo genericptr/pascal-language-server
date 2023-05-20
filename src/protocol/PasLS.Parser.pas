@@ -17,7 +17,7 @@ Type
   Protected
     function CreateLineReaderFromBuffer(aBuffer: TCodeBuffer): TLineReader;
   Public
-    Constructor Create(aBuffer : TCodeBuffer);
+    Constructor Create(aBuffer : TCodeBuffer); reintroduce;
     function FindSourceFile(const AName: string): TLineReader; override;
     Property Buffer : TCodeBuffer read FBuffer;
   end;

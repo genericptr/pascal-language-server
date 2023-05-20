@@ -339,7 +339,8 @@ begin
   referencesProvider := true;
   documentHighlightProvider := true;
   fexecuteCommandProvider := TExecuteCommandOptions.Create([
-    'pasls.completeCode'
+    'pasls.completeCode',
+    'pasls.formatCode'
   ]);
   // finlayHintProvider:= TInlayHintOptions.Create;
 

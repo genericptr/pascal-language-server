@@ -28,6 +28,15 @@ The implementation is still incomplete.
    - executeCommand
 - diagnostics (incomplete)
 
+### Extra commands to be executed with **executeCommand**:
+
+* **pasls.completeCode** Complete code at cursor. Takes DocumentUri and
+  Position as options.
+* **pasls.formatCode** Format current file. Takes documentUri and Config file URI as options. 
+  The configuration file is the Jedi Code Formatter configuration file. You
+  can find an example in the Lazarus settings directory **~/.lazarus/jcfsettings.cfg**.
+  An extra example is included in this repository in **Sample-Formatting.cfg**
+
 ### Initialization Options
 
 Editors can supply [initialization options](https://microsoft.github.io/language-server-protocol/specifications/specification-3-15/#initialize) to the server, however each client handles this differently so please refer to your editors LSP plugin for more information.
