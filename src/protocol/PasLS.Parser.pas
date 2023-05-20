@@ -155,6 +155,7 @@ begin
       Scanner.AddDefine(s);
       Case s of
         'LINUX' : Scanner.AddDefine('UNIX');
+        'DARWIN' : Scanner.AddDefine('UNIX');
         'FREEBSD' :
           begin
           Scanner.AddDefine('BSD');
