@@ -151,6 +151,10 @@
         <Filename Value="LSP.Messages.pas"/>
         <UnitName Value="LSP.Messages"/>
       </Item>
+      <Item>
+        <Filename Value="PasLS.Parser.pas"/>
+        <UnitName Value="PasLS.Parser"/>
+      </Item>
     </Files>
     <RequiredPkgs>
       <Item>

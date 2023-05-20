@@ -84,7 +84,7 @@ procedure ClearDiagnostics(aTransport : TMessageTransport; Code: TCodeBuffer);
 implementation
 
 uses
-  pparser, pastree,
+  pastree,  pparser, PasLS.Parser,
   SysUtils, PasLS.Settings;
 
 { Publish the last code tools error as a diagnostics }
@@ -153,36 +153,6 @@ begin
   end;
 end;
 
-{ Checks syntax for code buffer and publishes errors as diagnostics }
-
-Type
-  TSimpleEngine = class(TPasTreeContainer)
-  public
-    function CreateElement(AClass: TPTreeElement; const AName: String;
-      AParent: TPasElement; AVisibility: TPasMemberVisibility;
-      const ASourceFilename: String; ASourceLinenumber: Integer): TPasElement;
-      override;
-    function FindElement(const AName: String): TPasElement; override;
-  end;
-          { TSimpleEngine }
-
-function TSimpleEngine.CreateElement(AClass: TPTreeElement; const AName: String;
-  AParent: TPasElement; AVisibility: TPasMemberVisibility;
-  const ASourceFilename: String; ASourceLinenumber: Integer): TPasElement;
-begin
-  Result := AClass.Create(AName, AParent);
-  Result.Visibility := AVisibility;
-  Result.SourceFilename := ASourceFilename;
-  Result.SourceLinenumber := ASourceLinenumber;
-end;
-
-function TSimpleEngine.FindElement(const AName: String): TPasElement;
-
-begin
-  // We could try to use codetools for this.
-  Result := nil;
-end;
-
 
 function StrictSyntaxCheck(aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
 
@@ -240,16 +210,14 @@ function StrictSyntaxCheck(aTransport : TMessageTransport; Code: TCodeBuffer) : 
      end;
 
 Var
-  Engine : TSimpleEngine;
   Module : TPasModule;
 
 begin
   Result:=False;
   Module:=nil;
-  Engine:=TSimpleEngine.Create;
   try
     try
-      Module:=ParseSource(Engine,[Code.Filename],EnvironmentSettings.fpcTarget,EnvironmentSettings.fpcTargetCPU,[]);
+      Module:=ParseSource([Code.Filename],Code,EnvironmentSettings.fpcTarget,EnvironmentSettings.fpcTargetCPU,[]);
       Result:=True;
     except
       on e : exception do
@@ -257,7 +225,6 @@ begin
     end;
   finally
     Module.Free;
-    Engine.Free;
   end;
 end;
 

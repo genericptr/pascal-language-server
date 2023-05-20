@@ -16,7 +16,7 @@ uses
   LSP.Synchronization, LSP.Window, LSP.WorkDoneProgress, LSP.Workspace, 
   PasLS.CodeUtils, PasLS.Commands, PasLS.LazConfig, PasLS.TextLoop, 
   PasLS.SocketDispatcher, LSP.AllCommands, LSP.Streaming, LSP.BaseTypes, 
-  LSP.Messages, LazarusPackageIntf;
+  LSP.Messages, PasLS.Parser, LazarusPackageIntf;
 
 implementation
 

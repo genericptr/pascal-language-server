@@ -295,7 +295,7 @@ begin with Params do
     if SymbolManager <> nil then
       SymbolManager.FileModified(Code);
     CheckSyntax(Transport,Code);
-    ClearDiagnostics(Transport,Code);
+    // ClearDiagnostics(Transport,Code);
   end;
 end;
 
@@ -395,6 +395,9 @@ begin with Params do
           end
         else }
         Code.Source := TTextDocumentContentChangeEvent(Change).text;
+
+        // Ryan, uncomment this to have a syntax check at
+        // CheckSyntax(Self.Transport,Code);
 
         //if SymbolManager <> nil then
         //  SymbolManager.FileModified(Code);
