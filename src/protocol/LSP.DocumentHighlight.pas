@@ -27,7 +27,7 @@ uses
   { RTL }
   SysUtils, Classes,
   { Code Tools }
-  URIParser, CodeToolManager, CodeCache,
+  CodeToolManager, CodeCache,
   { Protocol }
   LSP.Base, LSP.Basic,
   { Other }
@@ -111,7 +111,6 @@ end;
 
 function TDocumentHighlightRequest.Process(var Params: TDocumentHighlightParams): TDocumentHighlightItems;
 var
-  URI: TURI;
   Code: TCodeBuffer;
   X, Y: Integer;
   NewCode: TCodeBuffer;
@@ -121,8 +120,7 @@ begin
   Result:=TDocumentHighlightItems.Create;
   with Params do
   begin
-    URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    Code := CodeToolBoss.FindFile(textDocument.LocalPath);
     X := position.character + 1;
     Y := position.line + 1;
 

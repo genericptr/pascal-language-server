@@ -25,11 +25,12 @@ unit PasLS.Commands;
 interface
 uses
   { RTL }
-  SysUtils, Classes, URIParser, FPJSON,
+  SysUtils, Classes, FPJSON,
   { LSP }
   LSP.BaseTypes, LSP.Basic, LSP.Messages ;
 
 procedure CompleteCode(ATransport: TMessageTransport; DocumentURI: TDocumentUri; Line, Column: Integer);
+procedure PrettyPrint(ATransport: TMessageTransport; DocumentURI: TDocumentUri; SettingsURI : TDocumentUri);
 
 implementation
 uses
@@ -81,8 +82,7 @@ procedure CompleteCode(ATransport: TMessageTransport; DocumentURI: TDocumentUri;
 var
   Path: String;
   Code, NewCode: TCodeBuffer;
-  URI: TURI;
-  NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: Integer;
+    NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: Integer;
   ARange: TRange;
 begin
   // https://wiki.lazarus.freepascal.org/Lazarus_IDE_Tools#Code_Completion
@@ -94,9 +94,8 @@ begin
      ForwardProcBodyInsertPolicy := fpipInFrontOfMethods;
     end;
 
-  URI :=  ParseURI(DocumentURI);
   //Code := CodeToolBoss.LoadFile(URI.path + URI.Document, false, false);
-  Path := URI.path + URI.Document;
+  Path := UriToPath(DocumentURI);
   Code := CodeToolBoss.FindFile(Path);
   ATransport.SendDiagnostic(' ▶️ complete code: '+ Path + ' Code: ' + BoolToStr(assigned(Code),'True','False'));
   if CodeToolBoss.CompleteCode(Code, column, line, {TopLine}line, NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine, false) then
@@ -122,6 +121,12 @@ begin
     end
   else
     ATransport.SendDiagnostic( '🔴 CompleteCode Failed');
+end;
+
+procedure PrettyPrint(ATransport: TMessageTransport; DocumentURI: TDocumentUri; SettingsURI : TDocumentUri);
+
+begin
+
 end;
 
 end.

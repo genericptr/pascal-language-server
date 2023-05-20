@@ -489,7 +489,6 @@ const
 var
   CodeToolsOptions: TCodeToolsOptions;
   Option, Path: String;
-  URI: TURI;
   Item: TCollectionItem;
   re: TRegExpr;
   Macros: TMacroMap;
@@ -515,8 +514,7 @@ begin
       // set the project directory based on root URI path
       if rootUri <> '' then
         begin
-          URI := ParseURI(rootUri);
-          CodeToolsOptions.ProjectDir := URI.Path + URI.Document;
+          CodeToolsOptions.ProjectDir := URIToPath(rootURI);
         end;
 
       // print the root URI so we know which workspace folder is default
@@ -589,8 +587,7 @@ begin
 
               for Item in workspaceFolders do
                 begin
-                  URI := ParseURI(TWorkspaceFolder(Item).uri);
-                  FindPascalSourceDirectories(URI.Path + URI.Document, Paths);
+                  FindPascalSourceDirectories(UriToPath(TWorkspaceFolder(Item).uri), Paths);
                 end;
 
               for Path in Paths do

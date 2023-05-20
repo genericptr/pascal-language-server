@@ -25,7 +25,7 @@ unit LSP.Synchronization;
 interface
 
 uses
-  Classes, DateUtils, URIParser, 
+  Classes, DateUtils,
   CodeToolManager, CodeCache,
   LSP.BaseTypes, LSP.Base, LSP.Basic, PasLS.Symbols;
 
@@ -226,13 +226,12 @@ end;
 
 procedure TDidOpenTextDocument.Process(var Params : TDidOpenTextDocumentParams);
 var
-  URI: TURI;
+
   Path: String;
   Code: TCodeBuffer;
 begin with Params do
   begin
-    URI := ParseURI(textDocument.uri);
-    Path := URI.Path + URI.Document;
+    Path := textDocument.LocalPath;
 
     Code := CodeToolBoss.FindFile(Path);
     if Code <> nil then
@@ -288,12 +287,11 @@ end;
 
 procedure TDidSaveTextDocument.Process(var Params : TDidSaveTextDocumentParams);
 var
-  URI: TURI;
   Code: TCodeBuffer;
 begin with Params do
   begin
-    URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+
+    Code := CodeToolBoss.FindFile(Params.textDocument.LocalPath);
     if SymbolManager <> nil then
       SymbolManager.FileModified(Code);
     CheckSyntax(Transport,Code);
@@ -373,7 +371,6 @@ end;
 
 procedure TDidChangeTextDocument.Process(var Params : TDidChangeTextDocumentParams);
 var
-  URI: TURI;
   Code: TCodeBuffer;
   Change: TCollectionItem;
 {  Range: TRange;
@@ -382,9 +379,7 @@ var
 
 begin with Params do
   begin
-
-    URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    Code := CodeToolBoss.FindFile(textDocument.LocalPath);
     for Change in contentChanges do
       begin
         // note(ryan): can't get this working yet

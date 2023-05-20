@@ -25,7 +25,7 @@ interface
 
 uses
   { RTL }
-  Classes, URIParser, 
+  Classes,
   { Code Tools }
   CodeToolManager, CodeCache,
   { Protocol }
@@ -95,14 +95,13 @@ end;
 
 function THoverRequest.Process(var Params: TTextDocumentPositionParams): THoverResponse;
 var
-  URI: TURI;
+
   Code: TCodeBuffer;
   X, Y: Integer;
   Hint: String;
 begin with Params do
   begin
-    URI := ParseURI(textDocument.uri);
-    Code := CodeToolBoss.FindFile(URI.Path + URI.Document);
+    Code := CodeToolBoss.FindFile(textDocument.LocalPath);
     X := position.character;
     Y := position.line;
 

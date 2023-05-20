@@ -27,7 +27,7 @@ uses
   { RTL }
   SysUtils, Classes, 
   { Code Tools }
-  URIParser, CodeToolManager, CodeCache, CTUnitGraph,
+  CodeToolManager, CodeCache, CTUnitGraph,
   { LazUtils }
   LazFileUtils, Laz_AVL_Tree,
   { Protocol }
@@ -221,14 +221,12 @@ end;
 
 function TReferencesRequest.Process(var Params: TReferenceParams): TLocationItems;
 var
-  URI: TURI;
   Path: String;
   X, Y: Integer;
 
 begin with Params do
   begin
-    URI := ParseURI(textDocument.uri);
-    Path := URI.Path + URI.Document;
+    Path := textDocument.LocalPath;
     X := position.character;
     Y := position.line;
 
