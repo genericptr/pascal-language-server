@@ -84,7 +84,7 @@ begin
   else
     aFile:=Nil;
   end;
-  Writeln(aFile^,aFrame.PayloadString);
+  Write(aFile^,aFrame.PayloadString);
   Flush(aFile^);
 end;
 
@@ -102,7 +102,7 @@ begin
     exit;
   if (Len mod 2)= 1 then
     begin
-    writeln('Invalid parameter count of '+ParamCount.ToString+' (must be pairs of 2)');
+    writeln(StdErr,'Invalid parameter count of '+ParamCount.ToString+' (must be pairs of 2)');
     Exit(false);
     end;
   I:=0;
@@ -112,7 +112,7 @@ begin
     path := ExpandFileName(aParams[i+1]);
     if not FileExists(path) then
       begin
-      writeln('Command path "',path,'" can''t be found');
+      writeln(StdErr,'Command path "',path,'" can''t be found');
       exit(false)
       end;
     DebugSendMessage(output,aContext, method, GetFileAsString(path));
@@ -204,6 +204,7 @@ var
   aMsg : String;
   lParams : TStringDynArray;
   aTrans : TLSPSocketTransport;
+  aDisp : TLSPClientSocketDispatcher;
 
 begin
   Terminate;
@@ -218,7 +219,8 @@ begin
     exit;
   aTrans:=SetupTransport;
   try
-    FContext:=TLSPContext.Create(aTrans,TLSPClientSocketDispatcher.Create(aTrans),True);
+    aDisp:=TLSPClientSocketDispatcher.Create(aTrans);
+    FContext:=TLSPContext.Create(aTrans,aDisp,True);
     if length(lParams)>0 then
       if not ExecuteCommandLineMessages(FContext,lParams) then
         exit;
