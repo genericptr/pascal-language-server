@@ -104,6 +104,7 @@ uses
   pastree,  pparser, PasLS.Parser,
   SysUtils, PasLS.Settings;
 
+
 var
   _DiagnosticsHandler :  TDiagnosticsHandler;
 
@@ -187,6 +188,7 @@ begin
 end;
 
 { Publish the last code tools error as a diagnostics }
+
 procedure TDiagnosticsHandler.PublishDiagnostic(aTransport : TMessageTransport; UserMessage: String = '');
 var
   Notification: TPublishDiagnostics;
@@ -207,55 +209,73 @@ begin
   end;
 end;
 
+Type
+
+  { TErrorReporter }
+
+  TErrorReporter = class
+  private
+    FErrorCount: Integer;
+    FHandler : TDiagnosticsHandler;
+    FParser : TSourceParser;
+    FDiagnostics : TPublishDiagnostics;
+    FTransport : TMessageTransport;
+  Protected
+    procedure ReportError(Sender: TObject; const aError, aFileName: string; aCode, aLine, aCol: Integer);
+  Public
+    Constructor Create(aHandler : TDiagnosticsHandler; aParser : TSourceParser;aDiagnostics : TPublishDiagnostics; aTransport : TMessageTransport);
+    Property ErrorCount : Integer Read FErrorCount;
+  end;
+
+{ TErrorReporter }
+
+constructor TErrorReporter.Create(aHandler: TDiagnosticsHandler;
+  aParser: TSourceParser; aDiagnostics: TPublishDiagnostics;
+  aTransport: TMessageTransport);
+begin
+  FHandler:=aHandler;
+  FParser:=aParser;
+  FDiagnostics:=aDiagnostics;
+  FTransport:=aTransport;
+  FParser.OnError:=@ReportError;
+end;
+
+procedure TErrorReporter.ReportError(Sender: TObject; const aError,
+  aFileName: string; aCode, aLine, aCol: Integer);
+
+var
+  S : String;
+
+begin
+  Inc(FErrorCount);
+  S:=Format('%s(%d,%d) : %s',[aFileName,aLine,aCol,aError]);
+  FTransport.SendDiagnostic(S);
+  if ServerSettings.showSyntaxErrors then
+    FHandler.ShowErrorMessage(FTransport,S);
+  if ServerSettings.publishDiagnostics then
+    FDiagnostics.Add(aFileName,
+                     aError,
+                     aLine-1,
+                     aCol-1,
+                     aCode,
+                     TDiagnosticSeverity.Error);
+end;
 
 function TDiagnosticsHandler.StrictSyntaxCheck(aDiagnostics : TPublishDiagnostics; aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
-
-     Procedure SendError(E : Exception);
-
-     var
-       MessageString,aFileName : String;
-       aCol,aRow : Integer;
-       EParse: EParserError absolute E;
-
-     begin
-       try
-         MessageString:=E.Message;
-         if E is EParserError then
-           begin
-           aCol:=EParse.Column;
-           aRow:=EParse.Row;
-           aFileName:=EParse.Filename;
-           end;
-         aTransport.SendDiagnostic('Syntax Error -> %s',[MessageString]);
-         // Show message in the gui also
-         if ServerSettings.showSyntaxErrors then
-           ShowErrorMessage(aTransport,MessageString);
-         if not ServerSettings.publishDiagnostics then
-           exit;
-         aDiagnostics.Add(aFileName,
-                          MessageString,
-                          aRow-1,
-                          aCol-1,
-                          // TODO: code tools error ID is too large (int64), what should we do?
-                          1{CodeToolBoss.ErrorID},
-                          TDiagnosticSeverity.Error);
-       except
-         On Ex : Exception do
-           TLSPContext.Log('Error %s sending diagnostic: %s',[Ex.ClassName,Ex.Message]);
-       end;
-     end;
 
 Var
   Module : TPasModule;
   SourceParser : TSourceParser;
   Args : TStringDynArray;
   I : Integer;
+  Reporter : TErrorReporter;
 
 begin
   Args:=[];
   Result:=False;
   Module:=nil;
   SourceParser:=Nil;
+  Reporter:=Nil;
   try
     try
       SourceParser:=TSourceParser.Create;
@@ -268,13 +288,15 @@ begin
         Args[i]:=ServerSettings.fpcOptions[i];
       Args[Length(Args)-1]:=Code.Filename;
       SourceParser.CommandLine:=Args;
+      Reporter:=TErrorReporter.Create(Self,SourceParser,aDiagnostics,aTransport);
       Module:=SourceParser.ParseSource;
-      Result:=True;
+      Result:=Reporter.ErrorCount=0;
     except
       on e : exception do
-        SendError(E);
+        Reporter.ReportError(Self,E.Message,Code.FileName,-1,0,0);
     end;
   finally
+    Reporter.Free;
     SourceParser.Free;
     Module.Free;
   end;

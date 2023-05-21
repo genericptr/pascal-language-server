@@ -7,12 +7,17 @@
     <CompilerOptions>
       <Version Value="11"/>
       <SearchPaths>
+        <OtherUnitFiles Value="passrc"/>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
       <Other>
         <CompilerMessages>
           <IgnoredMessages idx6058="True" idx5024="True" idx3124="True" idx3123="True"/>
         </CompilerMessages>
+        <CustomOptions Value="-dMULTIERROR"/>
+        <OtherDefines Count="1">
+          <Define0 Value="MULTIERROR"/>
+        </OtherDefines>
       </Other>
     </CompilerOptions>
     <Description Value="Object Pascal - Language Server Protocol implementation"/>
