@@ -14,7 +14,6 @@
         <CompilerMessages>
           <IgnoredMessages idx6058="True" idx5024="True" idx3124="True" idx3123="True"/>
         </CompilerMessages>
-        <CustomOptions Value="-dMULTIERROR"/>
         <OtherDefines Count="1">
           <Define0 Value="MULTIERROR"/>
         </OtherDefines>

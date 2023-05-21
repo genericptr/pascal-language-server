@@ -22,7 +22,7 @@ Type
   Protected
     function CreateLineReaderFromBuffer(aBuffer: TCodeBuffer): TLineReader;
   Public
-    Constructor Create(aBuffer : TCodeBuffer);
+    Constructor Create(aBuffer : TCodeBuffer); reintroduce;
     function FindSourceFile(const AName: string): TLineReader; override;
     Property Buffer : TCodeBuffer read FBuffer;
   end;
@@ -258,8 +258,10 @@ begin
           With FParser.CurSourcePos do
              begin
              aCode:=-1;
+             {$IFDEF MULTIERROR}
              if E is EParserError then
                aCode:=EParserError(E).ErrNo;
+             {$ENDIF}
              FOnError(Self,E.Message,FileName,aCode,Row,Column);
              end;
         end;
