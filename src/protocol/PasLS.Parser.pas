@@ -5,7 +5,7 @@ unit PasLS.Parser;
 interface
 
 uses
-  Classes, SysUtils, PParser, PScanner, PasTree, CodeCache;
+  Classes, SysUtils, PParser, PScanner, PasTree, CodeCache, Types;
 
 Type
 
@@ -33,11 +33,23 @@ Type
     function FindElement(const AName: String): TPasElement; override;
   end;
 
-function ParseSource(const FPCCommandLine : Array of String;
-                     const Code : TCodeBuffer;
-                     OSTarget, CPUTarget: String;
-                     Options : TParseSourceOptions): TPasModule;
+  { TSourceParser }
 
+  TSourceParser = Class(TObject)
+  private
+    FCode: TCodeBuffer;
+    FCommandLine: TStringDynArray;
+    FCPUTarget: String;
+    FOptions: TParseSourceOptions;
+    FOSTarget: String;
+  Public
+    function ParseSource: TPasModule;
+    Property CommandLine : TStringDynArray Read FCommandLine Write FCommandLine;
+    Property Code : TCodeBuffer Read FCode Write FCode;
+    Property OSTarget : String Read FOSTarget Write FOSTarget;
+    Property CPUTarget : String Read FCPUTarget Write FCPUTarget;
+    Property Options : TParseSourceOptions Read FOptions Write FOptions;
+  end;
 
 implementation
 
@@ -64,11 +76,9 @@ begin
   Result := nil;
 end;
 
+{ TSourceParser }
 
-function ParseSource(const FPCCommandLine : Array of String;
-                     const Code : TCodeBuffer;
-                     OSTarget, CPUTarget: String;
-                     Options : TParseSourceOptions): TPasModule;
+function TSourceParser.ParseSource: TPasModule;
 
 var
   FileResolver: TBaseFileResolver;
@@ -197,7 +207,7 @@ begin
     Parser.LogEvents:=Engine.ParserLogEvents;
     Parser.OnLog:=Engine.Onlog;
 
-    For S in FPCCommandLine do
+    For S in CommandLine do
       ProcessCmdLinePart(S);
     if Filename = '' then
       raise Exception.Create(SErrNoSourceGiven);

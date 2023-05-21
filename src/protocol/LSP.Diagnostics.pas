@@ -25,7 +25,7 @@ interface
 
 uses
   { RTL }
-  Classes, 
+  Classes, Types,
   { Code Tools }
   CodeToolManager, CodeCache,
   { Protocol }
@@ -211,19 +211,35 @@ function StrictSyntaxCheck(aTransport : TMessageTransport; Code: TCodeBuffer) : 
 
 Var
   Module : TPasModule;
+  SourceParser : TSourceParser;
+  Args : TStringDynArray;
+  I : Integer;
 
 begin
+  Args:=[];
   Result:=False;
   Module:=nil;
+  SourceParser:=Nil;
   try
     try
-      Module:=ParseSource([Code.Filename],Code,EnvironmentSettings.fpcTarget,EnvironmentSettings.fpcTargetCPU,[]);
+      SourceParser:=TSourceParser.Create;
+      SourceParser.Code:=Code;
+      SourceParser.OSTarget:=EnvironmentSettings.fpcTarget;
+      SourceParser.CPUTarget:=EnvironmentSettings.fpcTargetCPU;
+      SourceParser.Options:=[];
+      SetLength(Args,ServerSettings.fpcOptions.Count+1);
+      for I:=0 to ServerSettings.fpcOptions.Count-1 do
+        Args[i]:=ServerSettings.fpcOptions[i];
+      Args[Length(Args)-1]:=Code.Filename;
+      SourceParser.CommandLine:=Args;
+      Module:=SourceParser.ParseSource;
       Result:=True;
     except
       on e : exception do
         SendError(E);
     end;
   finally
+    SourceParser.Free;
     Module.Free;
   end;
 end;
