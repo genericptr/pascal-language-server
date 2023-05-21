@@ -63,7 +63,7 @@ begin with Params do
       end
     else
       begin
-        PublishDiagnostic(Transport);
+        DiagnosticsHandler.PublishDiagnostic(Transport);
         Result := nil;
       end;
   end;

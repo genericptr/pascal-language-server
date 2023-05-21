@@ -242,7 +242,7 @@ begin with Params do
     if Code = nil then
       Code := CodeToolBoss.LoadFile(Path, False, False);
       
-    CheckSyntax(Transport,Code);
+    DiagnosticsHandler.CheckSyntax(Transport,Code);
 
     //if SymbolManager <> nil then
     //  SymbolManager.FileModified(Code);
@@ -294,7 +294,7 @@ begin with Params do
     Code := CodeToolBoss.FindFile(Params.textDocument.LocalPath);
     if SymbolManager <> nil then
       SymbolManager.FileModified(Code);
-    CheckSyntax(Transport,Code);
+    DiagnosticsHandler.CheckSyntax(Transport,Code);
     // ClearDiagnostics(Transport,Code);
   end;
 end;

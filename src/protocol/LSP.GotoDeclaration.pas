@@ -61,7 +61,7 @@ begin with Params do
     else
       begin
         Result := nil;
-        PublishDiagnostic(Transport,'');
+        DiagnosticsHandler.PublishDiagnostic(Transport,'');
       end;
   end;
 end;

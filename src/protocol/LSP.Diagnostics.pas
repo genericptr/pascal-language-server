@@ -77,9 +77,24 @@ type
     procedure Clear(fileName: string);
   end;
 
-procedure CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
-procedure PublishDiagnostic(aTransport : TMessageTransport; UserMessage: String = '');
-procedure ClearDiagnostics(aTransport : TMessageTransport; Code: TCodeBuffer);
+  { TDiagnosticsHandler }
+
+  TDiagnosticsHandler = Class
+  private
+    procedure AddCodeToolError(Diagnostics: TPublishDiagnostics; aTransport: TMessageTransport);
+    procedure AddUserDiagnostic(Diagnostics: TPublishDiagnostics; aTransport: TMessageTransport; UserMessage: String);
+    procedure ClearDiagnostics(aTransport: TMessageTransport; Code: TCodeBuffer
+      );
+    procedure ShowErrorMessage(aTransport: TMessageTransport;
+      const MessageString: String);
+    function StrictSyntaxCheck(aDiagnosticDiagnostics : TPublishDiagnostics; aTransport: TMessageTransport; Code: TCodeBuffer): Boolean;
+    function CodeToolsCheckSyntax(aDiagnostics: TPublishDiagnostics; aTransport: TMessageTransport; Code: TCodeBuffer): boolean;
+  Public
+    procedure CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
+    procedure PublishDiagnostic(aTransport : TMessageTransport; UserMessage: String = '');
+  end;
+
+Function DiagnosticsHandler : TDiagnosticsHandler;
 
 implementation
 
@@ -87,8 +102,74 @@ uses
   pastree,  pparser, PasLS.Parser,
   SysUtils, PasLS.Settings;
 
+var
+  _DiagnosticsHandler :  TDiagnosticsHandler;
+
+Function DiagnosticsHandler : TDiagnosticsHandler;
+
+begin
+  if _DiagnosticsHandler=Nil then
+    _DiagnosticsHandler:=TDiagnosticsHandler.Create;
+  Result:=_DiagnosticsHandler;
+end;
+
+Procedure TDiagnosticsHandler.AddUserDiagnostic(Diagnostics : TPublishDiagnostics; aTransport: TMessageTransport; UserMessage : String);
+
+begin
+  // Message on stdErr
+  aTransport.SendDiagnostic(UserMessage);
+  // Actual diagnostic
+  Diagnostics.Add('',
+                   UserMessage,
+                   0,
+                   0,
+                   // TODO: code tools error ID is too large (int64), what should we do?
+                   1{CodeToolBoss.ErrorID},
+                   TDiagnosticSeverity.Error);
+
+end;
+
+Procedure TDiagnosticsHandler.ShowErrorMessage(aTransport : TMessageTransport; const MessageString : String);
+
+var
+  ShowMessage: TShowMessageNotification;
+
+begin
+  ShowMessage:=TShowMessageNotification.Create(TMessageType.Error, '⚠️ '+MessageString);
+  try
+    ShowMessage.Send(aTransport);
+  finally
+    ShowMessage.Free;
+  end;
+end;
+
+
+Procedure TDiagnosticsHandler.AddCodeToolError(Diagnostics : TPublishDiagnostics; aTransport: TMessageTransport);
+
+Var
+  MessageString : String;
+
+begin
+  if CodeToolBoss.ErrorCode <> nil then
+    MessageString := CodeToolBoss.ErrorCode.FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn)
+  else if CodeToolBoss.ErrorMessage <> '' then
+    MessageString := '"'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn);
+  // Message on stdErr
+  aTransport.SendDiagnostic('Syntax Error -> %s',[MessageString]);
+  // Show message in the gui also
+  if ServerSettings.showSyntaxErrors then
+    ShowErrorMessage(aTransport, MessageString);
+  Diagnostics.Add(CodeToolBoss.ErrorCode.FileName,
+                  CodeToolBoss.ErrorMessage,
+                  CodeToolBoss.ErrorLine - 1,
+                  CodeToolBoss.ErrorColumn - 1,
+                  // TODO: code tools error ID is too large (int64), what should we do?
+                  1{CodeToolBoss.ErrorID},
+                  TDiagnosticSeverity.Error);
+end;
+
 { Publish the last code tools error as a diagnostics }
-procedure PublishDiagnostic(aTransport : TMessageTransport; UserMessage: String = '');
+procedure TDiagnosticsHandler.PublishDiagnostic(aTransport : TMessageTransport; UserMessage: String = '');
 var
   Notification: TPublishDiagnostics;
   ShowMessage: TShowMessageNotification;
@@ -98,28 +179,11 @@ begin
   Notification:=Nil;
   ShowMessage:=Nil;
   try
+    Notification:=TPublishDiagnostics.Create;
     if UserMessage <> '' then
-      aTransport.SendDiagnostic(UserMessage)
+      AddUserDiagnostic(Notification,aTransport,UserMessage)
     else
-      begin
-        if CodeToolBoss.ErrorCode <> nil then
-          MessageString := CodeToolBoss.ErrorCode.FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn)
-        else if CodeToolBoss.ErrorMessage <> '' then
-          MessageString := '"'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn)
-        else
-          // there's no error to show so bail
-          // probably PublishDiagnostic should not have been called
-          exit;
-
-        aTransport.SendDiagnostic('Syntax Error -> %s',[MessageString]);
-
-        // Show message in the gui also
-        if ServerSettings.showSyntaxErrors then
-          begin
-            ShowMessage := TShowMessageNotification.Create(TMessageType.Error, '⚠️ '+MessageString);
-            ShowMessage.Send(aTransport);
-          end;
-      end;
+      AddCodeToolError(Notification,aTransport);
 
     if not ServerSettings.publishDiagnostics then
       exit;
@@ -127,24 +191,9 @@ begin
     if (UserMessage <> '') then
       begin
         Notification := TPublishDiagnostics.Create;
-        Notification.Add('',
-                         UserMessage,
-                         0,
-                         0,
-                         // TODO: code tools error ID is too large (int64), what should we do?
-                         1{CodeToolBoss.ErrorID},
-                         TDiagnosticSeverity.Error);
       end
     else if CodeToolBoss.ErrorCode <> nil then
       begin
-        Notification := TPublishDiagnostics.Create;
-        Notification.Add(CodeToolBoss.ErrorCode.FileName,
-                         CodeToolBoss.ErrorMessage,
-                         CodeToolBoss.ErrorLine - 1,
-                         CodeToolBoss.ErrorColumn - 1,
-                         // TODO: code tools error ID is too large (int64), what should we do?
-                         1{CodeToolBoss.ErrorID},
-                         TDiagnosticSeverity.Error);
         Notification.Send(aTransport);
       end;
   finally
@@ -154,7 +203,7 @@ begin
 end;
 
 
-function StrictSyntaxCheck(aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
+function TDiagnosticsHandler.StrictSyntaxCheck(aDiagnosticDiagnostics : TPublishDiagnostics; aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
 
      Procedure SendError(E : Exception);
 
@@ -244,46 +293,61 @@ begin
   end;
 end;
 
-procedure CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
-var
-  Tool: TCodeTool;
-  Notification: TPublishDiagnostics;
+procedure TDiagnosticsHandler.CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
+
+Var
+  Diagnostics : TPublishDiagnostics;
+  CodeOK : Boolean;
+
 begin
   if not ServerSettings.checkSyntax then
     exit;
-
-  if not CodeToolBoss.Explore(Code,Tool,true) then
-    PublishDiagnostic(aTransport)
-  else if ServerSettings.publishDiagnostics then
-    begin
-      if StrictSyntaxCheck(aTransport,Code) then
-        begin
-          // todo: when we have a document store we can check to see
-          // if we actually have any errors.
-          Notification := TPublishDiagnostics.Create;
-          try
-            Notification.Clear(Code.FileName);
-            Notification.Send(aTransport);
-          finally
-            Notification.Free;
-          end;
-        end;
-    end;
+  // All diagnostics in 1 message.
+  Diagnostics := TPublishDiagnostics.Create;
+  try
+    // Check code. These routines will possibly send messages to a window or stdout, depending on settings.
+    CodeOk:=CodeToolsCheckSyntax(Diagnostics,aTransport,Code);
+    if CodeOK then
+      CodeOK:=StrictSyntaxCheck(Diagnostics,aTransport,Code);
+    // If we need to publish settings, then send the diagnostics.
+    if ServerSettings.publishDiagnostics then
+      begin
+      if CodeOK then
+        Diagnostics.Clear(Code.FileName);
+      Diagnostics.Send(aTransport);
+      end;
+  finally
+    Diagnostics.Free;
+  end;
 end;
 
-procedure ClearDiagnostics(aTransport : TMessageTransport; Code: TCodeBuffer);
+function TDiagnosticsHandler.CodeToolsCheckSyntax(aDiagnostics: TPublishDiagnostics; aTransport : TMessageTransport; Code: TCodeBuffer): boolean;
+
 var
-  Notification: TPublishDiagnostics;
+  Tool: TCodeTool;
+
 begin
-  if ServerSettings.publishDiagnostics then
-    begin
-      // todo: when we have a document store we can check to see
-      // if we actually have any errors.
-      Notification := TPublishDiagnostics.Create;
-      Notification.Clear(Code.FileName);
-      Notification.Send(aTransport);
-      Notification.Free;
-    end;
+  // Check for errors.
+  Result:=CodeToolBoss.Explore(Code,Tool,true);
+
+  if not Result then
+    // Errors found ? Publish them.
+    AddCodeToolError(aDiagnostics,aTransport);
+end;
+
+procedure TDiagnosticsHandler.ClearDiagnostics(aTransport : TMessageTransport; Code: TCodeBuffer);
+var
+  Diagnostics: TPublishDiagnostics;
+begin
+  if not ServerSettings.publishDiagnostics then
+    Exit;
+  Diagnostics:=TPublishDiagnostics.Create;
+  try
+    Diagnostics.Clear(Code.FileName);
+    Diagnostics.Send(aTransport);
+  finally
+    Diagnostics.Free;
+  end;
 end;
 
 { TPublishDiagnostics }
@@ -340,4 +404,8 @@ begin
   inherited Destroy;
 end;
 
+Initialization
+
+Finalization
+  _DiagnosticsHandler.Free;
 end.
