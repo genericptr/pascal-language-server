@@ -155,8 +155,15 @@
         <Filename Value="PasLS.Parser.pas"/>
         <UnitName Value="PasLS.Parser"/>
       </Item>
+      <Item>
+        <Filename Value="PasLS.Formatter.pas"/>
+        <UnitName Value="PasLS.Formatter"/>
+      </Item>
     </Files>
     <RequiredPkgs>
+      <Item>
+        <PackageName Value="jcfnogui"/>
+      </Item>
       <Item>
         <PackageName Value="CodeTools"/>
       </Item>
