@@ -70,9 +70,13 @@ type
     previously pushed diagnostics. There is no merging that happens on the client side. }
 
   TPublishDiagnostics = class(TNotificationMessage)
+  private
+    function GetDiagnosticParams: TPublishDiagnosticsParams;
   public
     constructor Create; override;
     destructor Destroy; override;
+    function HaveDiagnostics : Boolean;
+    Property DiagnosticParams : TPublishDiagnosticsParams Read GetDiagnosticParams;
     procedure Add(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
     procedure Clear(fileName: string);
   end;
@@ -83,11 +87,9 @@ type
   private
     procedure AddCodeToolError(Diagnostics: TPublishDiagnostics; aTransport: TMessageTransport);
     procedure AddUserDiagnostic(Diagnostics: TPublishDiagnostics; aTransport: TMessageTransport; UserMessage: String);
-    procedure ClearDiagnostics(aTransport: TMessageTransport; Code: TCodeBuffer
-      );
-    procedure ShowErrorMessage(aTransport: TMessageTransport;
-      const MessageString: String);
-    function StrictSyntaxCheck(aDiagnosticDiagnostics : TPublishDiagnostics; aTransport: TMessageTransport; Code: TCodeBuffer): Boolean;
+    procedure ClearDiagnostics(aTransport: TMessageTransport; Code: TCodeBuffer);
+    procedure ShowErrorMessage(aTransport: TMessageTransport;  const MessageString: String);
+    function StrictSyntaxCheck(aDiagnostics : TPublishDiagnostics; aTransport: TMessageTransport; Code: TCodeBuffer): Boolean;
     function CodeToolsCheckSyntax(aDiagnostics: TPublishDiagnostics; aTransport: TMessageTransport; Code: TCodeBuffer): boolean;
   Public
     procedure CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
@@ -148,75 +150,74 @@ Procedure TDiagnosticsHandler.AddCodeToolError(Diagnostics : TPublishDiagnostics
 
 Var
   MessageString : String;
+  aLine,aCol : Integer;
+  aFileName : string;
+  aErrorMessage : String;
 
 begin
-  if CodeToolBoss.ErrorCode <> nil then
-    MessageString := CodeToolBoss.ErrorCode.FileName+': "'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn)
-  else if CodeToolBoss.ErrorMessage <> '' then
-    MessageString := '"'+CodeToolBoss.ErrorMessage+'" @ '+IntToStr(CodeToolBoss.ErrorLine)+':'+IntToStr(CodeToolBoss.ErrorColumn);
+  aErrorMessage:=CodeToolBoss.ErrorMessage;
+  if aErrorMessage='' then
+    exit;
+  aLine:=CodeToolBoss.ErrorLine;
+  aCol:=CodeToolBoss.ErrorColumn;
+  if CodeToolBoss.ErrorCode<> nil then
+    begin
+    aFileName:=CodeToolBoss.ErrorCode.FileName;
+    MessageString:=aFileName+': ';
+    end
+  else
+    begin
+    aFileName:='';
+    MessageString:='';
+    end;
+  MessageString := MessageString+Format('"%s" @ %d:%d;',[aErrorMessage,aLine,aCol]);
   // Message on stdErr
   aTransport.SendDiagnostic('Syntax Error -> %s',[MessageString]);
   // Show message in the gui also
   if ServerSettings.showSyntaxErrors then
     ShowErrorMessage(aTransport, MessageString);
-  Diagnostics.Add(CodeToolBoss.ErrorCode.FileName,
-                  CodeToolBoss.ErrorMessage,
-                  CodeToolBoss.ErrorLine - 1,
-                  CodeToolBoss.ErrorColumn - 1,
-                  // TODO: code tools error ID is too large (int64), what should we do?
-                  1{CodeToolBoss.ErrorID},
-                  TDiagnosticSeverity.Error);
+  if aFileName<>'' then
+    Diagnostics.Add(aFileName,
+                    aErrorMessage,
+                    aLine - 1,
+                    aCol - 1,
+                    // TODO: code tools error ID is too large (int64), what should we do?
+                    1{CodeToolBoss.ErrorID},
+                    TDiagnosticSeverity.Error);
 end;
 
 { Publish the last code tools error as a diagnostics }
 procedure TDiagnosticsHandler.PublishDiagnostic(aTransport : TMessageTransport; UserMessage: String = '');
 var
   Notification: TPublishDiagnostics;
-  ShowMessage: TShowMessageNotification;
-  MessageString: String;
 
 begin
-  Notification:=Nil;
-  ShowMessage:=Nil;
+  Notification:=TPublishDiagnostics.Create;
   try
-    Notification:=TPublishDiagnostics.Create;
     if UserMessage <> '' then
       AddUserDiagnostic(Notification,aTransport,UserMessage)
-    else
+    else if (CodeToolBoss.ErrorCode<>Nil) then
       AddCodeToolError(Notification,aTransport);
-
     if not ServerSettings.publishDiagnostics then
       exit;
-
-    if (UserMessage <> '') then
-      begin
-        Notification := TPublishDiagnostics.Create;
-      end
-    else if CodeToolBoss.ErrorCode <> nil then
-      begin
-        Notification.Send(aTransport);
-      end;
+    if Notification.HaveDiagnostics then
+      Notification.Send(aTransport);
   finally
     Notification.Free;
-    ShowMessage.Free;
   end;
 end;
 
 
-function TDiagnosticsHandler.StrictSyntaxCheck(aDiagnosticDiagnostics : TPublishDiagnostics; aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
+function TDiagnosticsHandler.StrictSyntaxCheck(aDiagnostics : TPublishDiagnostics; aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
 
      Procedure SendError(E : Exception);
 
      var
        MessageString,aFileName : String;
        aCol,aRow : Integer;
-       ShowMessage : TShowMessageNotification;
-       Notification : TPublishDiagnostics;
        EParse: EParserError absolute E;
 
      begin
-       ShowMessage:=nil;
-       Notification:=Nil;
        try
          MessageString:=E.Message;
          if E is EParserError then
@@ -228,30 +229,16 @@ function TDiagnosticsHandler.StrictSyntaxCheck(aDiagnosticDiagnostics : TPublish
          aTransport.SendDiagnostic('Syntax Error -> %s',[MessageString]);
          // Show message in the gui also
          if ServerSettings.showSyntaxErrors then
-           begin
-             ShowMessage := TShowMessageNotification.Create(TMessageType.Error, '⚠️ '+MessageString);
-             try
-               ShowMessage.Send(aTransport);
-             finally
-               ShowMessage.Free;
-             end;
-           end;
+           ShowErrorMessage(aTransport,MessageString);
          if not ServerSettings.publishDiagnostics then
-          exit;
-         // Publish diagnostic
-         Notification := TPublishDiagnostics.Create;
-         try
-           Notification.Add(aFileName,
-                           MessageString,
-                           aRow,
-                           aCol,
-                           // TODO: code tools error ID is too large (int64), what should we do?
-                           1{CodeToolBoss.ErrorID},
-                           TDiagnosticSeverity.Error);
-           Notification.Send(aTransport);
-         finally
-           Notification.Free;
-         end;
+           exit;
+         aDiagnostics.Add(aFileName,
+                          MessageString,
+                          aRow-1,
+                          aCol-1,
+                          // TODO: code tools error ID is too large (int64), what should we do?
+                          1{CodeToolBoss.ErrorID},
+                          TDiagnosticSeverity.Error);
        except
          On Ex : Exception do
            TLSPContext.Log('Error %s sending diagnostic: %s',[Ex.ClassName,Ex.Message]);
@@ -354,22 +341,27 @@ end;
 
 procedure TPublishDiagnostics.Clear(fileName: string);
 begin
-  TPublishDiagnosticsParams(params).uri := PathToURI(fileName);
-  TPublishDiagnosticsParams(params).diagnostics.Clear;
+  DiagnosticParams.uri := PathToURI(fileName);
+  DiagnosticParams.diagnostics.Clear;
 end;
 
 procedure TPublishDiagnostics.Add(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
 var
   Diagnostic: TDiagnostic;
 begin
-  TPublishDiagnosticsParams(params).uri := PathToURI(fileName);
-
-  Diagnostic := TDiagnostic(TPublishDiagnosticsParams(params).diagnostics.Add);
+  DiagnosticParams.uri := PathToURI(fileName);
+  Diagnostic := DiagnosticParams.diagnostics.Add;
   Diagnostic.range.SetRange(line, column);
   Diagnostic.severity := severity;
   Diagnostic.code := code;
   Diagnostic.source := 'Free Pascal Compiler';
   Diagnostic.message := message;
+end;
+
+function TPublishDiagnostics.GetDiagnosticParams: TPublishDiagnosticsParams;
+
+begin
+  Result:=Params as TPublishDiagnosticsParams;
 end;
 
 constructor TPublishDiagnostics.Create;
@@ -382,6 +374,11 @@ destructor TPublishDiagnostics.Destroy;
 begin
   params.Free;
   inherited;
+end;
+
+function TPublishDiagnostics.HaveDiagnostics: Boolean;
+begin
+  Result:=DiagnosticParams.diagnostics.Count>0;
 end;
 
 { TPublishDiagnosticsParams }
