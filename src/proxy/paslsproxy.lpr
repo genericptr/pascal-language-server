@@ -68,23 +68,28 @@ Type
 
 var
   aFile : PFile;
+  aMsg : String;
 
 begin
-  FContext.Log('Out of band message of type %s: %s',[aFrame.MessageType.AsString,aFrame.PayloadString]);
+  aMsg:=aFrame.PayloadString;
+  FContext.Log('Out of band message of type %s: %s',[aFrame.MessageType.AsString,aMsg]);
   case aFrame.MessageType of
     lptmDiagnostic:
+      begin
       aFile:=@StdErr;
+      aMsg:=aMsg+sLineBreak;
+      end;
     lptmMessage:
       begin
       aFile:=@Output;
       WriteLn(aFile^,'Content-Type: ', ContentType);
-      WriteLn(aFile^,'Content-Length: ', Length(aFrame.PayloadString));
+      WriteLn(aFile^,'Content-Length: ', Length(aMsg));
       WriteLn(aFile^);
       end;
   else
     aFile:=Nil;
   end;
-  Write(aFile^,aFrame.PayloadString);
+  Write(aFile^,aMsg);
   Flush(aFile^);
 end;
 
