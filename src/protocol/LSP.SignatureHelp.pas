@@ -320,7 +320,7 @@ begin
     try
       if not CodeToolBoss.FindCodeContext(Code, X + 1, Y + 1, CodeContext) or (CodeContext = nil) or (CodeContext.Count = 0) then
         begin
-          DiagnosticsHandler.PublishDiagnostic(Transport);
+          PublishCodeToolsError(Transport,'');
           exit(nil);
         end;
 

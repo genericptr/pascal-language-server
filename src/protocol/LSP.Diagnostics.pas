@@ -93,10 +93,11 @@ type
     function CodeToolsCheckSyntax(aDiagnostics: TPublishDiagnostics; aTransport: TMessageTransport; Code: TCodeBuffer): boolean;
   Public
     procedure CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
-    procedure PublishDiagnostic(aTransport : TMessageTransport; UserMessage: String = '');
+    procedure SendDiagnosticMessage(aTransport : TMessageTransport; UserMessage: String = '');
   end;
 
 Function DiagnosticsHandler : TDiagnosticsHandler;
+procedure PublishCodeToolsError(aTransport : TMessageTransport; const aMessage : string);
 
 implementation
 
@@ -114,6 +115,12 @@ begin
   if _DiagnosticsHandler=Nil then
     _DiagnosticsHandler:=TDiagnosticsHandler.Create;
   Result:=_DiagnosticsHandler;
+end;
+
+procedure PublishCodeToolsError(aTransport: TMessageTransport;
+  const aMessage: string);
+begin
+  DiagnosticsHandler.SendDiagnosticMessage(aTransport,aMessage);
 end;
 
 Procedure TDiagnosticsHandler.AddUserDiagnostic(Diagnostics : TPublishDiagnostics; aTransport: TMessageTransport; UserMessage : String);
@@ -189,7 +196,7 @@ end;
 
 { Publish the last code tools error as a diagnostics }
 
-procedure TDiagnosticsHandler.PublishDiagnostic(aTransport : TMessageTransport; UserMessage: String = '');
+procedure TDiagnosticsHandler.SendDiagnosticMessage(aTransport : TMessageTransport; UserMessage: String = '');
 var
   Notification: TPublishDiagnostics;
 

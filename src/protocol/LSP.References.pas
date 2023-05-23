@@ -132,7 +132,7 @@ begin
     X,Y,
     DeclCode,DeclX,DeclY,DeclTopLine) then
   begin
-    DiagnosticsHandler.PublishDiagnostic(Transport,'FindMainDeclaration failed in '+StartSrcCode.FileName+' at '+IntToStr(Y)+':'+IntToStr(X));
+    PublishCodeToolsError(Transport,'FindMainDeclaration failed in '+StartSrcCode.FileName+' at '+IntToStr(Y)+':'+IntToStr(X));
     ExitCode:=-1;
     exit;
   end;
@@ -181,7 +181,7 @@ begin
         DeclCode,DeclX,DeclY,
         Code, true, ListOfPCodeXYPosition, Cache) then
       begin
-        DiagnosticsHandler.PublishDiagnostic(Transport,'FindReferences failed in "'+Code.Filename+'"');
+        PublishCodeToolsError(Transport,'FindReferences failed in "'+Code.Filename+'"');
         continue;
       end;
       if ListOfPCodeXYPosition=nil then continue;
