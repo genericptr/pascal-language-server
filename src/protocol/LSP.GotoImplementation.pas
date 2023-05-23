@@ -63,7 +63,7 @@ begin with Params do
       end
     else
       begin
-        PublishDiagnostic(Transport);
+        PublishCodeToolsError(Transport,'');
         Result := nil;
       end;
   end;

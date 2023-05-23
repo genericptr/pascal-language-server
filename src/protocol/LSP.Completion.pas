@@ -639,7 +639,7 @@ begin with Params do
                 end;
             end;
         end else begin
-          PublishDiagnostic(Self.Transport,'');
+          PublishCodeToolsError(Self.Transport,'');
           Result.isIncomplete := true;
         end;
     except

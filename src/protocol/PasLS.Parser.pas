@@ -5,7 +5,12 @@ unit PasLS.Parser;
 interface
 
 uses
-  Classes, SysUtils, PParser, PScanner, PasTree, CodeCache;
+  Classes, SysUtils, PParser, PScanner, PasTree, CodeCache, Types;
+
+// Detect presence of OnError etc.
+{$IF Declared(TPasParserErrorHandler)}
+{$DEFINE MULTIERROR}
+{$ENDIF}
 
 Type
 
@@ -33,11 +38,30 @@ Type
     function FindElement(const AName: String): TPasElement; override;
   end;
 
-function ParseSource(const FPCCommandLine : Array of String;
-                     const Code : TCodeBuffer;
-                     OSTarget, CPUTarget: String;
-                     Options : TParseSourceOptions): TPasModule;
-
+  { TSourceParser }
+  TReportParserErrorEvent = Procedure (Sender : TObject; Const aError, aFileName : string; aCode, aLine, aCol : Integer) Of Object;
+  TSourceParser = Class(TObject)
+  private
+    FOnError: TReportParserErrorEvent;
+    FParser: TPasParser;
+    FCode: TCodeBuffer;
+    FCommandLine: TStringDynArray;
+    FCPUTarget: String;
+    FOptions: TParseSourceOptions;
+    FOSTarget: String;
+{$IFDEF MULTIERROR}
+    procedure DoError(Sender: TObject; const aContext: TRecoveryContext;
+      var aAllowRecovery: Boolean);
+{$ENDIF}
+  Public
+    Function ParseSource: TPasModule;
+    Property CommandLine : TStringDynArray Read FCommandLine Write FCommandLine;
+    Property Code : TCodeBuffer Read FCode Write FCode;
+    Property OSTarget : String Read FOSTarget Write FOSTarget;
+    Property CPUTarget : String Read FCPUTarget Write FCPUTarget;
+    Property Options : TParseSourceOptions Read FOptions Write FOptions;
+    Property OnError : TReportParserErrorEvent Read FOnError Write FOnError;
+  end;
 
 implementation
 
@@ -64,15 +88,32 @@ begin
   Result := nil;
 end;
 
+{ TSourceParser }
 
-function ParseSource(const FPCCommandLine : Array of String;
-                     const Code : TCodeBuffer;
-                     OSTarget, CPUTarget: String;
-                     Options : TParseSourceOptions): TPasModule;
+{$IFDEF MULTIERROR}
+procedure TSourceParser.DoError(Sender: TObject;
+  const aContext: TRecoveryContext; var aAllowRecovery: Boolean);
+
+var
+  aCode : Integer;
+
+begin
+  aAllowRecovery:=True;
+  If Assigned(FOnError) then
+    begin
+    if aContext.Error is EParserError then
+      aCode:=EParserError(aContext.Error).ErrNo
+    else
+      aCode:=-1;
+    With FParser.CurSourcePos do
+      FOnError(Self,aContext.Error.Message,FileName,aCode, Row,Column);
+    end;
+end;
+{$ENDIF}
+function TSourceParser.ParseSource: TPasModule;
 
 var
   FileResolver: TBaseFileResolver;
-  Parser: TPasParser;
   Filename: String;
   Scanner: TPascalScanner;
 
@@ -127,6 +168,7 @@ var
 var
   S: String;
   Engine : TSimpleEngine;
+  aCode : integer;
 
 begin
   if DefaultFileResolverClass=Nil then
@@ -134,7 +176,7 @@ begin
   Result := nil;
   FileResolver := nil;
   Scanner := nil;
-  Parser := nil;
+  FParser := nil;
   Engine:=Nil;
   try
     Engine:=TSimpleEngine.Create;
@@ -190,24 +232,42 @@ begin
       else
         Scanner.AddDefine('CPU32');
       end;
-    Parser := TPasParser.Create(Scanner, FileResolver, Engine);
+    FParser := TPasParser.Create(Scanner, FileResolver, Engine);
     if (poSkipDefaultDefs in Options) then
-      Parser.ImplicitUses.Clear;
+      FParser.ImplicitUses.Clear;
     Filename := '';
-    Parser.LogEvents:=Engine.ParserLogEvents;
-    Parser.OnLog:=Engine.Onlog;
-
-    For S in FPCCommandLine do
+    FParser.LogEvents:=Engine.ParserLogEvents;
+    FParser.OnLog:=Engine.Onlog;
+{$IFDEF MULTIERROR}
+    FParser.MaxErrorCount:=50;
+    FParser.OnError:=@DoError;
+{$ENDIF}
+    For S in CommandLine do
       ProcessCmdLinePart(S);
     if Filename = '' then
       raise Exception.Create(SErrNoSourceGiven);
-{$IFDEF HASFS}
     FileResolver.AddIncludePath(ExtractFilePath(FileName));
-{$ENDIF}
     Scanner.OpenFile(Code.FileName);
-    Parser.ParseMain(Result);
+    try
+      FParser.ParseMain(Result);
+    except
+      on E : Exception do
+        begin
+        FreeAndNil(Result);
+        if Assigned(FOnError) then
+          With FParser.CurSourcePos do
+             begin
+             aCode:=-1;
+             {$IFDEF MULTIERROR}
+             if E is EParserError then
+               aCode:=EParserError(E).ErrNo;
+             {$ENDIF}
+             FOnError(Self,E.Message,FileName,aCode,Row,Column);
+             end;
+        end;
+    end;
   finally
-    Parser.Free;
+    FreeAndNil(FParser);
     Scanner.Free;
     FileResolver.Free;
   end;
