@@ -488,7 +488,7 @@ const
 
 var
   CodeToolsOptions: TCodeToolsOptions;
-  Option, Path: String;
+  Proj, Option, Path: String;
   Item: TCollectionItem;
   re: TRegExpr;
   Macros: TMacroMap;
@@ -540,7 +540,10 @@ begin
         FPCTARGETCPU = FPC target cpu like i386, x86_64, arm }
       CodeToolsOptions.InitWithEnvironmentVariables;
 
-      GuessCodeToolConfig(CodeToolsOptions);
+      GuessCodeToolConfig(Transport,CodeToolsOptions);
+      Proj:=initializationOptions.&program;
+      if (Proj<>'') and FileExists(Proj) then
+        ConfigureSingleProject(Transport,Proj);
 
       {$ifdef FreePascalMake}
       { attempt to load settings from FPM config file or search in the
