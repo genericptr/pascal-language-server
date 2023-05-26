@@ -155,6 +155,8 @@ procedure ConfigureSingleProject(aTransport : TMessageTransport; const aProjectF
 
 implementation
 
+uses strutils;
+
 // CodeTools needs to know the paths for the global packages, the FPC source
 // files, the path of the compiler and the target architecture.
 // Attempt to guess the correct settings from Lazarus config files.
@@ -876,14 +878,27 @@ procedure TLazProjectConfig.ConfigureSingleProject(const aProjectFile: string);
 
 Var
   Pkg : TPackage;
+  FN : String;
 
 begin
-  if FileExists(aProjectFile) then
+  try
+  FN:=aProjectFile;
+  if IndexText(LowerCase(ExtractFileExt(FN)),['.lpi','.lpk'])=-1 then
     begin
-    Pkg := GetPackageOrProject(aProjectFile);
+    FN:=ChangeFileExt(FN,'.lpi');
+    if not FileExists(FN) then
+      FN:=ChangeFileExt(FN,'.lpk');
+    end;
+  if FileExists(FN) then
+    begin
+    Pkg := GetPackageOrProject(FN);
     Pkg.ResolvePaths;
     Pkg.Configure;
     end;
+  except
+    On e : Exception do
+      DebugLog('Error %s configuring single project "%s": %s',[E.ClassName,aProjectFile,E.Message]);
+  end;
 end;
 
 
