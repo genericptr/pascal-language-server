@@ -24,15 +24,12 @@ unit PasLS.LazConfig;
 interface
 uses
   SysUtils, Classes, Contnrs, CodeToolManager, CodeToolsConfig, LazUTF8,
-  DefineTemplates, FileUtil, LazFileUtils, DOM, XMLRead;
+  DefineTemplates, FileUtil, LazFileUtils, DOM, XMLRead, LSP.Messages;
 
-procedure GuessCodeToolConfig(Options: TCodeToolsOptions);
+Type
+  { TPackage }
+  TPackage = class;
 
-implementation
-uses
-  iostream;
-
-type
   TPaths = record
     // Search path for units (OtherUnitFiles)
     UnitPath:         string;
@@ -42,7 +39,6 @@ type
     SrcPath:          string;
   end;
 
-  TPackage = class;
 
   TDependency = record
     // Name of the package, e.g. 'LCLBase'
@@ -61,11 +57,12 @@ type
     Package:          TPackage;
   end;
 
-  { TPackage }
+  TLazProjectConfig = class;
 
   TPackage = class
     // Name of the package / project
     //Name:             string;
+    // Full filename
     PkgFile:          string;
 
     // Home directory of the package / project
@@ -103,28 +100,198 @@ type
 
     // Search paths including dependencies
     ResolvedPaths:    TPaths;
-
-    constructor Create;
+  private
+    FConfig: TLazProjectConfig;
+    function GetAdditionalPaths(SearchPaths: TDomNode; const What: domstring): String;
+    procedure LoadDeps(Root: TDomNode);
+    procedure LoadFromFile(const aFileName: string);
+    procedure LoadPaths(Root: TDomNode);
+  Public
+    constructor Create(aConfig : TLazProjectConfig);
+    procedure Configure;
+    procedure ResolveDeps;
+    procedure ResolvePaths;
+    procedure GuessMissingDependencies;
   end;
 
+  { TLazProjectConfig }
+
+  TLazProjectConfig = class
+  Private
+    Class var
+      PkgNameToPath: TFPStringHashTable;
+    // Map Path -> TPackage
+      PkgCache:      TFPObjectHashTable;
+      _FakeAppName,
+      _FakeVendorName: string;
+  Private
+    FTransport : TMessageTransport;
+    FOptions: TCodeToolsOptions;
+    function GetPackageOrProject(const FileName: String): TPackage;
+    procedure GuessMissingDepsForAllPackages(const Dir: string);
+    function IgnoreDirectory(const Dir: string): Boolean;
+    procedure LoadAllPackagesUnderPath(const Dir: string);
+    function LoadPackageOrProject(const FileName: string): TPackage;
+    function LookupGlobalPackage(const Name: String): String;
+    procedure PopulateGlobalPackages(const SearchPaths: array of string);
+  Protected
+    procedure DebugLog(const Msg: string); overload;
+    procedure DebugLog(const Fmt: string; Args: array of const); overload;
+    Class function MergePaths(Paths: array of string): string;
+    class function GetConfigDirForApp(AppName, Vendor: string; Global: Boolean): string; virtual;
+    Property Options: TCodeToolsOptions Read FOptions;
+  Public
+    Class Constructor Init;
+    Class Destructor Done;
+    Constructor create(aTransport : TMessageTransport; aOptions: TCodeToolsOptions);
+    Procedure GuessCodeToolConfig;
+    procedure ConfigurePaths(const Dir: string);
+    procedure ConfigureSingleProject(const aProjectFile : string);
+  end;
+
+procedure GuessCodeToolConfig(aTransport : TMessageTransport; aOptions: TCodeToolsOptions);
+procedure ConfigureSingleProject(aTransport : TMessageTransport; const aProjectFile : string);
+
+
+implementation
+
+uses strutils;
+
+// CodeTools needs to know the paths for the global packages, the FPC source
+// files, the path of the compiler and the target architecture.
+// Attempt to guess the correct settings from Lazarus config files.
+procedure GuessCodeToolConfig(aTransport : TMessageTransport; aOptions: TCodeToolsOptions);
+
 var
-  DebugOutput: TStream;
-  PkgNameToPath: TFPStringHashTable;
-  // Map Path -> TPackage
-  PkgCache:      TFPObjectHashTable;
+  Cfg : TLazProjectConfig;
 
-procedure InitLog(Destination: TStream);
 begin
-  DebugOutput := Destination;
+  Cfg:=TLazProjectConfig.Create(aTransport,aOptions);
+  try
+    Cfg.GuessCodeToolConfig;
+  finally
+    Cfg.Free;
+  end;
 end;
 
-procedure DebugLog(const Msg: string);
+procedure ConfigureSingleProject(aTransport: TMessageTransport;
+  const aProjectFile: string);
+var
+  Cfg : TLazProjectConfig;
+
 begin
-  if (DebugOutput <> nil) and (Msg <> '') then
-    DebugOutput.WriteBuffer(Msg[1], Length(Msg));
+  Cfg:=TLazProjectConfig.Create(aTransport,Nil);
+  try
+    Cfg.ConfigureSingleProject(aProjectFile);
+  finally
+    Cfg.Free;
+  end;
 end;
 
-procedure DebugLog(const Fmt: string; Args: array of const);
+
+{ TPackage }
+
+constructor TPackage.Create(aConfig: TLazProjectConfig);
+begin
+  FConfig:=aConfig;
+  Valid                  := False;
+  Configured             := False;
+  DidResolvePaths        := False;
+  DidResolveDeps := False;
+end;
+
+procedure TPackage.Configure;
+var
+  Dep:      TDependency;
+  OtherSrc: TStringArray;
+  OtherDir: string;
+
+  procedure ConfigureSearchPath(const Dir: string);
+  var
+    DirectoryTemplate,
+    IncludeTemplate,
+    UnitPathTemplate,
+    SrcTemplate:       TDefineTemplate;
+    Paths:             TPaths;
+  begin
+    DirectoryTemplate := TDefineTemplate.Create(
+      'Directory', '',
+      '', Dir,
+      da_Directory
+    );
+
+    Paths.UnitPath    := TLazProjectConfig.MergePaths([UnitPathMacro,    ResolvedPaths.UnitPath]);
+    Paths.IncludePath := TLazProjectConfig.MergePaths([IncludePathMacro, ResolvedPaths.IncludePath]);
+    Paths.SrcPath     := TLazProjectConfig.MergePaths([SrcPathMacro,     ResolvedPaths.SrcPath]);
+
+    FConfig.DebugLog('%s', [Dir]);
+    FConfig.DebugLog('  UnitPath:    %s', [Paths.UnitPath]);
+    FConfig.DebugLog('  IncludePath: %s', [Paths.IncludePath]);
+    FConfig.DebugLog('  SrcPath:     %s', [Paths.SrcPath]);
+
+    UnitPathTemplate := TDefineTemplate.Create(
+      'Add to the UnitPath', '',
+      UnitPathMacroName, Paths.UnitPath,
+      da_DefineRecurse
+    );
+
+    IncludeTemplate := TDefineTemplate.Create(
+      'Add to the Include path', '',
+      IncludePathMacroName, Paths.IncludePath,
+      da_DefineRecurse
+    );
+
+    SrcTemplate := TDefineTemplate.Create(
+      'Add to the Src path', '',
+      SrcPathMacroName, Paths.SrcPath,
+      da_DefineRecurse
+    );
+
+    DirectoryTemplate.AddChild(UnitPathTemplate);
+    DirectoryTemplate.AddChild(IncludeTemplate);
+    DirectoryTemplate.AddChild(SrcTemplate);
+
+    CodeToolBoss.DefineTree.Add(DirectoryTemplate);
+  end;
+begin
+  if Configured then
+    exit;
+  Configured := True;
+
+  // Configure search path for package's (or project's) main source directory.
+  ConfigureSearchPath(Dir);
+
+  // Configure search path for other listed source directories.
+  OtherSrc := Paths.SrcPath.Split([';'], TStringSplitOptions.ExcludeEmpty);
+  for OtherDir in OtherSrc do
+    ConfigureSearchPath(OtherDir);
+
+  // Recurse
+  for Dep in Dependencies do
+  begin
+    if not Assigned(Dep.Package) then
+      continue;
+    Dep.Package.Configure;
+  end;
+end;
+
+function GetFakeAppName: string;
+begin
+  Result := TLazProjectConfig._FakeAppName;
+end;
+
+function GetFakeVendorName: string;
+begin
+  Result := TLazProjectConfig._FakeVendorName;
+end;
+
+procedure TLazProjectConfig.DebugLog(const Msg: string);
+begin
+  if  (Msg <> '') then
+    FTransPort.SendDiagnostic(Msg);
+end;
+
+procedure TLazProjectConfig.DebugLog(const Fmt: string; Args: array of const);
 var
   s: string;
 begin
@@ -132,7 +299,7 @@ begin
   DebugLog(s);
 end;
 
-function MergePaths(Paths: array of string): string;
+class function TLazProjectConfig.MergePaths(Paths: array of string): string;
 var
   i: Integer;
 begin
@@ -146,22 +313,7 @@ begin
   end;
 end;
 
-
-// yuck
-var
-  _FakeAppName, _FakeVendorName: string;
-
-function GetFakeAppName: string;
-begin
-  Result := _FakeAppName;
-end;
-
-function GetFakeVendorName: string;
-begin
-  Result := _FakeVendorName;
-end;
-
-function GetConfigDirForApp(AppName, Vendor: string; Global: Boolean): string;
+class function TLazProjectConfig.GetConfigDirForApp(AppName, Vendor: string; Global: Boolean): string;
 var
   OldGetAppName:     TGetAppNameEvent;
   OldGetVendorName:  TGetVendorNameEvent;
@@ -180,7 +332,8 @@ begin
   end;
 end;
 
-procedure PopulateGlobalPackages(const SearchPaths: array of string);
+procedure TLazProjectConfig.PopulateGlobalPackages(const SearchPaths: array of string);
+
 var
   Files:          TStringList;
   Dir, FileName, Name: string;
@@ -205,141 +358,152 @@ begin
   end;
 end;
 
-procedure LoadPackageOrProject(const FileName: string);
-var
-  Doc:     TXMLDocument;
-  Root:    TDomNode;
-  Package: TPackage;
-
-  function GetAdditionalPaths(
-    SearchPaths: TDomNode; const What: domstring
-  ): String;
-  var
-    Node: TDomNode;
-    Segments: TStringArray;
-    S, Segment, AbsSegment: string;
-  begin
-    Result := '';
-
-    Node := SearchPaths.FindNode(What);
-    if Assigned(Node) then
-      Node := Node.Attributes.GetNamedItem('Value');
-    if not Assigned(Node) then
-      Exit;
-
-    S := UTF8Encode(Node.NodeValue);
-    Segments := S.Split([';'], TStringSplitOptions.ExcludeEmpty);
-
-    for Segment in Segments do
-    begin
-      AbsSegment := CreateAbsolutePath(Segment, Package.Dir);
-      Result     := Result + ';' + AbsSegment;
-    end;
-  end;
-
-  procedure LoadPaths;
-  var
-    CompilerOptions, SearchPaths: TDomNode;
-  begin
-    Package.Paths.IncludePath := Package.Dir;
-    Package.Paths.UnitPath    := Package.Dir;
-
-    CompilerOptions := Root.FindNode('CompilerOptions');
-    if not Assigned(CompilerOptions) then
-      Exit;
-
-    SearchPaths := CompilerOptions.FindNode('SearchPaths');
-    if not Assigned(SearchPaths) then
-      Exit;
-
-    Package.Paths.IncludePath := MergePaths([
-      Package.Paths.IncludePath, 
-      GetAdditionalPaths(SearchPaths, 'IncludeFiles')
-    ]);
-    Package.Paths.UnitPath    := MergePaths([
-      Package.Paths.UnitPath, 
-      GetAdditionalPaths(SearchPaths, 'OtherUnitFiles')
-    ]);
-    Package.Paths.SrcPath     := GetAdditionalPaths(SearchPaths, 'SrcPath');
-  end;
-
-  procedure LoadDeps;
-  var
-    Deps, Item, Name, 
-    Path, Prefer:      TDomNode;
-    Dep:               TDependency;
-    i, DepCount:       Integer;
-  begin
-    if UpperCase(ExtractFileExt(FileName)) = '.LPK' then
-      Deps := Root.FindNode('RequiredPkgs')
-    else
-      Deps := Root.FindNode('RequiredPackages');
-
-    if not Assigned(Deps) then
-      Exit;
-
-    DepCount := 0;
-    SetLength(Package.Dependencies, Deps.ChildNodes.Count);
-
-    for i := 0 to Deps.ChildNodes.Count - 1 do
-    begin
-      Item        := Deps.ChildNodes.Item[i];
-
-      Name        := Item.FindNode('PackageName');
-      if not Assigned(Name) then
-        continue;
-
-      Name        := Name.Attributes.GetNamedItem('Value');
-      if not Assigned(Name) then
-        continue;
-
-      Dep.Name    := UTF8Encode(Name.NodeValue); 
-      Dep.Prefer  := False;
-      Dep.Package := nil;
-      Dep.Path    := '';
-
-      Path := Item.FindNode('DefaultFilename');
-
-      if Assigned(Path) then
-      begin
-        Prefer := Path.Attributes.GetNamedItem('Prefer');
-        Path   := Path.Attributes.GetNamedItem('Value');
-
-        Dep.Prefer := Assigned(Prefer) and (Prefer.NodeValue = 'True');
-        if Assigned(Path) then
-          Dep.Path := CreateAbsolutePath(UTF8Encode(Path.NodeValue), Package.Dir);
-
-        //DebugLog('HARDCODED DEP %s in %s', [Dep.Name, Dep.Path]);
-        //DebugLog('  Dir: %s, Rel: %s', [Package.Dir, Path.NodeValue]);
-      end;
-
-      Package.Dependencies[DepCount] := Dep;
-      Inc(DepCount);
-    end;
-  end;
+Function TLazProjectConfig.LoadPackageOrProject(const FileName: string): TPackage;
 
 begin
   if Assigned(PkgCache[FileName]) then
     Exit;
+  if FileExists(FileName) then
+    begin
+    DebugLog('Loading %s', [FileName]);
+    Result:= TPackage.Create(Self);
+    try
+      Result.LoadFromFile(FileName);
+    except
+      Result.Free;
+      Raise;
+    end;
+    PkgCache[FileName] := Result;
+    end;
+end;
 
-  DebugLog('Loading %s', [FileName]);
+function TPackage.GetAdditionalPaths(SearchPaths: TDomNode; const What: domstring): String;
+var
+  Node: TDomNode;
+  Segments: TStringArray;
+  S, Segment, AbsSegment: string;
+begin
+  Result := '';
 
-  Package       := TPackage.Create;
-  Package.Valid := False;
-  Package.Dir   := ExtractFilePath(FileName);
-  Package.PkgFile := FileName;
+  Node := SearchPaths.FindNode(What);
+  if Assigned(Node) then
+    Node := Node.Attributes.GetNamedItem('Value');
+  if not Assigned(Node) then
+    Exit;
 
-  PkgCache[FileName] := Package;
+  S := UTF8Encode(Node.NodeValue);
+  Segments := S.Split([';'], TStringSplitOptions.ExcludeEmpty);
+
+  for Segment in Segments do
+  begin
+    AbsSegment := CreateAbsolutePath(Segment, Dir);
+    Result     := Result + ';' + AbsSegment;
+  end;
+end;
+
+procedure TPackage.LoadPaths(Root : TDomNode);
+var
+  CompilerOptions, SearchPaths: TDomNode;
+begin
+  Paths.IncludePath := Dir;
+  Paths.UnitPath    := Dir;
+
+  CompilerOptions := Root.FindNode('CompilerOptions');
+  if not Assigned(CompilerOptions) then
+    Exit;
+
+  SearchPaths := CompilerOptions.FindNode('SearchPaths');
+  if not Assigned(SearchPaths) then
+    Exit;
+
+  Paths.IncludePath := TLazProjectConfig.MergePaths([
+    Paths.IncludePath,
+    GetAdditionalPaths(SearchPaths, 'IncludeFiles')
+  ]);
+  Paths.UnitPath    := TLazProjectConfig.MergePaths([
+    Paths.UnitPath,
+    GetAdditionalPaths(SearchPaths, 'OtherUnitFiles')
+  ]);
+  Paths.SrcPath     := GetAdditionalPaths(SearchPaths, 'SrcPath');
+end;
+
+procedure TPackage.LoadDeps(Root : TDomNode);
+
+var
+  Deps, Item, Name,
+  Path, Prefer:      TDomNode;
+  Dep:               TDependency;
+  i, DepCount:       Integer;
+begin
+  if UpperCase(ExtractFileExt(PkgFile)) = '.LPK' then
+    Deps := Root.FindNode('RequiredPkgs')
+  else
+    Deps := Root.FindNode('RequiredPackages');
+
+  if not Assigned(Deps) then
+    Exit;
+
+  DepCount := 0;
+  SetLength(Dependencies, Deps.ChildNodes.Count);
+
+  for i := 0 to Deps.ChildNodes.Count - 1 do
+  begin
+    Item        := Deps.ChildNodes.Item[i];
+
+    Name        := Item.FindNode('PackageName');
+    if not Assigned(Name) then
+      continue;
+
+    Name        := Name.Attributes.GetNamedItem('Value');
+    if not Assigned(Name) then
+      continue;
+
+    Dep.Name    := UTF8Encode(Name.NodeValue);
+    Dep.Prefer  := False;
+    Dep.Package := nil;
+    Dep.Path    := '';
+
+    Path := Item.FindNode('DefaultFilename');
+
+    if Assigned(Path) then
+    begin
+      Prefer := Path.Attributes.GetNamedItem('Prefer');
+      Path   := Path.Attributes.GetNamedItem('Value');
+
+      Dep.Prefer := Assigned(Prefer) and (Prefer.NodeValue = 'True');
+      if Assigned(Path) then
+        Dep.Path := CreateAbsolutePath(UTF8Encode(Path.NodeValue), Dir);
+
+      //DebugLog('HARDCODED DEP %s in %s', [Dep.Name, Dep.Path]);
+      //DebugLog('  Dir: %s, Rel: %s', [Package.Dir, Path.NodeValue]);
+    end;
+
+    Dependencies[DepCount] := Dep;
+    Inc(DepCount);
+  end;
+end;
+
+
+Procedure TPackage.LoadFromFile(const aFileName : string);
+
+var
+  Doc:     TXMLDocument;
+  Root:    TDomNode;
+
+begin
+  Valid := False;
+  Dir   := ExtractFilePath(aFileName);
+  PkgFile := aFileName;
 
   try
     try
-      ReadXMLFile(doc, filename);
+      ReadXMLFile(doc, afilename);
 
       Root := Doc.DocumentElement;
       if Root.NodeName <> 'CONFIG' then
         Exit;
 
-      if UpperCase(ExtractFileExt(FileName)) = '.LPK' then
+      if UpperCase(ExtractFileExt(aFileName)) = '.LPK' then
         Root := Root.FindNode('Package')
       else
         Root := Root.FindNode('ProjectOptions');
@@ -347,49 +511,57 @@ begin
       if not Assigned(Root) then
         Exit;
 
-      LoadPaths;
-      LoadDeps;
+      LoadPaths(Root);
+      LoadDeps(Root);
 
-      Package.Valid := True;
-    except on E:Exception do
+      Valid := True;
+    except
+      on E:Exception do
       // swallow
-      DebugLog('Error loading %s: %s', [FileName, E.Message]);
+      FConfig.DebugLog('Error %s loading %s: %s', [e.ClassName,aFileName, E.Message]);
     end;
   finally
-    if Assigned(doc) then
-      FreeAndNil(doc);
+    FreeAndNil(doc);
   end;
 end;
 
-function GetPackageOrProject(const FileName: String): TPackage;
+function TLazProjectConfig.GetPackageOrProject(const FileName: String): TPackage;
 begin
   Result := TPackage(PkgCache[FileName]);
   if not Assigned(Result) then
-  begin
-    LoadPackageOrProject(FileName);
-    Result := TPackage(PkgCache[FileName]);
-  end;
+    Result := LoadPackageOrProject(FileName);
 end;
 
-function LookupGlobalPackage(const Name: String): String;
+function TLazProjectConfig.LookupGlobalPackage(const Name: String): String;
 begin
   Result := PkgNameToPath[UpperCase(Name)];
 end;
 
-{ TPackage }
+{ TLazProjectConfig }
 
-constructor TPackage.Create;
+class constructor TLazProjectConfig.Init;
 begin
-  Valid                  := False;
-  Configured             := False;
-  DidResolvePaths        := False;
-  DidResolveDeps := False;
+  PkgNameToPath := TFPStringHashTable.Create;
+  PkgCache      := TFPObjectHashTable.Create;
 end;
+
+class destructor TLazProjectConfig.Done;
+begin
+  FreeAndNil(PkgNameToPath);
+  FreeAndNil(PkgCache);
+end;
+
+constructor TLazProjectConfig.create(aTransport: TMessageTransport;  aOptions: TCodeToolsOptions);
+begin
+  FTransport:=aTransport;
+  FOptions:=aOptions;
+end;
+
 
 // Resolve the dependencies of Pkg, and then the dependencies of the
 // dependencies and so on. Uses global registry and paths locally specified in
 // the package/project file (.lpk/.lpi) as a data source.
-procedure ResolveDeps(Pkg: TPackage);
+procedure TPackage.ResolveDeps;
 var
   Dep:     ^TDependency;
   DepPath: string;
@@ -402,38 +574,38 @@ var
       Result := '';
   end;
 begin
-  if Pkg.DidResolveDeps then
+  if DidResolveDeps then
     exit;
 
-  Pkg.DidResolveDeps := True;
+  DidResolveDeps := True;
 
-  for i := low(Pkg.Dependencies) to high(Pkg.Dependencies) do
+  for i := low(Dependencies) to high(Dependencies) do
   begin
-    Dep := @Pkg.Dependencies[i];
+    Dep := @Dependencies[i];
 
-    DepPath := LookupGlobalPackage(Dep^.Name);
+    DepPath := FConfig.LookupGlobalPackage(Dep^.Name);
     if (Dep^.Prefer) or (DepPath = '') then
       DepPath := Dep^.Path;
 
     if DepPath = '' then
     begin
-      DebugLog('  Dependency %s: not found', [Dep^.Name]);
+      FConfig.DebugLog('  Dependency %s: not found', [Dep^.Name]);
       continue;
     end;
 
-    DebugLog(
+    FConfig.DebugLog(
       '  Dependency: %s -> %s%s',
       [Dep^.Name, DepPath, IfThen(DepPath = Dep^.Path, ' (hardcoded)')]
     );
 
-    Dep^.Package := GetPackageOrProject(DepPath);
+    Dep^.Package := FConfig.GetPackageOrProject(DepPath);
 
     // Add ourselves to the RequiredBy list of the dependency.
     SetLength(Dep^.Package.RequiredBy, Length(Dep^.Package.RequiredBy) + 1);
-    Dep^.Package.RequiredBy[High(Dep^.Package.RequiredBy)] := Pkg;
+    Dep^.Package.RequiredBy[High(Dep^.Package.RequiredBy)] := Self;
 
     // Recurse
-    ResolveDeps(Dep^.Package);
+    Dep^.Package.ResolveDeps;
   end;
 end;
 
@@ -451,7 +623,7 @@ end;
 // reason for this might be that B specified a default or preferred path for
 // dependency C). In this case we resolve the situation by using B's C also
 // for A.
-procedure GuessMissingDependencies(Pkg: TPackage);
+procedure TPackage.GuessMissingDependencies;
 var
   Dep: ^TDependency;
   i:   Integer;
@@ -492,46 +664,46 @@ var
     end;
   end;
 begin
-  for i := low(Pkg.Dependencies) to high(Pkg.Dependencies) do
+  for i := low(Dependencies) to high(Dependencies) do
   begin
-    Dep := @Pkg.Dependencies[i];
+    Dep := @Dependencies[i];
     if Assigned(Dep^.Package) then
       continue;
 
-    Dep^.Package := GuessDependency(Pkg, Dep^.Name);
+    Dep^.Package := GuessDependency(Self, Dep^.Name);
   end;
 end;
 
 // Add the search paths of its dependencies to a package.
-procedure ResolvePaths(Pkg: TPackage);
+procedure TPackage.ResolvePaths;
 var
   Dep: TDependency;
 begin
-  if Pkg.DidResolvePaths then
+  if DidResolvePaths then
     exit;
 
-  Pkg.DidResolvePaths := True;
+  DidResolvePaths := True;
 
-  Pkg.ResolvedPaths := Pkg.Paths;
+  ResolvedPaths := Paths;
 
-  for Dep in Pkg.Dependencies do
+  for Dep in Dependencies do
   begin
     if not Assigned(Dep.Package) then
       continue;
 
     // Recurse
-    ResolvePaths(Dep.Package);
+    Dep.Package.ResolvePaths;
 
-    Pkg.ResolvedPaths.IncludePath := MergePaths([
-      Pkg.ResolvedPaths.IncludePath{,
+    ResolvedPaths.IncludePath := TLazProjectConfig.MergePaths([
+      ResolvedPaths.IncludePath{,
       Dep.Package.ResolvedPaths.IncludePath}
     ]);
-    Pkg.ResolvedPaths.UnitPath := MergePaths([
-      Pkg.ResolvedPaths.UnitPath,
+    ResolvedPaths.UnitPath := TLazProjectConfig.MergePaths([
+      ResolvedPaths.UnitPath,
       Dep.Package.ResolvedPaths.UnitPath
     ]);
-    Pkg.ResolvedPaths.SrcPath := MergePaths([
-      Pkg.ResolvedPaths.SrcPath{,
+    ResolvedPaths.SrcPath := TLazProjectConfig.MergePaths([
+      ResolvedPaths.SrcPath{,
       Dep.Package.ResolvedPaths.SrcPath}
     ]);
   end;
@@ -539,83 +711,9 @@ end;
 
 // Add required search paths to package's source directories (and their
 // subdirectories).
-procedure ConfigurePackage(Pkg: TPackage);
-var
-  Dep:      TDependency;
-  OtherSrc: TStringArray;
-  OtherDir: string;
-
-  procedure ConfigureSearchPath(const Dir: string);
-  var
-    DirectoryTemplate,
-    IncludeTemplate,
-    UnitPathTemplate,
-    SrcTemplate:       TDefineTemplate;
-    Paths:             TPaths;
-  begin
-    DirectoryTemplate := TDefineTemplate.Create(
-      'Directory', '',
-      '', Dir,
-      da_Directory
-    );
-
-    Paths.UnitPath    := MergePaths([UnitPathMacro,    Pkg.ResolvedPaths.UnitPath]);
-    Paths.IncludePath := MergePaths([IncludePathMacro, Pkg.ResolvedPaths.IncludePath]);
-    Paths.SrcPath     := MergePaths([SrcPathMacro,     Pkg.ResolvedPaths.SrcPath]);
-
-    DebugLog('%s', [Dir]);
-    DebugLog('  UnitPath:    %s', [Paths.UnitPath]);
-    DebugLog('  IncludePath: %s', [Paths.IncludePath]);
-    DebugLog('  SrcPath:     %s', [Paths.SrcPath]);
-
-    UnitPathTemplate := TDefineTemplate.Create(
-      'Add to the UnitPath', '',
-      UnitPathMacroName, Paths.UnitPath,
-      da_DefineRecurse
-    );
-
-    IncludeTemplate := TDefineTemplate.Create(
-      'Add to the Include path', '',
-      IncludePathMacroName, Paths.IncludePath,
-      da_DefineRecurse
-    );
-
-    SrcTemplate := TDefineTemplate.Create(
-      'Add to the Src path', '',
-      SrcPathMacroName, Paths.SrcPath,
-      da_DefineRecurse
-    );
-
-    DirectoryTemplate.AddChild(UnitPathTemplate);
-    DirectoryTemplate.AddChild(IncludeTemplate);
-    DirectoryTemplate.AddChild(SrcTemplate);
-
-    CodeToolBoss.DefineTree.Add(DirectoryTemplate);
-  end;
-begin
-  if Pkg.Configured then
-    exit;
-  Pkg.Configured := True;
- 
-  // Configure search path for package's (or project's) main source directory.
-  ConfigureSearchPath(Pkg.Dir);
-
-  // Configure search path for other listed source directories.
-  OtherSrc := Pkg.Paths.SrcPath.Split([';'], TStringSplitOptions.ExcludeEmpty);
-  for OtherDir in OtherSrc do
-    ConfigureSearchPath(OtherDir);
-
-  // Recurse
-  for Dep in Pkg.Dependencies do
-  begin
-    if not Assigned(Dep.Package) then
-      continue;
-    ConfigurePackage(Dep.Package);
-  end;
-end;
 
 // Don't load packages from directories with these names...
-function IgnoreDirectory(const Dir: string): Boolean;
+function TLazProjectConfig.IgnoreDirectory(const Dir: string): Boolean;
 var
   DirName: string;
 begin
@@ -630,7 +728,7 @@ begin
 end;
 
 // Load all packages in a directory and its subdirectories.
-procedure LoadAllPackagesUnderPath(const Dir: string);
+procedure TLazProjectConfig.LoadAllPackagesUnderPath(const Dir: string);
 var
   Packages,
   SubDirectories:    TStringList;
@@ -648,7 +746,7 @@ begin
     for i := 0 to Packages.Count - 1 do
     begin
       Pkg := GetPackageOrProject(Packages[i]);
-      ResolveDeps(Pkg);
+      Pkg.ResolveDeps;
     end;
 
     // Recurse into child directories
@@ -666,7 +764,7 @@ begin
 end;
 
 // Given a directory, fix missing deps for all packages in the directory.
-procedure GuessMissingDepsForAllPackages(const Dir: string);
+procedure TLazProjectConfig.GuessMissingDepsForAllPackages(const Dir: string);
 var
   Packages,
   SubDirectories:    TStringList;
@@ -684,7 +782,7 @@ begin
     for i := 0 to Packages.Count - 1 do
     begin
       Pkg := GetPackageOrProject(Packages[i]);
-      GuessMissingDependencies(Pkg);
+      Pkg.GuessMissingDependencies;
     end;
 
     // Recurse into child directories
@@ -704,7 +802,7 @@ end;
 // If there are any projects (.lpi) or packages (.lpk) in the directory, use
 // (only) their search paths. Otherwise, inherit the search paths from the
 // parent directory ('ParentPaths').
-procedure ConfigurePaths(const Dir: string);
+procedure TLazProjectConfig.ConfigurePaths(const Dir: string);
 var
   Packages,
   SubDirectories:    TStringList;
@@ -752,7 +850,7 @@ begin
     for i := 0 to Packages.Count - 1 do
     begin
       Pkg := GetPackageOrProject(Packages[i]);
-      ResolvePaths(Pkg);
+      Pkg.ResolvePaths;
     end;
 
     // 2b. For each package in the dependency tree, apply the package's
@@ -761,7 +859,7 @@ begin
     for i := 0 to Packages.Count - 1 do
     begin
       Pkg := GetPackageOrProject(Packages[i]);
-      ConfigurePackage(Pkg);
+      Pkg.Configure;
     end;
 
     // Recurse into child directories
@@ -776,13 +874,38 @@ begin
   end;
 end;
 
-// CodeTools needs to know the paths for the global packages, the FPC source
-// files, the path of the compiler and the target architecture.
-// Attempt to guess the correct settings from Lazarus config files.
-procedure GuessCodeToolConfig(Options: TCodeToolsOptions);
+procedure TLazProjectConfig.ConfigureSingleProject(const aProjectFile: string);
+
+Var
+  Pkg : TPackage;
+  FN : String;
+
+begin
+  try
+  FN:=aProjectFile;
+  if IndexText(LowerCase(ExtractFileExt(FN)),['.lpi','.lpk'])=-1 then
+    begin
+    FN:=ChangeFileExt(FN,'.lpi');
+    if not FileExists(FN) then
+      FN:=ChangeFileExt(FN,'.lpk');
+    end;
+  if FileExists(FN) then
+    begin
+    Pkg := GetPackageOrProject(FN);
+    Pkg.ResolvePaths;
+    Pkg.Configure;
+    end;
+  except
+    On e : Exception do
+      DebugLog('Error %s configuring single project "%s": %s',[E.ClassName,aProjectFile,E.Message]);
+  end;
+end;
+
+
+procedure TLazProjectConfig.GuessCodeToolConfig;
+
 var
   ConfigDirs:         TStringList;
-  Dir:                string;
   Doc:                TXMLDocument;
 
   Root,
@@ -807,6 +930,8 @@ var
         Result := true;
       DebugLog('Reading config from %s', [Path]);
     except
+      on e : Exception do
+        DebugLog('Error %s Reading config from %s: %s', [E.ClassName,Path,E.Message]);
       // Swallow
     end;
   end;
@@ -826,6 +951,11 @@ var
       exit;
     Result := string(Value.NodeValue);
   end;
+
+Var
+  FN:                 string;
+  Dir:                string;
+
 begin
   ConfigDirs := TStringList.Create;
   try
@@ -836,7 +966,8 @@ begin
     begin
       Doc := nil;
       try
-        if LoadLazConfig(Dir + DirectorySeparator + 'environmentoptions.xml') then
+        FN:=Dir + DirectorySeparator + 'environmentoptions.xml';
+        if FileExists(FN) and LoadLazConfig(FN) then
         begin
           EnvironmentOptions := Root.FindNode('EnvironmentOptions');
           LazarusDirectory   := GetVal(EnvironmentOptions, 'LazarusDirectory');
@@ -852,8 +983,6 @@ begin
       finally
         FreeAndNil(Doc);
       end;
-
-      Doc := nil;
       try
         if LoadLazConfig(Dir + DirectorySeparator + 'fpcdefines.xml') then
         begin
@@ -876,16 +1005,5 @@ begin
     FreeAndNil(ConfigDirs);
   end;
 end;
-
-initialization
-  InitLog(TIOStream.Create(iosError));
-
-  PkgNameToPath := TFPStringHashTable.Create;
-  PkgCache      := TFPObjectHashTable.Create;
-
-Finalization
-  PkgNameToPath.Free;
-  PkgCache.Free;
-  DebugOutput.Free;
 
 end.
