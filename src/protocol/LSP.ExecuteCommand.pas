@@ -80,7 +80,9 @@ end;
 function TExecuteCommandRequest.Process(var Params: TExecuteCommandParams): TLSPStreamable;
 var
   documentURI,configURI: TDocumentUri;
-  position: TPosition;
+  spos,epos,position: TPosition;
+  Range : TRange;
+
 begin with Params do
   begin
     result := nil;
@@ -101,6 +103,24 @@ begin with Params do
           documentURI := arguments.Strings[0];
           configURI := arguments.Strings[1];
           PrettyPrint(Transport,documentURI,ConfigURI);
+        end;
+      'pasls.invertAssignment':
+        begin
+          documentURI := arguments.Strings[0];
+          Range:=Nil;
+          ePos:=Nil;
+          sPos:=specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[1].AsJSON);
+          try
+            ePos:=specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[2].AsJSON);
+            Range:=TRange.Create;
+            Range.Start:=sPos;
+            Range.&End:=ePos;
+            InvertAssignment(Transport,documentURI,Range);
+          finally
+            sPos.Free;
+            ePos.Free;
+            Range.Free;
+          end;
         end;
     end;
   end;

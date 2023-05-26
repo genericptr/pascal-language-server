@@ -31,6 +31,7 @@ uses
 
 procedure CompleteCode(ATransport: TMessageTransport; DocumentURI: TDocumentUri; Line, Column: Integer);
 procedure PrettyPrint(ATransport: TMessageTransport; DocumentURI: TDocumentUri; SettingsURI : TDocumentUri);
+procedure InvertAssignment(ATransport: TMessageTransport; DocumentURI: TDocumentUri; Range : TRange);
 
 implementation
 uses
@@ -40,7 +41,7 @@ uses
   FindDeclarationTool,
   SourceChanger,
   { Protocols }
-  LSP.Workspace, PasLS.Settings;
+  LSP.Workspace, PasLS.Settings, PasLS.InvertAssign;
 
 procedure ApplyEdit(aTransport: TMessageTransport; DocumentURI, Text: String; Range: TRange);
 var
@@ -140,6 +141,38 @@ begin
   finally
     Formatter.Free;
   end;
+end;
+
+procedure InvertAssignment(ATransport: TMessageTransport;
+  DocumentURI: TDocumentUri; Range: TRange);
+
+var
+  Path,S,SL : String;
+  Code : TCodeBuffer;
+  I : TInvertAssignment;
+
+begin
+  Path := UriToPath(DocumentURI);
+  Code := CodeToolBoss.FindFile(Path);
+  if Assigned(Code) then
+    begin
+    S:='';
+    if (Range.start.line<Range.&end.line) then
+      begin
+      S:=Code.GetLines(Range.start.line+1,Range.&end.line);
+      if Range.start.character>0 then
+        Delete(S,1,Range.start.character);
+      end;
+    SL:=Code.GetLine(Range.&end.line);
+    S:=S+Copy(SL,1,Range.&end.Character+1);
+    I:=TInvertAssignment.Create;
+    try
+      S:=I.InvertAssignment(S);
+      ApplyEdit(ATransport,DocumentURI,S,Range);
+    finally
+      I.Free;
+    end;
+    end;
 end;
 
 end.
