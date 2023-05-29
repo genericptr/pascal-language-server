@@ -67,8 +67,10 @@ type
   end;
 
 implementation
+
 uses
-  PasLS.Commands;
+  PasLS.Commands,
+  PasLS.RemoveEmptyMethods;
 
 destructor TExecuteCommandParams.Destroy;
 begin
@@ -82,6 +84,7 @@ var
   documentURI,configURI: TDocumentUri;
   spos,epos,position: TPosition;
   Range : TRange;
+  rem : TRemoveEmptyMethods;
 
 begin with Params do
   begin
@@ -120,6 +123,19 @@ begin with Params do
             sPos.Free;
             ePos.Free;
             Range.Free;
+          end;
+        end;
+      'pasls.removeEmptyMethods':
+        begin
+          documentURI := arguments.Strings[0];
+          rem:=nil;
+          position := specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[1].AsJSON);
+          try
+            rem:=TRemoveEmptyMethods.Create(Transport);
+            Rem.Execute(documentURI,position);
+          finally
+            Position.Free;
+            Rem.Free;
           end;
         end;
     end;

@@ -341,7 +341,9 @@ begin
   fexecuteCommandProvider := TExecuteCommandOptions.Create([
     'pasls.completeCode',
     'pasls.formatCode',
-    'pasls.invertAssignment'
+    'pasls.invertAssignment',
+    'pasls.removeEmptyMethods'
+
   ]);
   // finlayHintProvider:= TInlayHintOptions.Create;
 

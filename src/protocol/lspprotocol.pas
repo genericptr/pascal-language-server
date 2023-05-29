@@ -17,7 +17,7 @@ uses
   PasLS.CodeUtils, PasLS.Commands, PasLS.LazConfig, PasLS.TextLoop, 
   PasLS.SocketDispatcher, LSP.AllCommands, LSP.Streaming, LSP.BaseTypes, 
   LSP.Messages, PasLS.Parser, PasLS.Formatter, PasLS.InvertAssign, 
-  LazarusPackageIntf;
+  PasLS.RemoveEmptyMethods, PasLS.ApplyEdit, LazarusPackageIntf;
 
 implementation
 
