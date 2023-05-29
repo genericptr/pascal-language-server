@@ -167,6 +167,14 @@
         <Filename Value="PasLS.InvertAssign.pas"/>
         <UnitName Value="PasLS.InvertAssign"/>
       </Item>
+      <Item>
+        <Filename Value="PasLS.RemoveEmptyMethods.pas"/>
+        <UnitName Value="PasLS.RemoveEmptyMethods"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.ApplyEdit.pas"/>
+        <UnitName Value="PasLS.ApplyEdit"/>
+      </Item>
     </Files>
     <RequiredPkgs>
       <Item>
