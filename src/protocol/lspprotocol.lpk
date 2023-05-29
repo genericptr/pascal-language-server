@@ -163,6 +163,10 @@
         <Filename Value="PasLS.Formatter.pas"/>
         <UnitName Value="PasLS.Formatter"/>
       </Item>
+      <Item>
+        <Filename Value="PasLS.InvertAssign.pas"/>
+        <UnitName Value="PasLS.InvertAssign"/>
+      </Item>
     </Files>
     <RequiredPkgs>
       <Item>
