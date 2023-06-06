@@ -158,12 +158,33 @@ https://github.com/genericptr/pasls-vscode) and configure the settings according
 
 ## Building
 
-Requires Free Pascal Compiler version 3.2.0 and Lazarus version 2.0.8,
-open the project file in Lazarus or use the commandline:
+Requires Free Pascal Compiler version 3.2.0 and Lazarus trunk sources.
+
+To build using Lazarus, you need to follow the following steps:
+
+* Update or download the sources from gitlab:
+[https://gitlab.com/freepascal.org/lazarus/lazarus](https://gitlab.com/freepascal.org/lazarus/lazarus)
+
+* Open the jcfbase package in the lazarus IDE. It is located in the
+  `components/jcf2` directory.  You can compile this package in the IDE.
+  
+  You need to do this only once, so Lazarus knows about the jcfbase package.
+  (unless you wish to update the Jedi Code Formatter)
+
+* open the `lspprotocol.lpk` package in Lazarus. It is located in the
+  [src/protocol](src/protocol) directory.
+  You can compile this package in the IDE, but this is not needed: The
+Lazarus IDE and Lazbuild simply need to know where itis.
+
+* open the `src/standard/pasls.lpi` project file in Lazarus, and compile the
+  program. or use the lazbuid commandline:
 
 ```sh
 lazbuild src/standard/pasls.lpi
 ```
+The `lspprotocol.lpk` package and `pasls.lpi` are both in the
+`pascallanguageserver.lpg`project group; if you have project group support enabled,
+then you can use this to compile this package and the executable.
 
 ## Debugging the LSP server
 
