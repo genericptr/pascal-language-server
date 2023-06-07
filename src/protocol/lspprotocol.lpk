@@ -178,7 +178,7 @@
     </Files>
     <RequiredPkgs>
       <Item>
-        <PackageName Value="jcfnogui"/>
+        <PackageName Value="jcfbase"/>
       </Item>
       <Item>
         <PackageName Value="CodeTools"/>
