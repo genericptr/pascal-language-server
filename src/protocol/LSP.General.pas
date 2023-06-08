@@ -36,7 +36,7 @@ uses
   { Protocol }
   LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.Capabilities, LSP.DocumentSymbol,
   { Utils }
-  PasLS.Settings, PasLS.Symbols, PasLS.LazConfig;
+  PasLS.Settings, PasLS.Symbols, PasLS.Commands, PasLS.LazConfig;
 
 type
 
@@ -166,6 +166,7 @@ type
   end;
 
 implementation
+
 uses
   SysUtils, RegExpr, DefineTemplates;
 
@@ -498,16 +499,17 @@ begin
   CodeToolsOptions := TCodeToolsOptions.Create;
   try
     Result := TInitializeResult.Create;
+    Result.capabilities.executeCommandProvider.commands.Clear;
+    CommandFactory.GetCommandList(Result.capabilities.executeCommandProvider.commands);
     with Params do
     begin
-
       ServerSettings.Assign(initializationOptions);
       PasLS.Settings.ClientInfo.Assign(ClientInfo);
 
       // replace macros in server settings
       Macros := TMacroMap.Create;
       Macros.Add('tmpdir', GetTempDir(true));
-      Macros.Add('root', ParseURI(rootUri).path);
+      Macros.Add('root', URIToPath(rootUri));
 
       ServerSettings.ReplaceMacros(Macros);
 

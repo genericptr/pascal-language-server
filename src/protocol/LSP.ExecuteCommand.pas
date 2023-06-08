@@ -26,7 +26,7 @@ uses
   { RTL }
   SysUtils, Classes, FPJSON,
   { Protocol }
-  LSP.BaseTypes, LSP.Base, LSP.Basic, LSP.Streaming, LSP.WorkDoneProgress;
+  LSP.BaseTypes, LSP.Base, LSP.Streaming, LSP.WorkDoneProgress;
 
 type
   { TExecuteCommandParams
@@ -69,8 +69,7 @@ type
 implementation
 
 uses
-  PasLS.Commands,
-  PasLS.RemoveEmptyMethods;
+  PasLS.Commands;
 
 destructor TExecuteCommandParams.Destroy;
 begin
@@ -81,65 +80,28 @@ end;
 
 function TExecuteCommandRequest.Process(var Params: TExecuteCommandParams): TLSPStreamable;
 var
-  documentURI,configURI: TDocumentUri;
-  spos,epos,position: TPosition;
-  Range : TRange;
-  rem : TRemoveEmptyMethods;
+  aCommandClass : TCustomCommandClass;
+  aCommand : TCustomCommand;
 
-begin with Params do
-  begin
-    result := nil;
-
-    case command of
-      'pasls.completeCode': 
-        begin
-          documentURI := arguments.Strings[0];
-          position := specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[1].AsJSON);
-          try
-            CompleteCode(Transport,documentURI, position.line, position.character);
-          finally
-            Position.Free;
-          end;
-        end;
+begin
+  result := nil;
+  aCommandClass:=CommandFactory.FindCommandClass(Params.command);
+  if aCommandClass<>Nil then
+    try
+      aCommand:=aCommandClass.Create(Self.Transport);
+      result:=aCommand.Execute(Params.Arguments);
+    finally
+      aCommand.Free;
+    end;
+   { case command of
       'pasls.formatCode':
         begin
-          documentURI := arguments.Strings[0];
-          configURI := arguments.Strings[1];
-          PrettyPrint(Transport,documentURI,ConfigURI);
         end;
       'pasls.invertAssignment':
         begin
-          documentURI := arguments.Strings[0];
-          Range:=Nil;
-          ePos:=Nil;
-          sPos:=specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[1].AsJSON);
-          try
-            ePos:=specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[2].AsJSON);
-            Range:=TRange.Create;
-            Range.Start:=sPos;
-            Range.&End:=ePos;
-            InvertAssignment(Transport,documentURI,Range);
-          finally
-            sPos.Free;
-            ePos.Free;
-            Range.Free;
-          end;
         end;
-      'pasls.removeEmptyMethods':
-        begin
-          documentURI := arguments.Strings[0];
-          rem:=nil;
-          position := specialize TLSPStreaming<TPosition>.ToObject(arguments.Objects[1].AsJSON);
-          try
-            rem:=TRemoveEmptyMethods.Create(Transport);
-            Rem.Execute(documentURI,position);
-          finally
-            Position.Free;
-            Rem.Free;
-          end;
-        end;
-    end;
-  end;
+    end;}
+
 end;
 
 initialization

@@ -25,120 +25,282 @@ unit PasLS.Commands;
 interface
 uses
   { RTL }
-  SysUtils, Classes, FPJSON,
+  SysUtils, Classes, Types, FPJSON,
   { LSP }
-  LSP.BaseTypes, LSP.Basic, LSP.Messages ;
+  LSP.BaseTypes, LSP.Messages ;
 
-procedure CompleteCode(ATransport: TMessageTransport; DocumentURI: TDocumentUri; Line, Column: Integer);
-procedure PrettyPrint(ATransport: TMessageTransport; DocumentURI: TDocumentUri; SettingsURI : TDocumentUri);
-procedure InvertAssignment(ATransport: TMessageTransport; DocumentURI: TDocumentUri; Range : TRange);
+Type
+
+  { TCustomCommand }
+
+  TCustomCommand = class
+  private
+    FTransport: TMessageTransport;
+  Protected
+    function DoExecute(aArguments : TJSONArray) : TLSPStreamable; virtual; abstract;
+  Public
+    class Function CommandName : String; virtual;
+    class Procedure Register;
+    class procedure UnRegister;
+    Constructor Create(aTransport : TMessageTransport); virtual;
+    function Execute(aArguments : TJSONArray) : TLSPStreamable;
+    Property Transport : TMessageTransport Read FTransport;
+  end;
+  TCustomCommandClass = class of TCustomCommand;
+
+  { TCommandDef }
+
+  TCommandDef = Class(TCollectionItem)
+  private
+    FClass: TCustomCommandClass;
+    function GetCommandName: String;
+  Public
+    property CommandClass : TCustomCommandClass Read FClass Write FClass;
+    Property CommandName : String Read GetCommandName;
+  end;
+
+  { TCommandDefs }
+
+  TCommandDefs = Class(TCollection)
+  private
+    FCommandCount: Integer;
+    function GetDef(aIndex: Integer): TCommandDef;
+    procedure SetDef(aIndex: Integer; AValue: TCommandDef);
+  Public
+    function Add(aCommandClass : TCustomCommandClass) : TCommandDef;
+    function IndexOfCommandClass(aCommandClass : TCustomCommandClass) : Integer;
+    function IndexOfCommand(const aName : String) : Integer;
+    function FindCommand(const aName: String): TCommandDef;
+    function FindCommandClass(aCommandClass : TCustomCommandClass): TCommandDef;
+    function Remove(aCommandClass : TCustomCommandClass) : Boolean;
+    Property Commands[aIndex: Integer] : TCommandDef Read GetDef Write SetDef; default;
+    Property CommandCount : Integer Read FCommandCount;
+  end;
+
+  { TCommandFactory }
+
+  TCommandFactory = class
+  private
+    class var _instance : TCommandFactory;
+  private
+    FList : TCommandDefs;
+  public
+    Class Constructor Init;
+    Class Destructor Done;
+    Constructor Create;
+    Destructor Destroy; override;
+    Procedure RegisterCommand(aCommand : TCustomCommandClass);
+    Procedure UnregisterCommand(aCommand : TCustomCommandClass);
+    Function FindCommand(const aName : String) : TCommandDef;
+    Function FindCommandClass(const aName : String) : TCustomCommandClass;
+    Procedure GetCommandList(L : TStrings);
+    Function GetCommandNames : TStringDynArray;
+    Class Property Instance : TCommandFactory Read _Instance;
+  end;
+
+Function CommandFactory : TCommandFactory;
+
 
 implementation
 uses
-  { CodeTools }
-  PasLS.Formatter,
-  PasLS.ApplyEdit,
-  CodeToolManager, CodeCache,
-
+  CodeToolManager,
   FindDeclarationTool,
-  SourceChanger,
+
   { Protocols }
-  LSP.Workspace, PasLS.Settings, PasLS.InvertAssign;
+  LSP.Workspace, PasLS.Settings;
 
-
-procedure CompleteCode(ATransport: TMessageTransport; DocumentURI: TDocumentUri; line, column: integer);
-var
-  Path: String;
-  Code, NewCode: TCodeBuffer;
-    NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: Integer;
-  ARange: TRange;
+function CommandFactory: TCommandFactory;
 begin
-  // https://wiki.lazarus.freepascal.org/Lazarus_IDE_Tools#Code_Completion
-
-  with CodeToolBoss.SourceChangeCache.BeautifyCodeOptions do
-    begin
-     ClassHeaderComments := false;
-     ClassImplementationComments := false;
-     ForwardProcBodyInsertPolicy := fpipInFrontOfMethods;
-    end;
-
-  //Code := CodeToolBoss.LoadFile(URI.path + URI.Document, false, false);
-  Path := UriToPath(DocumentURI);
-  Code := CodeToolBoss.FindFile(Path);
-  ATransport.SendDiagnostic(' ▶️ complete code: '+ Path + ' Code: ' + BoolToStr(assigned(Code),'True','False'));
-  if CodeToolBoss.CompleteCode(Code, column, line, {TopLine}line, NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine, false) then
-    begin
-      ATransport.SendDiagnostic(' ✅ Sucesss NewX: %d NewY: %d NewTopLine: %d BlockTopLine: %d BlockBottomLine: %d', [NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine]);
-      //procedure AbsoluteToLineCol(Position: integer; out Line, Column: integer);
-      With Code[Code.Count - 1] do
-        ATransport.SendDiagnostic( 'Position: %d : %d - Length: %d', [Position, Code.GetLineStart(Position),Len]);
-      // TODO: we need to get character offsets and get the text out of the source
-      aRange := TRange.Create(0, 0, MaxInt, MaxInt);
-      try
-        DoApplyEdit(ATransport,DocumentURI, Code.Source, aRange);
-      finally
-        aRange.Free;
-      end;
-      // TODO: we can do this in one pass with multiple TTextEdits!
-      // move the cursor
-      //ApplyEdit(DocumentURI, '', TRange.Create({NewY, NewX}0,0));
-
-      // TODO: goto line next
-      //pascal-language-server: ✅ Sucesss NewX:3 NewY:83 NewTopLine: 81 BlockTopLine: 81 BlockBottomLine: 84
-      //range := TRange.Create(NewY, NewX, )
-    end
-  else
-    ATransport.SendDiagnostic( '🔴 CompleteCode Failed');
+  Result:=TCommandFactory.Instance;
 end;
 
 
-procedure PrettyPrint(ATransport: TMessageTransport; DocumentURI: TDocumentUri; SettingsURI : TDocumentUri);
+
+
+{ TCustomCommand }
+
+class function TCustomCommand.CommandName: String;
+begin
+  Result:=ClassName;
+  if Result[1]='T' then
+    Delete(Result,1,1);
+end;
+
+class procedure TCustomCommand.Register;
+begin
+  TCommandFactory.Instance.RegisterCommand(Self);
+end;
+
+class procedure TCustomCommand.UnRegister;
+begin
+  TCommandFactory.Instance.UnRegisterCommand(Self);
+end;
+
+constructor TCustomCommand.Create(aTransport: TMessageTransport);
+begin
+  FTransport:=aTransport;
+end;
+
+function TCustomCommand.Execute(aArguments: TJSONArray): TLSPStreamable;
+begin
+  // Maybe later we can add some logging etc. here.
+  Result:=DoExecute(aArguments);
+end;
+
+{ TCommandDef }
+
+function TCommandDef.GetCommandName: String;
+begin
+  Result:='';
+  if Assigned(CommandClass) then
+    Result:=CommandClass.CommandName;
+end;
+
+{ TCommandDefs }
+
+function TCommandDefs.GetDef(aIndex: Integer): TCommandDef;
+begin
+  Result:=Items[aIndex] as TCommandDef;
+end;
+
+procedure TCommandDefs.SetDef(aIndex: Integer; AValue: TCommandDef);
+begin
+  Items[aIndex]:=aValue;
+end;
+
+function TCommandDefs.Add(aCommandClass: TCustomCommandClass): TCommandDef;
+begin
+  if IndexOfCommand(aCommandClass.CommandName)<>-1 then
+    Raise EListError.CreateFmt('Duplicate command: %s',[aCommandClass.CommandName]);
+  Result:=(Inherited Add) as TCommandDef;
+  Result.CommandClass:=aCommandClass;
+end;
+
+function TCommandDefs.IndexOfCommandClass(aCommandClass: TCustomCommandClass
+  ): Integer;
+begin
+  Result:=Count-1;
+  While (Result>=0) and (GetDef(Result).CommandClass<>aCommandClass) do
+    Dec(Result);
+end;
+
+function TCommandDefs.IndexOfCommand(const aName: String): Integer;
+begin
+  Result:=Count-1;
+  While (Result>=0) and Not SameText(GetDef(Result).CommandName,aName) do
+    Dec(Result);
+end;
+
+function TCommandDefs.FindCommand(const aName: String): TCommandDef;
 
 var
-  Formatter : TFileFormatter;
-  FilePath,ConfPath : String;
+  Idx : Integer;
 
 begin
-  FilePath := UriToPath(DocumentURI);
-  ConfPath := UriToPath(SettingsURI);
-  Formatter:=TFileFormatter.Create(aTransport);
+  Result:=nil;
+  Idx:=IndexOfCommand(aName);
+  If Idx<>-1 then
+    Result:=Commands[Idx];
+end;
+
+function TCommandDefs.FindCommandClass(aCommandClass: TCustomCommandClass
+  ): TCommandDef;
+var
+  Idx : Integer;
+
+begin
+  Result:=nil;
+  Idx:=IndexOfCommandClass(aCommandClass);
+  If Idx<>-1 then
+    Result:=Commands[Idx];
+end;
+
+function TCommandDefs.Remove(aCommandClass: TCustomCommandClass): Boolean;
+
+var
+  Def : TCommandDef;
+
+begin
+  Def:=FindCommandClass(aCommandClass);
+  Result:=Def<>Nil;
+  if Result then
+    Def.Free;
+end;
+
+{ TCommandFactory }
+
+class constructor TCommandFactory.Init;
+begin
+  _Instance:=TCommandFactory.Create
+end;
+
+class destructor TCommandFactory.Done;
+begin
+  FreeAndNil(_Instance);
+end;
+
+constructor TCommandFactory.Create;
+begin
+  FList:=TCommandDefs.Create(TCommandDef);
+end;
+
+destructor TCommandFactory.Destroy;
+begin
+  FreeAndNil(FList);
+  inherited Destroy;
+end;
+
+procedure TCommandFactory.RegisterCommand(aCommand: TCustomCommandClass);
+
+begin
+  FList.Add(aCommand);
+end;
+
+procedure TCommandFactory.UnregisterCommand(aCommand: TCustomCommandClass);
+begin
+  FList.Remove(aCommand);
+end;
+
+function TCommandFactory.FindCommand(const aName: String): TCommandDef;
+begin
+  Result:=FList.FindCommand(aName);
+end;
+
+function TCommandFactory.FindCommandClass(const aName: String): TCustomCommandClass;
+
+var
+  aDef : TCommandDef;
+
+begin
+  Result:=nil;
+  aDef:=FindCommand(aName);
+  if Assigned(aDef) then
+    Result:=aDef.CommandClass;
+end;
+
+procedure TCommandFactory.GetCommandList(L: TStrings);
+
+Var
+  i : Integer;
+
+begin
+  For I:=0 to FList.Count-1 do
+    L.Add(FList[i].CommandName);
+end;
+
+function TCommandFactory.GetCommandNames: TStringDynArray;
+
+var
+  L : TStrings;
+
+begin
+  L:=TStringList.Create;
   try
-    Formatter.Process(FilePath,ConfPath);
+    GetCommandList(L);
+    Result:=L.ToStringArray;
   finally
-    Formatter.Free;
+    L.Free;
   end;
-end;
-
-procedure InvertAssignment(ATransport: TMessageTransport;
-  DocumentURI: TDocumentUri; Range: TRange);
-
-var
-  Path,S,SL : String;
-  Code : TCodeBuffer;
-  I : TInvertAssignment;
-
-begin
-  Path := UriToPath(DocumentURI);
-  Code := CodeToolBoss.FindFile(Path);
-  if Assigned(Code) then
-    begin
-    S:='';
-    if (Range.start.line<Range.&end.line) then
-      begin
-      S:=Code.GetLines(Range.start.line+1,Range.&end.line);
-      if Range.start.character>0 then
-        Delete(S,1,Range.start.character);
-      end;
-    SL:=Code.GetLine(Range.&end.line);
-    S:=S+Copy(SL,1,Range.&end.Character+1);
-    I:=TInvertAssignment.Create;
-    try
-      S:=I.InvertAssignment(S);
-      DoApplyEdit(ATransport,DocumentURI,S,Range);
-    finally
-      I.Free;
-    end;
-    end;
 end;
 
 end.

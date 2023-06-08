@@ -175,6 +175,22 @@
         <Filename Value="PasLS.ApplyEdit.pas"/>
         <UnitName Value="PasLS.ApplyEdit"/>
       </Item>
+      <Item>
+        <Filename Value="PasLS.Command.FormatCode.pas"/>
+        <UnitName Value="PasLS.Command.FormatCode"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Command.CompleteCode.pas"/>
+        <UnitName Value="PasLS.Command.CompleteCode"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Command.InvertAssignment.pas"/>
+        <UnitName Value="PasLS.Command.InvertAssignment"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Command.RemoveEmptyMethods.pas"/>
+        <UnitName Value="PasLS.Command.RemoveEmptyMethods"/>
+      </Item>
     </Files>
     <RequiredPkgs>
       <Item>

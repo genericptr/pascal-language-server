@@ -38,7 +38,13 @@ uses
   LSP.ExecuteCommand,
   LSP.InlayHint,
   LSP.General,
-  LSP.Synchronization;
+  LSP.Synchronization,
+  // Custom commands
+  PasLS.Command.FormatCode,
+  PasLS.Command.CompleteCode,
+  PasLS.Command.InvertAssignment,
+  PasLS.Command.RemoveEmptyMethods
+  ;
 
 implementation
 
