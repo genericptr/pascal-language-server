@@ -58,8 +58,6 @@ type
   
 implementation
 
-uses strutils;
-
 
 class function TInvertAssignment.GetIndent(ALine: String):Integer;
 begin
@@ -123,7 +121,6 @@ function TInvertAssignment.InvertLine(PreVar, VarA, VarB, PostVar: String;
   LineStart, EqualPosition: Integer): String;
 var
   fLength: Integer;
-  X: Integer;
   op : string;
 
 begin
@@ -166,7 +163,7 @@ begin
   // begin if CallSomeFunction > 0 then DoThis else exit;
   // end;
   Result := False;
-  S:=UpperCase(S);
+  S:=LowerCase(aLine);
   if (Pos(';', ALine) > 0)
   or (Pos('if ', S) > 0)
   or (Pos('begin', S) > 0)
@@ -220,6 +217,7 @@ begin
   BList:=Nil;
   PostList:=Nil;
   TempLines:=nil;
+  Indents:=Nil;
   try
     SetLength(Indents, Lines.Count);
     TempLines := TStringList.Create;
