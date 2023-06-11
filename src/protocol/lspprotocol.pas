@@ -19,7 +19,8 @@ uses
   LSP.Messages, PasLS.Parser, PasLS.Formatter, PasLS.InvertAssign, 
   PasLS.RemoveEmptyMethods, PasLS.ApplyEdit, PasLS.Command.FormatCode, 
   PasLS.Command.CompleteCode, PasLS.Command.InvertAssignment, 
-  PasLS.Command.RemoveEmptyMethods, LazarusPackageIntf;
+  PasLS.Command.RemoveEmptyMethods, PasLS.CheckInactiveRegions, 
+  PasLS.InactiveRegions, LazarusPackageIntf;
 
 implementation
 

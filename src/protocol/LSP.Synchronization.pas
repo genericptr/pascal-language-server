@@ -159,7 +159,7 @@ type
 
 implementation
 uses
-  SysUtils, LSP.Diagnostics, LSP.DocumentSymbol;
+  SysUtils, LSP.Diagnostics, LSP.DocumentSymbol, PasLS.CheckInactiveRegions;
 
 { TDidChangeTextDocumentParams }
 
@@ -244,6 +244,7 @@ begin with Params do
       
     DiagnosticsHandler.CheckSyntax(Transport,Code);
 
+    CheckInactiveRegions(Transport, Code, textDocument.uri);
     //if SymbolManager <> nil then
     //  SymbolManager.FileModified(Code);
     if SymbolManager <> nil then
@@ -288,15 +289,15 @@ end;
 procedure TDidSaveTextDocument.Process(var Params : TDidSaveTextDocumentParams);
 var
   Code: TCodeBuffer;
-begin with Params do
-  begin
+begin
 
-    Code := CodeToolBoss.FindFile(Params.textDocument.LocalPath);
-    if SymbolManager <> nil then
-      SymbolManager.FileModified(Code);
-    DiagnosticsHandler.CheckSyntax(Transport,Code);
-    // ClearDiagnostics(Transport,Code);
-  end;
+  Code := CodeToolBoss.FindFile(Params.textDocument.LocalPath);
+  if SymbolManager <> nil then
+    SymbolManager.FileModified(Code);
+  DiagnosticsHandler.CheckSyntax(Transport,Code);
+  CheckInactiveRegions(Transport, Code, Params.textDocument.uri);
+  // ClearDiagnostics(Transport,Code);
+
 end;
 
 { TDidCloseTextDocumentParams }
