@@ -171,7 +171,7 @@ var
 
 begin
   Close(Output);
-  Assign(Output,'/tmp/paslssock-out.log');
+  Assign(Output,GetTempDir(false)+'paslssock-out.log');
   SetTextBuf(Output,Buffer,SizeOf(Buffer));
   Rewrite(output);
   Application:=TPasLSPSocketServerApp.Create(nil);
