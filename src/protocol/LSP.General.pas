@@ -26,11 +26,8 @@ unit LSP.General;
 interface
 
 uses
-  {$ifdef FreePascalMake}
-  FPMConfig, FPMUtils,
-  {$endif}
   { RTL }
-  Classes, URIParser, LazUTF8, typinfo,
+  Classes, LazUTF8, typinfo,
   { Code Tools }
   CodeToolManager, CodeToolsConfig, 
   { Protocol }
@@ -126,8 +123,18 @@ type
 
   TInitialize = class(specialize TLSPRequest<TInitializeParams, TInitializeResult>)
   private
+    function CheckProgramSetting: Boolean;
+    procedure CollectWorkSpacePaths(WorkspaceFolders: TWorkspaceFolderItems;
+      aPaths: TStrings);
+    procedure DoLog(const Msg: String);
+    procedure DoLog(const Fmt: String; const args: array of const);
+    procedure DoLog(const Msg: String; aBool: Boolean);
+    Function IsPasExt(Const aExtension : String) : Boolean;
+    procedure SetFPCPaths(Paths, Opts: TStrings; AsUnitPath, asIncludePath: Boolean);
     procedure SetPlatformDefaults(CodeToolsOptions : TCodeToolsOptions);
     procedure ApplyConfigSettings(CodeToolsOptions: TCodeToolsOptions);
+    procedure FindPascalSourceDirectories(RootPath: String; Results: TStrings);
+    Procedure ShowConfigStatus(Params : TInitializeParams; CodeToolsOptions: TCodeToolsOptions);
   Public
     function Process(var Params : TInitializeParams): TInitializeResult; override;
   end;
@@ -169,6 +176,11 @@ implementation
 
 uses
   SysUtils, RegExpr, DefineTemplates;
+
+const
+  kStatusPrefix = '✓ ';
+  kFailedPrefix = '⚠️ ';
+  kSettingPrefix = '  ► ';
 
 { TWorkspaceFolder }
 
@@ -327,326 +339,293 @@ begin
 
 end;
 
+{ Find all sub directories which contain Pascal source files }
 
-function TInitialize.Process(var Params : TInitializeParams): TInitializeResult;
-const
-  kStatusPrefix = '✓ ';
-  kFailedPrefix = '⚠️ ';
-
-  Procedure DoLog(const Msg : String);
-  begin
-    Transport.SendDiagnostic(Msg);
-  end;
-  Procedure DoLog(const Fmt : String; Const args : Array of const);
-  begin
-    Transport.SendDiagnostic(Fmt,Args);
-  end;
-  Procedure DoLog(const Msg : String; aBool : Boolean);
-  begin
-    Transport.SendDiagnostic(Msg+BoolToStr(aBool,'True','False'));
-  end;
-
-  procedure ShowConfigStatus(CodeToolsOptions: TCodeToolsOptions); 
-  begin
-    DoLog( kStatusPrefix+'Server: ' + {$INCLUDE %DATE%});
-    DoLog( kStatusPrefix+'Client: ' + Params.clientInfo.name + ' ' + Params.clientInfo.version);
-
-    DoLog( kStatusPrefix+'FPCPath: ' + CodeToolsOptions.FPCPath);
-    DoLog( kStatusPrefix+'FPCSrcDir: ' + CodeToolsOptions.FPCSrcDir);
-    DoLog( kStatusPrefix+'TargetOS: ' + CodeToolsOptions.TargetOS);
-    DoLog( kStatusPrefix+'TargetProcessor: '+ CodeToolsOptions.TargetProcessor);
-
-    DoLog( kStatusPrefix+'Working directory: ' + GetCurrentDir);
-
-    if CodeToolsOptions.FPCOptions <> '' then
-      DoLog( kStatusPrefix+'FPCOptions: '+CodeToolsOptions.FPCOptions)
-    else
-      DoLog( kStatusPrefix+'FPCOptions: [unspecified]');
-
-    if ServerSettings.&program <> '' then
-      DoLog( kStatusPrefix+'Main program file: ' + ServerSettings.&program);
-
-    if CodeToolsOptions.ProjectDir <> '' then
-      DoLog( kStatusPrefix+'ProjectDir: ' + CodeToolsOptions.ProjectDir)
-    else
-      DoLog( kStatusPrefix+'ProjectDir: [unspecified]');
-    
-    if ServerSettings.symbolDatabase <> '' then
-      DoLog( kStatusPrefix+'Symbol Database: ' + ServerSettings.symbolDatabase)
-    else
-      DoLog( kStatusPrefix+'Symbol Database: [unspecified]');
-
-    // other settings
-    DoLog(kStatusPrefix+'Settings:');
-    DoLog('  ► maximumCompletions: %d', [ServerSettings.maximumCompletions]);
-    DoLog('  ► overloadPolicy: %s', [GetEnumName(TypeInfo(TOverloadPolicy),Ord(ServerSettings.overloadPolicy))]);
-    DoLog('  ► insertCompletionsAsSnippets: ', ServerSettings.insertCompletionsAsSnippets);
-    DoLog('  ► insertCompletionProcedureBrackets: ', ServerSettings.insertCompletionProcedureBrackets);
-    DoLog('  ► includeWorkspaceFoldersAsUnitPaths: ', ServerSettings.includeWorkspaceFoldersAsUnitPaths);
-    DoLog('  ► includeWorkspaceFoldersAsIncludePaths: ', ServerSettings.includeWorkspaceFoldersAsIncludePaths);
-    DoLog('  ► checkSyntax: ', ServerSettings.checkSyntax);
-    DoLog('  ► checkInactiveRegions: ', ServerSettings.checkInactiveRegions);
-    DoLog('  ► publishDiagnostics: ', ServerSettings.publishDiagnostics);
-    DoLog('  ► workspaceSymbols: ', ServerSettings.workspaceSymbols);
-    DoLog('  ► documentSymbols: ', ServerSettings.documentSymbols);
-    DoLog('  ► minimalisticCompletions: ', ServerSettings.minimalisticCompletions);
-    DoLog('  ► showSyntaxErrors: ', ServerSettings.showSyntaxErrors);
-  
-  end;
-
-  function FindAllFiles(path: string): TStringArray;
-  var
-    info: TSearchRec;
-  begin
-    if not DirectoryExists(path) then
-      raise Exception.Create('Directory "'+path+'"" doesn''t exist');
-    path := path+DirectorySeparator+'*';
-    result := [];
-    if FindFirst(path, faAnyFile, info) = 0 then
-      begin
-        repeat
-          result += [info.name];
-        until FindNext(info) <> 0;
-        FindClose(info);
-      end;
-  end;
-
-  { Find all sub directories which contain Pascal source files }
-  procedure FindPascalSourceDirectories(RootPath: String; var Results: TStringArray);
-  var
-    Files: TStringArray;
-    Name,
-    Path,
-    Extension: String;
-    Found: Boolean;
-  begin
-    Files := FindAllFiles(RootPath);
-    Found := false;
-    for Name in Files do
-      begin
-        if (Name = '.') or (Name = '..') then
-          continue;
-        Extension := ExtractFileExt(name);
-        if (Extension = '.pas') or (Extension = '.pp') or (Extension = '.inc') then
-          begin
-            if not Found then
-              Results += [RootPath];
-            Found := true;
-          end
-        else
-          begin
-            Path := RootPath+DirectorySeparator+Name;
-            if DirectoryExists(Path) then
-              FindPascalSourceDirectories(Path, Results);
-          end;
-      end;
-  end;
-
-  {$ifdef FreePascalMake}
-  function LoadFromFPM(ConfigFile: String; InitializationOptions: TInitializationOptions; CodeToolsOptions: TCodeToolsOptions): Boolean;
-  var
-    Path, Flag: String;
-    Config: TFPMConfig;
-  begin
-    result := false;
-
-    // set the working directory based on the config file
-    if DirectoryExists(ConfigFile) then
-      ChDir(ConfigFile)
-    else if FileExists(ConfigFile) then
-      ChDir(ExtractFileDir(ConfigFile))
-    else
-      exit;
-
-    Getdir(0, Path);
-
-    try
-      config := TFPMConfig.Create(Path);
-      
-      DoLog( '► Loading from FPM: '+ Path);
-      // set the CodeTools project directory to match
-      CodeToolsOptions.ProjectDir := Path;
-
-      // add the FPM config by default as unit/include paths
-      // since it's implied these location will be available to FPM
-      initializationOptions.FPCOptions.Add('-Fu'+Path);
-      initializationOptions.FPCOptions.Add('-Fi'+Path);
-
-      initializationOptions.&program := config.target.ProgramFile;
-      for flag in config.GetCodeToolOptions do
-        initializationOptions.FPCOptions.Add(flag);
-
-      config.Free;
-
-      result := true;
-    except
-      on E: EFPMError do
-        DoLog('🔴 FPM Error: '+E.Message);
-      on E: EFPMNotFound do
-        // nothing was found so exit and use other config options
-    end;
-  end;
-  {$endif}
+Function TInitialize.IsPasExt(Const aExtension : String) : Boolean;
 
 var
-  CodeToolsOptions: TCodeToolsOptions;
-  Proj, Option, Path: String;
-  Item: TCollectionItem;
-  re: TRegExpr;
-  Macros: TMacroMap;
-  Paths: TStringArray;
+  E : String;
 
 begin
-  CodeToolsOptions := TCodeToolsOptions.Create;
+  E:=LowerCase(aExtension);
+  result:=(E = '.pas') or (E = '.pp') or (E = '.inc');
+end;
+
+
+Procedure TInitialize.DoLog(const Msg : String);
+begin
+  Transport.SendDiagnostic(Msg);
+end;
+
+
+Procedure TInitialize.DoLog(const Fmt : String; Const args : Array of const);
+begin
+  Transport.SendDiagnostic(Fmt,Args);
+end;
+
+Procedure TInitialize.DoLog(const Msg : String; aBool : Boolean);
+begin
+  Transport.SendDiagnostic(Msg+BoolToStr(aBool,'True','False'));
+end;
+
+
+procedure TInitialize.FindPascalSourceDirectories(RootPath: String; Results: TStrings);
+
+var
+  Info : TSearchRec;
+  havePas : Boolean;
+
+begin
+  havePas:=False;
+  If FindFirst(RootPath+AllFilesMask,faAnyFile,Info)=0 then
+    try
+      Repeat
+        if ((Info.Attr and faDirectory)<>0) and Not ((Info.Name='.') or (Info.Name='..')) then
+          FindPascalSourceDirectories(IncludeTrailingPathDelimiter(RootPath+Info.Name),Results);
+        if IsPasExt(ExtractFileExt(Info.Name)) then
+          HavePas:=True;
+      until (FindNext(Info)<>0);
+    finally
+      FindClose(Info)
+    end;
+  if HavePas then
+    if Results.IndexOf(RootPath)=-1 then
+      Results.Add(RootPath);
+end;
+
+procedure TInitialize.CollectWorkSpacePaths(WorkspaceFolders : TWorkspaceFolderItems; aPaths : TStrings);
+
+Var
+  Item: TCollectionItem;
+
+begin
+  for Item in workspaceFolders do
+    FindPascalSourceDirectories(IncludeTrailingPathDelimiter(UriToPath(TWorkspaceFolder(Item).uri)), aPaths);
+end;
+
+
+procedure TInitialize.ShowConfigStatus(Params : TInitializeParams; CodeToolsOptions: TCodeToolsOptions);
+
+begin
+  DoLog( kStatusPrefix+'Server: ' + {$INCLUDE %DATE%});
+  DoLog( kStatusPrefix+'Client: ' + Params.clientInfo.name + ' ' + Params.clientInfo.version);
+
+  DoLog( kStatusPrefix+'FPCPath: ' + CodeToolsOptions.FPCPath);
+  DoLog( kStatusPrefix+'FPCSrcDir: ' + CodeToolsOptions.FPCSrcDir);
+  DoLog( kStatusPrefix+'TargetOS: ' + CodeToolsOptions.TargetOS);
+  DoLog( kStatusPrefix+'TargetProcessor: '+ CodeToolsOptions.TargetProcessor);
+
+  DoLog( kStatusPrefix+'Working directory: ' + GetCurrentDir);
+
+  if CodeToolsOptions.FPCOptions <> '' then
+    DoLog( kStatusPrefix+'FPCOptions: '+CodeToolsOptions.FPCOptions)
+  else
+    DoLog( kStatusPrefix+'FPCOptions: [unspecified]');
+
+  if ServerSettings.&program <> '' then
+    DoLog( kStatusPrefix+'Main program file: ' + ServerSettings.&program);
+
+  if CodeToolsOptions.ProjectDir <> '' then
+    DoLog( kStatusPrefix+'ProjectDir: ' + CodeToolsOptions.ProjectDir)
+  else
+    DoLog( kStatusPrefix+'ProjectDir: [unspecified]');
+
+  if ServerSettings.symbolDatabase <> '' then
+    DoLog( kStatusPrefix+'Symbol Database: ' + ServerSettings.symbolDatabase)
+  else
+    DoLog( kStatusPrefix+'Symbol Database: [unspecified]');
+
+  // other settings
+  DoLog(kStatusPrefix+'Settings:');
+  DoLog('maximumCompletions: %d', [ServerSettings.maximumCompletions]);
+  DoLog('  ► overloadPolicy: %s', [GetEnumName(TypeInfo(TOverloadPolicy),Ord(ServerSettings.overloadPolicy))]);
+  DoLog('  ► insertCompletionsAsSnippets: ', ServerSettings.insertCompletionsAsSnippets);
+  DoLog('  ► insertCompletionProcedureBrackets: ', ServerSettings.insertCompletionProcedureBrackets);
+  DoLog('  ► includeWorkspaceFoldersAsUnitPaths: ', ServerSettings.includeWorkspaceFoldersAsUnitPaths);
+  DoLog('  ► includeWorkspaceFoldersAsIncludePaths: ', ServerSettings.includeWorkspaceFoldersAsIncludePaths);
+  DoLog('  ► checkSyntax: ', ServerSettings.checkSyntax);
+  DoLog('  ► publishDiagnostics: ', ServerSettings.publishDiagnostics);
+  DoLog('  ► workspaceSymbols: ', ServerSettings.workspaceSymbols);
+  DoLog('  ► documentSymbols: ', ServerSettings.documentSymbols);
+  DoLog('  ► minimalisticCompletions: ', ServerSettings.minimalisticCompletions);
+  DoLog('  ► showSyntaxErrors: ', ServerSettings.showSyntaxErrors);
+end;
+
+
+procedure TInitialize.SetFPCPaths(Paths,Opts: TStrings; AsUnitPath,asIncludePath : Boolean);
+
+var
+  aPath : String;
+
+begin
+  for aPath in Paths do
+    begin
+      // add directory as search paths
+      if AsUnitPath then
+        Opts.Add('-Fu'+aPath);
+      if AsIncludePath then
+        Opts.Add('-Fi'+aPath);
+    end;
+end;
+
+function TInitialize. CheckProgramSetting : Boolean;
+
+Var
+  aPath : String;
+
+begin
+  aPath:=ServerSettings.&program;
+  if aPath = '' then
+    exit(False);
+  aPath:=ExpandFileName(aPath);
+  Result:=FileExists(aPath);
+  if Result then
+    ServerSettings.&program := aPath
+  else
+    begin
+      DoLog(kFailedPrefix+'Main program file '+ aPath+ ' can''t be found.');
+      ServerSettings.&program := '';
+    end;
+end;
+
+function TInitialize.Process(var Params : TInitializeParams): TInitializeResult;
+
+
+var
+  Proj, Option, aPath, ConfigPath: String;
+  CodeToolsOptions: TCodeToolsOptions;
+  re: TRegExpr;
+  Macros: TMacroMap;
+  Paths: TStringList;
+  RootPath,IncludePathTemplate,UnitPathTemplate: TDefineTemplate;
+
+begin
+  Result := TInitializeResult.Create;
+  CodeToolsOptions:=nil;
+  Re:=nil;
+  Paths:=Nil;
+  Macros:=nil;
   try
-    Result := TInitializeResult.Create;
+    Macros := TMacroMap.Create;
+    CodeToolsOptions := TCodeToolsOptions.Create;
+    re := TRegExpr.Create('^(-(Fu|Fi)+)(.*)$');
+    Paths:=TStringList.Create;
+    Paths.StrictDelimiter:=True;
+    Paths.Delimiter:=';';
+    Paths.Sorted:=True;
+    Paths.Duplicates:=dupIgnore;
+
     Result.capabilities.executeCommandProvider.commands.Clear;
     CommandFactory.GetCommandList(Result.capabilities.executeCommandProvider.commands);
-    with Params do
-    begin
-      ServerSettings.Assign(initializationOptions);
-      PasLS.Settings.ClientInfo.Assign(ClientInfo);
 
-      // replace macros in server settings
-      Macros := TMacroMap.Create;
-      Macros.Add('tmpdir', GetTempDir(true));
-      Macros.Add('root', URIToPath(rootUri));
+    ServerSettings.Assign(Params.initializationOptions);
+    PasLS.Settings.ClientInfo.Assign(Params.ClientInfo);
 
-      ServerSettings.ReplaceMacros(Macros);
+    // replace macros in server settings
+    Macros.Add('tmpdir', GetTempDir(true));
+    Macros.Add('root', URIToPath(Params.rootUri));
 
-      // set the project directory based on root URI path
-      if rootUri <> '' then
-        begin
-          CodeToolsOptions.ProjectDir := URIToPath(rootURI);
-        end;
+    ServerSettings.ReplaceMacros(Macros);
 
-      // print the root URI so we know which workspace folder is default
-      DoLog( '► RootURI: '+rootUri);
-      DoLog( '► ProjectDir: '+CodeToolsOptions.ProjectDir);
+    // set the project directory based on root URI path
+    if Params.rootUri <> '' then
+      CodeToolsOptions.ProjectDir := URIToPath(Params.rootURI);
 
-      {
-        For more information on CodeTools see:
-        https://wiki.freepascal.org/Codetools
-      }
+    // print the root URI so we know which workspace folder is default
+    DoLog(kSettingprefix+'RootURI: '+Params.rootUri);
+    DoLog(kSettingprefix+'ProjectDir: '+CodeToolsOptions.ProjectDir);
 
-      // set some built-in defaults based on platform
-      SetPlatformDefaults(CodeToolsOptions);
-      ApplyConfigSettings(CodeToolsOptions);
+    {
+      For more information on CodeTools see:
+      https://wiki.freepascal.org/Codetools
+    }
 
-      { Override default settings with environment variables.
-        These are the required values which must be set:
+    // set some built-in defaults based on platform
+    SetPlatformDefaults(CodeToolsOptions);
+    ApplyConfigSettings(CodeToolsOptions);
 
-        FPCDIR       = path to FPC source directory
-        PP           = path of the Free Pascal compiler. For example /usr/bin/ppc386.
-        LAZARUSDIR   = path of the lazarus sources
-        FPCTARGET    = FPC target OS like linux, win32, darwin
-        FPCTARGETCPU = FPC target cpu like i386, x86_64, arm }
-      CodeToolsOptions.InitWithEnvironmentVariables;
+    { Override default settings with environment variables.
+      These are the required values which must be set:
 
-      GuessCodeToolConfig(Transport,CodeToolsOptions);
-      Proj:=initializationOptions.&program;
-      if (Proj<>'') and FileExists(Proj) then
-        ConfigureSingleProject(Transport,Proj);
+      FPCDIR       = path to FPC source directory
+      PP           = path of the Free Pascal compiler. For example /usr/bin/ppc386.
+      LAZARUSDIR   = path of the lazarus sources
+      FPCTARGET    = FPC target OS like linux, win32, darwin
+      FPCTARGETCPU = FPC target cpu like i386, x86_64, arm }
+    CodeToolsOptions.InitWithEnvironmentVariables;
 
-      {$ifdef FreePascalMake}
-      { attempt to load settings from FPM config file or search in the
-        default workspace if there is there is only one available.
-        We can't search multiple workspaces because they may contain
-        config files also but there is no guarentee the workspaces will
-        arrive in order to the language server, so we can make no assumptions
-        based on ambigous ordering. }
-      if ((initializationOptions.config <> '') and LoadFromFPM(initializationOptions.config, initializationOptions, CodeToolsOptions)) or
-        ((workspaceFolders.Count = 1) and LoadFromFPM(CodeToolsOptions.ProjectDir, initializationOptions, CodeToolsOptions)) then
-        begin
-          // disable other settings which may interfer with FPM
-          ServerSettings.includeWorkspaceFoldersAsUnitPaths := false;
-          ServerSettings.includeWorkspaceFoldersAsIncludePaths := false;
-        end;
-      {$endif}
+    GuessCodeToolConfig(Transport,CodeToolsOptions);
+    Proj:=Params.initializationOptions.&program;
+    if (Proj<>'') and FileExists(Proj) then
+      ConfigureSingleProject(Transport,Proj);
 
-      // load the symbol manager if it's enabled
-      if ServerSettings.documentSymbols or ServerSettings.workspaceSymbols then
-        begin
-        SymbolManager := TSymbolManager.Create;
-        Result.capabilities.documentSymbolProvider:=True;
-        Result.capabilities.workspaceSymbolProvider := ServerSettings.CanProvideWorkspaceSymbols;
-        end;
+    // load the symbol manager if it's enabled
+    if ServerSettings.documentSymbols or ServerSettings.workspaceSymbols then
+      begin
+      SymbolManager := TSymbolManager.Create;
+      Result.capabilities.documentSymbolProvider:=True;
+      Result.capabilities.workspaceSymbolProvider := ServerSettings.CanProvideWorkspaceSymbols;
+      end;
 
+    // attempt to load optional config file
+    ConfigPath := ExpandFileName(Params.initializationOptions.CodeToolsConfig);
+    if FileExists(ConfigPath) then
+      begin
+        DoLog('Loading config file: '+ ConfigPath);
+        CodeToolsOptions.LoadFromFile(ConfigPath);
+      end;
+    // include workspace paths as search paths
+    if ServerSettings.includeWorkspaceFoldersAsUnitPaths or
+       ServerSettings.includeWorkspaceFoldersAsIncludePaths then
+      begin
+        CollectWorkSpacePaths(Params.workspaceFolders,Paths);
+      end;
+    // Add the in order specified
+    Paths.Sorted:=False;
+    for Option in Params.initializationOptions.FPCOptions do
+      begin
+        // expand file names in switches with paths
+        if re.Exec(Option) then
+          begin
+          if Paths.IndexOf(re.Match[3])=-1 then
+            Paths.Add(re.Match[3])
+          end
+        else
+          CodeToolsOptions.FPCOptions := CodeToolsOptions.FPCOptions + Option + ' ';
+      end;
 
+    if Result.Capabilities.workspaceSymbolProvider then
+      for aPath in Paths do
+        SymbolManager.Scan(aPath, false);
 
-      re := TRegExpr.Create('^(-(Fu|Fi)+)(.*)$');
-      with CodeToolsOptions do
-        begin
-          // attempt to load optional config file
-          Path := ExpandFileName(initializationOptions.CodeToolsConfig);
-          if FileExists(Path) then
-            begin
-              DoLog('Loading config file: '+ Path);
-              LoadFromFile(Path);
-            end;
+    CheckProgramSetting;
 
-          // include workspace paths as search paths
-          if ServerSettings.includeWorkspaceFoldersAsUnitPaths or
-            ServerSettings.includeWorkspaceFoldersAsIncludePaths then
-            begin
-              Paths := [];
+    ShowConfigStatus(Params,CodeToolsOptions);
+    DoLog(kSettingprefix+'Workspace paths (%d) : %s',[Paths.Count,Paths.DelimitedText]);
 
-              for Item in workspaceFolders do
-                begin
-                  FindPascalSourceDirectories(UriToPath(TWorkspaceFolder(Item).uri), Paths);
-                end;
+    with CodeToolBoss do
+      begin
+        Init(CodeToolsOptions);
+        IdentifierList.SortForHistory := True;
+        IdentifierList.SortForScope := True;
+      end;
 
-              for Path in Paths do
-                begin
-
-                  // add directory as search paths
-                  if ServerSettings.includeWorkspaceFoldersAsUnitPaths then
-                    begin
-                      initializationOptions.FPCOptions.Add('-Fu'+Path);
-                      initializationOptions.FPCOptions.Add('-Fi'+Path);
-                    end;
-
-                  // if the server supports workspace symbols then
-                  // scan the workspace folder for symbols
-                  if Result.Capabilities.workspaceSymbolProvider then
-                    SymbolManager.Scan(Path, false);
-                end;
-            end;
-
-          for Option in initializationOptions.FPCOptions do
-            begin
-              // expand file names in switches with paths
-              if re.Exec(Option) then
-                FPCOptions := FPCOptions + '-' + re.Match[2] + ExpandFileName(re.Match[3]) + ' '
-              else
-                FPCOptions := FPCOptions + Option + ' ';
-            end;
-
-          if ServerSettings.&program <> '' then
-            begin
-              Path := ExpandFileName(ServerSettings.&program);
-              if FileExists(Path) then
-                ServerSettings.&program := Path
-              else
-                begin
-                  DoLog(kFailedPrefix+'Main program file '+ Path+ ' can''t be found.');
-                  ServerSettings.&program := '';
-                end;
-            end;
-
-          ShowConfigStatus(CodeToolsOptions);
-        end;
-      re.Free;
-
-      with CodeToolBoss do
-        begin
-          Init(CodeToolsOptions);
-          IdentifierList.SortForHistory := True;
-          IdentifierList.SortForScope := True;
-        end;
-
-    end;
+    // Set search path for codetools.
+    RootPath:=TDefineTemplate.Create('RootPath','RootPath','',CodetoolsOptions.ProjectDir,da_Directory);
+    if ServerSettings.includeWorkspaceFoldersAsUnitPaths then
+      begin
+      UnitPathTemplate:=TDefineTemplate.Create('RootUnitPath','RootUnitPath',UnitPathMacroName, UnitPathMacro+';'+Paths.DelimitedText, da_DefineRecurse);
+      RootPath.AddChild(UnitPathTemplate);
+      end;
+    if ServerSettings.includeWorkspaceFoldersAsIncludePaths then
+      begin
+      IncludePathTemplate:=TDefineTemplate.Create('RootIncludePath','RootIncludePath',IncludePathMacroName, IncludePathMacro+';'+Paths.DelimitedText, da_DefineRecurse);
+      RootPath.AddChild(IncludePathTemplate);
+      end;
+    CodeToolBoss.DefineTree.Add(RootPath);
   finally
+    Paths.Free;
+    re.Free;
     CodeToolsOptions.Free;
     Macros.Free;
   end;
