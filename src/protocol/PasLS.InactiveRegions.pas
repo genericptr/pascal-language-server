@@ -1,5 +1,5 @@
 // Pascal Language Server
-// Copyright 2020 Ryan Joseph
+// Copyright 2023 Michael Van Canneyt
 
 // This file is part of Pascal Language Server.
 
