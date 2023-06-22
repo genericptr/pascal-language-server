@@ -93,6 +93,8 @@ type
     property ignoreTextCompletions: Boolean read fBooleans[10] write fBooleans[10];
     // config file or directory to read settings from (will support multiple formats)
     property config: String read fConfig write fConfig;
+    // enable document symbols
+    property checkInactiveRegions : Boolean read fBooleans[11] write fBooleans[11];
 
     function CanProvideWorkspaceSymbols: boolean;
   public

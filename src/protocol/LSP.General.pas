@@ -385,6 +385,7 @@ const
     DoLog('  ► includeWorkspaceFoldersAsUnitPaths: ', ServerSettings.includeWorkspaceFoldersAsUnitPaths);
     DoLog('  ► includeWorkspaceFoldersAsIncludePaths: ', ServerSettings.includeWorkspaceFoldersAsIncludePaths);
     DoLog('  ► checkSyntax: ', ServerSettings.checkSyntax);
+    DoLog('  ► checkInactiveRegions: ', ServerSettings.checkInactiveRegions);
     DoLog('  ► publishDiagnostics: ', ServerSettings.publishDiagnostics);
     DoLog('  ► workspaceSymbols: ', ServerSettings.workspaceSymbols);
     DoLog('  ► documentSymbols: ', ServerSettings.documentSymbols);

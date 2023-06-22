@@ -191,6 +191,14 @@
         <Filename Value="PasLS.Command.RemoveEmptyMethods.pas"/>
         <UnitName Value="PasLS.Command.RemoveEmptyMethods"/>
       </Item>
+      <Item>
+        <Filename Value="PasLS.CheckInactiveRegions.pas"/>
+        <UnitName Value="PasLS.CheckInactiveRegions"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.InactiveRegions.pas"/>
+        <UnitName Value="PasLS.InactiveRegions"/>
+      </Item>
     </Files>
     <RequiredPkgs>
       <Item>
