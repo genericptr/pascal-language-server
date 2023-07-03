@@ -27,6 +27,7 @@ uses
   {$IFDEF UNIX}
   cthreads, cwstring,
   {$ENDIF}
+  LazLogger,
   Classes, SysUtils, CustApp, IniFiles, LSP.AllCommands,  LSP.Messages,
   LSP.Base, PasLS.Settings, PasLSSock.Config, PasLS.SocketDispatcher;
 
@@ -166,7 +167,13 @@ end;
 
 var
   Application: TPasLSPSocketServerApp;
+  Buffer: Array[1..100*1024] of byte;
+
 begin
+  Close(Output);
+  Assign(Output,GetTempDir(false)+'paslssock-out.log');
+  SetTextBuf(Output,Buffer,SizeOf(Buffer));
+  Rewrite(output);
   Application:=TPasLSPSocketServerApp.Create(nil);
   Application.Title:='Pascal LSP socket server application';
   Application.Run;
