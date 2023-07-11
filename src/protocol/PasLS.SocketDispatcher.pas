@@ -607,6 +607,7 @@ begin
   SetServer(TUnixServer.Create(FPath));
   Socket.ReuseAddress:=True;
 end;
+{$ENDIF}
 
 { TLSPServerTCPSocketDispatcher }
 
@@ -621,7 +622,6 @@ begin
   SetServer(TInetServer.Create(FPort));
   Socket.ReuseAddress:=True;
 end;
-{$ENDIF}
 
 { TLSPThread }
 
