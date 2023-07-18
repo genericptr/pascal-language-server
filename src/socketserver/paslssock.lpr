@@ -28,7 +28,7 @@ uses
   cthreads, cwstring,
   {$ENDIF}
   LazLogger,
-  Classes, SysUtils, CustApp, IniFiles, LSP.AllCommands,  LSP.Messages,
+  Classes, SysUtils, CustApp, IniFiles, PasLS.AllCommands,  LSP.Messages,
   LSP.Base, PasLS.Settings, PasLSSock.Config, PasLS.SocketDispatcher;
 
 type
@@ -112,6 +112,7 @@ var
 
 begin
   Terminate;
+  RegisterAllCommands;
   // quick check parameters
   ErrorMsg:=CheckOptions(ShortOpts,LongOpts);
   if (ErrorMsg<>'') or HasOption('h','help') then

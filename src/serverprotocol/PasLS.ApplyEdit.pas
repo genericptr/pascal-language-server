@@ -18,7 +18,7 @@ Uses
   { LSP }
   PasLS.Settings,
   LSP.BaseTypes,
-  LSP.WorkSpace;
+  LSP.WorkSpace, PasLS.WorkSpace;
 
 procedure DoApplyEdit(aTransport: TMessageTransport; DocumentURI, Text: String; Range: TRange);
 var

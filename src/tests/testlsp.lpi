@@ -20,6 +20,9 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="lspserver"/>
+      </Item>
+      <Item>
         <PackageName Value="lspprotocol"/>
       </Item>
       <Item>

@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit LSP.GotoDeclaration;
+unit PasLS.GotoDeclaration;
 
 {$mode objfpc}{$H+}
 
@@ -38,8 +38,9 @@ type
   end;
 
 implementation
+
 uses
-  LSP.Diagnostics;
+  PasLS.Diagnostics;
   
 function TGotoDeclaraction.Process(var Params: TTextDocumentPositionParams): TLocation;
 var
@@ -66,7 +67,5 @@ begin with Params do
   end;
 end;
 
-initialization
-  LSPHandlerManager.RegisterHandler('textDocument/declaration', TGotoDeclaraction);
 end.
 

@@ -26,8 +26,6 @@ interface
 uses
   { RTL }
   SysUtils, Classes,
-  { Code Tools }
-  CodeToolManager,
   { Protocol }
   LSP.Base, LSP.BaseTypes, LSP.Messages;
 

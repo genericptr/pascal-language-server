@@ -33,7 +33,7 @@ uses
   ExprEval,DefineTemplates,CodeToolManager,CodeCache,LinkScanner,sourcelog,
   BasicCodeTools,
   //pasls
-  LSP.Messages, PasLS.InactiveRegions;
+  LSP.Messages;
 
 type
 
@@ -53,7 +53,7 @@ Procedure CheckInactiveRegions(aTransport : TMessageTransport; aCode : TCodeBuff
 
 implementation
 
-uses PasLS.Settings;
+uses PasLS.Settings, PasLS.InactiveRegions;
 
 Procedure CheckInactiveRegions(aTransport : TMessageTransport; aCode : TCodeBuffer; aURI : String);
 begin

@@ -27,7 +27,7 @@ uses
 
   SysUtils, Classes, FPJson, JSONParser, JSONScanner,
   { Protocol }
-  LSP.AllCommands, PasLS.Settings,
+  PasLS.AllCommands, PasLS.Settings,
   LSP.Base, LSP.Basic, PasLS.TextLoop, PasLS.LSConfig;
 
 Type
@@ -108,6 +108,7 @@ begin
   aContext := nil;
   aCfg := TLSPServerConfig.Create;
   try
+    RegisterAllCommands;
     aCfg.LoadFromFile(aCfg.DefaultConfigFile);
     if aCfg.LogFile<>'' then
       TLSPContext.LogFile := aCfg.LogFile;

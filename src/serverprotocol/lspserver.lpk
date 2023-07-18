@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Package Version="5">
+    <Name Value="lspserver"/>
+    <Type Value="RunAndDesignTime"/>
+    <CompilerOptions>
+      <Version Value="11"/>
+      <SearchPaths>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+      </SearchPaths>
+    </CompilerOptions>
+    <Files>
+      <Item>
+        <Filename Value="PasLS.General.pas"/>
+        <UnitName Value="PasLS.General"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.References.pas"/>
+        <UnitName Value="PasLS.References"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Diagnostics.pas"/>
+        <UnitName Value="PasLS.Diagnostics"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.GotoDeclaration.pas"/>
+        <UnitName Value="PasLS.GotoDeclaration"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.GotoDefinition.pas"/>
+        <UnitName Value="PasLS.GotoDefinition"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.GotoImplementation.pas"/>
+        <UnitName Value="PasLS.GotoImplementation"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Completion.pas"/>
+        <UnitName Value="PasLS.Completion"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.SignatureHelp.pas"/>
+        <UnitName Value="PasLS.SignatureHelp"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Synchronization.pas"/>
+        <UnitName Value="PasLS.Synchronization"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.AllCommands.pas"/>
+        <UnitName Value="PasLS.AllCommands"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.CodeAction.pas"/>
+        <UnitName Value="PasLS.CodeAction"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.DocumentHighlight.pas"/>
+        <UnitName Value="PasLS.DocumentHighlight"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Hover.pas"/>
+        <UnitName Value="PasLS.Hover"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.InlayHint.pas"/>
+        <UnitName Value="PasLS.InlayHint"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Workspace.pas"/>
+        <UnitName Value="PasLS.Workspace"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.ApplyEdit.pas"/>
+        <UnitName Value="PasLS.ApplyEdit"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.RemoveEmptyMethods.pas"/>
+        <UnitName Value="PasLS.RemoveEmptyMethods"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Command.CompleteCode.pas"/>
+        <UnitName Value="PasLS.Command.CompleteCode"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Command.FormatCode.pas"/>
+        <UnitName Value="PasLS.Command.FormatCode"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Command.InvertAssignment.pas"/>
+        <UnitName Value="PasLS.Command.InvertAssignment"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Command.RemoveEmptyMethods.pas"/>
+        <UnitName Value="PasLS.Command.RemoveEmptyMethods"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.DocumentSymbol.pas"/>
+        <UnitName Value="PasLS.DocumentSymbol"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Commands.pas"/>
+        <UnitName Value="PasLS.Commands"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Formatter.pas"/>
+        <UnitName Value="PasLS.Formatter"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.ExecuteCommand.pas"/>
+        <UnitName Value="PasLS.ExecuteCommand"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.CodeUtils.pas"/>
+        <UnitName Value="PasLS.CodeUtils"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.InvertAssign.pas"/>
+        <UnitName Value="PasLS.InvertAssign"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.LazConfig.pas"/>
+        <UnitName Value="PasLS.LazConfig"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Parser.pas"/>
+        <UnitName Value="PasLS.Parser"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.Symbols.pas"/>
+        <UnitName Value="PasLS.Symbols"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.CheckInactiveRegions.pas"/>
+        <UnitName Value="PasLS.CheckInactiveRegions"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.InactiveRegions.pas"/>
+        <UnitName Value="PasLS.InactiveRegions"/>
+      </Item>
+    </Files>
+    <RequiredPkgs>
+      <Item>
+        <PackageName Value="lspprotocol"/>
+      </Item>
+      <Item>
+        <PackageName Value="jcfbase"/>
+      </Item>
+      <Item>
+        <PackageName Value="CodeTools"/>
+      </Item>
+      <Item>
+        <PackageName Value="FCL"/>
+      </Item>
+    </RequiredPkgs>
+    <UsageOptions>
+      <UnitPath Value="$(PkgOutDir)"/>
+    </UsageOptions>
+    <PublishOptions>
+      <Version Value="2"/>
+      <UseFileFilters Value="True"/>
+    </PublishOptions>
+  </Package>
+</CONFIG>

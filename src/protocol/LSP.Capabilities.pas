@@ -27,7 +27,7 @@ uses
   { RTL }
   SysUtils, Classes,
   { Protocol }
-  LSP.BaseTypes, LSP.Options, LSP.DocumentSymbol, PasLS.Settings, PasLS.Symbols;
+  LSP.BaseTypes, LSP.Options;
 
 type
 
@@ -137,9 +137,7 @@ type
     procedure SetWorkspace(AValue: TWorkspaceServerCapabilities);
   public
     constructor Create; override;
-    constructor Create(settings: TServerSettings);
     destructor destroy; override;
-    procedure ApplySettings(settings: TServerSettings); virtual;
     Procedure Assign(Source : TPersistent); override;
   published
     property textDocumentSync: TTextDocumentSyncOptions read fTextDocumentSync write SetTextDocumentSync;
@@ -326,44 +324,10 @@ begin
   inherited Create;
   ftextDocumentSync := TTextDocumentSyncOptions.Create;
   fworkspace := TWorkspaceServerCapabilities.Create;
-
-  ftextDocumentSync.change := TTextDocumentSyncKind.Full;
-
-  workspace.workspaceFolders.supported := true;
-  workspace.workspaceFolders.changeNotifications := true;
-
-  hoverProvider := true;
-  declarationProvider := true;
-  definitionProvider := true;
-  implementationProvider := true;
-  referencesProvider := true;
-  documentHighlightProvider := true;
-  fexecuteCommandProvider := TExecuteCommandOptions.Create([
-    'pasls.completeCode',
-    'pasls.formatCode',
-    'pasls.invertAssignment',
-    'pasls.removeEmptyMethods'
-
-  ]);
-  // finlayHintProvider:= TInlayHintOptions.Create;
-
-  documentSymbolProvider := Assigned(SymbolManager);
   fcompletionProvider := TCompletionOptions.Create;
-  completionProvider.triggerCharacters.Add('.');
-  completionProvider.triggerCharacters.Add('^');
-
   fsignatureHelpProvider := TSignatureHelpOptions.Create;
-  signatureHelpProvider.triggerCharacters.Add('(');
-  signatureHelpProvider.triggerCharacters.Add(')');
-  signatureHelpProvider.triggerCharacters.Add(',');
-end;
-
-constructor TServerCapabilities.Create(settings: TServerSettings);
-
-begin
-  Create;
-  if Assigned(Settings) then
-    ApplySettings(Settings);
+  fexecuteCommandProvider := TExecuteCommandOptions.Create;
+  ftextDocumentSync.change := TTextDocumentSyncKind.Full;
 end;
 
 destructor TServerCapabilities.destroy;
@@ -378,12 +342,6 @@ begin
   inherited destroy;
 end;
 
-procedure TServerCapabilities.ApplySettings(settings: TServerSettings);
-begin
-  if not Assigned(Settings) then
-    exit;
-  workspaceSymbolProvider := settings.CanProvideWorkspaceSymbols;
-end;
 
 procedure TServerCapabilities.Assign(Source : TPersistent);
 
