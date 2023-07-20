@@ -1,5 +1,4 @@
 // Pascal Language Server
-// Copyright 2020 Arjan Adriaanse
 // Copyright 2020 Ryan Joseph
 
 // This file is part of Pascal Language Server.
