@@ -16,60 +16,67 @@
 // You should have received a copy of the GNU General Public License
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
-
-unit LSP.GotoImplementation;
+unit PasLS.Hover;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  { RTL }
-  Classes,
   { Code Tools }
   CodeToolManager, CodeCache,
   { Protocol }
-  LSP.Base, LSP.Basic;
+  LSP.BaseTypes,LSP.Base, LSP.Hover, LSP.Basic;
 
-type
-  
-  { TGotoImplementation }
-  
-  TGotoImplementation = class(specialize TLSPRequest<TTextDocumentPositionParams, TLocation>)
-    function Process(var Params: TTextDocumentPositionParams): TLocation; override;
+Type
+  { THoverRequest }
+
+  THoverRequest = class(specialize TLSPRequest<TTextDocumentPositionParams, THoverResponse>)
+    function Process(var Params: TTextDocumentPositionParams): THoverResponse; override;
   end;
 
+
 implementation
+
 uses
-  LSP.Diagnostics;
-  
-function TGotoImplementation.Process(var Params: TTextDocumentPositionParams): TLocation;
+  SysUtils;
+
+function THoverRequest.Process(var Params: TTextDocumentPositionParams): THoverResponse;
 var
+
   Code: TCodeBuffer;
-  NewCode: TCodeBuffer;
   X, Y: Integer;
-  NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: integer;
-  RevertableJump: boolean;
+  Hint: String;
 begin with Params do
   begin
-    Code := CodeToolBoss.FindFile(TextDocument.LocalPath);
+    Code := CodeToolBoss.FindFile(textDocument.LocalPath);
     X := position.character;
     Y := position.line;
 
-    if CodeToolBoss.JumpToMethod(Code, X + 1, Y + 1, 
-      NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine, RevertableJump) then
-      begin
-        Result := TLocation.Create(NewCode.Filename,NewY - 1, NewX - 1,0);
-      end
-    else
-      begin
-        PublishCodeToolsError(Transport,'');
-        Result := nil;
-      end;
+    try
+      Hint := CodeToolBoss.FindSmartHint(Code, X + 1, Y + 1);
+      // empty hint string means nothing was found
+      if Hint = '' then
+        exit(nil);
+    except
+      on E: Exception do
+        begin
+          LogError('Hover Error',E);
+          exit(nil);
+        end;
+    end;
+
+    // https://facelessuser.github.io/sublime-markdown-popups/
+    // Wrap hint in markdown code
+    Hint:='```pascal'+#10+Hint+#10+'```';
+
+    Result := THoverResponse.Create;
+    Result.contents.PlainText:=False;
+    Result.contents.value:=Hint;
+    Result.range.SetRange(Y, X);
   end;
 end;
 
-initialization
-  LSPHandlerManager.RegisterHandler('textDocument/implementation', TGotoImplementation);
+
 end.
 

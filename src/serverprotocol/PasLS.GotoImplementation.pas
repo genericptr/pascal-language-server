@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit LSP.GotoDefinition;
+unit PasLS.GotoImplementation;
 
 {$mode objfpc}{$H+}
 
@@ -33,58 +33,42 @@ uses
 
 type
   
-  { TGotoDefinition }
+  { TGotoImplementation }
   
-  TGotoDefinition = class(specialize TLSPRequest<TTextDocumentPositionParams, TLocation>)
+  TGotoImplementation = class(specialize TLSPRequest<TTextDocumentPositionParams, TLocation>)
     function Process(var Params: TTextDocumentPositionParams): TLocation; override;
   end;
 
 implementation
+
 uses
-  LSP.Diagnostics;
+  PasLS.Diagnostics, LSP.Diagnostics;
   
-function TGotoDefinition.Process(var Params: TTextDocumentPositionParams): TLocation;
+function TGotoImplementation.Process(var Params: TTextDocumentPositionParams): TLocation;
 var
   Code: TCodeBuffer;
   NewCode: TCodeBuffer;
   X, Y: Integer;
   NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: integer;
+  RevertableJump: boolean;
 begin with Params do
   begin
-    Code := CodeToolBoss.FindFile(textDocument.localPath);
+    Code := CodeToolBoss.FindFile(TextDocument.LocalPath);
     X := position.character;
     Y := position.line;
-    { 
-      NOTE: currently goto definition is supported as goto declaration
-      
-      There is a definition for the following identifiers:
-        
-        - Methods
 
-      There is no definition for the following identifiers:
-  
-        - Function forwards
-        - Functions in the interface section
-        - External functions
-        - Class forwards
-        - External ObjC classes
-
-        https://www.cprogramming.com/declare_vs_define.html
-        https://stackoverflow.com/questions/1410563/what-is-the-difference-between-a-definition-and-a-declaration
-    }
-    if CodeToolBoss.FindDeclaration(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine) then
+    if CodeToolBoss.JumpToMethod(Code, X + 1, Y + 1, 
+      NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine, RevertableJump) then
       begin
-        Result := TLocation.Create(NewCode.Filename,NewY - 1, NewX - 1,0)
+        Result := TLocation.Create(NewCode.Filename,NewY - 1, NewX - 1,0);
       end
     else
       begin
-        Result := nil;
         PublishCodeToolsError(Transport,'');
+        Result := nil;
       end;
   end;
 end;
 
-initialization
-  LSPHandlerManager.RegisterHandler('textDocument/definition', TGotoDefinition);
 end.
 

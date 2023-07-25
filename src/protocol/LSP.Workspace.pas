@@ -25,10 +25,9 @@ interface
 
 uses
   { RTL }
-  Classes, fpjson, fpjsonrpc,
+  Classes, // fpjson, fpjsonrpc,
   { Protocol }
-  LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.General, LSP.DocumentSymbol,
-  PasLS.Settings, PasLS.Symbols, LSP.Streaming;
+  LSP.Base, LSP.Basic, LSP.BaseTypes, LSP.General;
 
 type
   
@@ -63,20 +62,6 @@ type
     property event: TWorkspaceFoldersChangeEvent read fEvent write SetEvent;
   end;
 
-  { TDidChangeWorkspaceFolders }
-
-  { The workspace/didChangeWorkspaceFolders notification is sent from the client to the server 
-    to inform the server about workspace folder configuration changes. The notification is sent 
-    by default if both client capability workspace.workspaceFolders and the server capability 
-    workspace.workspaceFolders.supported are true; or if the server has registered itself to 
-    receive this notification. To register for the workspace/didChangeWorkspaceFolders send 
-    a client/registerCapability request from the server to the client. The registration parameter 
-    must have a registrations item of the following form, where id is a unique id used to 
-    unregister the capability (the example uses a UUID): } 
-
-  TDidChangeWorkspaceFolders = class(specialize TLSPNotification<TDidChangeWorkspaceFoldersParams>)
-    procedure Process(var Params : TDidChangeWorkspaceFoldersParams); override;
-  end;
 
   { The parameters of a Workspace Symbol Request. }
 
@@ -93,36 +78,23 @@ type
     property query: string read fQuery write fQuery;
   end;
 
-  { TWorkspaceSymbolRequest }
-
-  { The workspace symbol request is sent from the client to the server to 
-    list project-wide symbols matching the query string. }
-
-  TWorkspaceSymbolRequest = class(specialize TLSPRequest<TWorkspaceSymbolParams, TSymbolInformationItems>)
-    function DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData; override;
-  end;
 
   { TDidChangeConfigurationParams }
 
   TDidChangeConfigurationParams = class(TLSPStreamable)
   private
-    fSettings: TServerSettings;
-    procedure SetSettings(AValue: TServerSettings);
+    fSettings: TInitializationOptions;
+    procedure SetSettings(AValue: TInitializationOptions);
+  Protected
+    function createSettings: TInitializationOptions; virtual;
   Public
     Constructor Create; override;
     Destructor Destroy; override;
     Procedure Assign(Source: TPersistent); override;
   published
-    property settings: TServerSettings read fSettings write SetSettings;
+    property settings: TInitializationOptions read fSettings write SetSettings;
   end;
 
-  { TDidChangeConfiguration }
-
-  { A notification sent from the client to the server to signal the change of configuration settings. }
-
-  TDidChangeConfiguration = class(specialize TLSPNotification<TDidChangeConfigurationParams>)
-    procedure Process(var Params: TDidChangeConfigurationParams); override;
-  end;
 
   { TApplyWorkspaceEditParams }
 
@@ -170,23 +142,10 @@ type
     property failedChange: TOptionalNumber read fFailedChange write fFailedChange;
   end;
 
-  { TWorkspaceApplyEditRequest
-    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspace_applyEdit
-    
-    The `workspace/applyEdit` request is sent from the server to the client to 
-    modify resource on the client side. }
-
-  TWorkspaceApplyEditRequest = class(specialize TLSPOutgoingRequest<TApplyWorkspaceEditParams>);
 
 implementation
 uses
   SysUtils, DateUtils;
-
-{ TDidChangeConfiguration }
-
-procedure TDidChangeConfiguration.Process(var Params: TDidChangeConfigurationParams);
-begin
-end;
 
 { TApplyWorkspaceEditParams }
 
@@ -301,11 +260,7 @@ begin
     inherited Assign(Source);
 end;
 
-{ TDidChangeWorkspaceFolders }
 
-procedure TDidChangeWorkspaceFolders.Process(var Params : TDidChangeWorkspaceFoldersParams);
-begin
-end;
 
 { TWorkspaceSymbolParams }
 
@@ -322,31 +277,24 @@ begin
     inherited Assign(Source);
 end;
 
-{ TWorkspaceSymbolRequest }
-
-function TWorkspaceSymbolRequest.DoExecute(const Params: TJSONData; AContext: TJSONRPCCallContext): TJSONData;
-var
-  Input: TWorkspaceSymbolParams;
-
-begin
-  Input := specialize TLSPStreaming<TWorkspaceSymbolParams>.ToObject(Params);
-  Result := SymbolManager.FindWorkspaceSymbols(Input.query);
-  if not Assigned(Result) then
-    Result := TJSONNull.Create;
-end;
 
 { TDidChangeConfigurationParams }
 
-procedure TDidChangeConfigurationParams.SetSettings(AValue: TServerSettings);
+procedure TDidChangeConfigurationParams.SetSettings(AValue: TInitializationOptions);
 begin
   if fSettings=AValue then Exit;
   fSettings.Assign(AValue);
 end;
 
+function TDidChangeConfigurationParams.createSettings: TInitializationOptions;
+begin
+  Result := TInitializationOptions.Create;
+end;
+
 constructor TDidChangeConfigurationParams.Create;
 begin
   inherited Create;
-  fSettings:=TServerSettings.Create;
+  fSettings := createSettings;
 end;
 
 destructor TDidChangeConfigurationParams.Destroy;
@@ -368,8 +316,4 @@ begin
 end;
 
 
-initialization
-  LSPHandlerManager.RegisterHandler('workspace/didChangeConfiguration', TDidChangeConfiguration);
-  LSPHandlerManager.RegisterHandler('workspace/didChangeWorkspaceFolders', TDidChangeWorkspaceFolders);
-  LSPHandlerManager.RegisterHandler('workspace/symbol', TWorkspaceSymbolRequest);
 end.

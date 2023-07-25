@@ -17,7 +17,7 @@
 // along with Pascal Language Server.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-unit LSP.GotoDeclaration;
+unit PasLS.GotoDefinition;
 
 {$mode objfpc}{$H+}
 
@@ -25,38 +25,57 @@ interface
 
 uses
   { RTL }
-  Classes,  CodeToolManager, CodeCache,
+  Classes,
+  { Code Tools }
+  CodeToolManager, CodeCache,
   { Protocol }
   LSP.Base, LSP.Basic;
 
 type
   
-  { TGotoDeclaraction }
+  { TGotoDefinition }
   
-  TGotoDeclaraction = class(specialize TLSPRequest<TTextDocumentPositionParams, TLocation>)
+  TGotoDefinition = class(specialize TLSPRequest<TTextDocumentPositionParams, TLocation>)
     function Process(var Params: TTextDocumentPositionParams): TLocation; override;
   end;
 
 implementation
+
 uses
-  LSP.Diagnostics;
+  PasLS.Diagnostics;
   
-function TGotoDeclaraction.Process(var Params: TTextDocumentPositionParams): TLocation;
+function TGotoDefinition.Process(var Params: TTextDocumentPositionParams): TLocation;
 var
   Code: TCodeBuffer;
   NewCode: TCodeBuffer;
   X, Y: Integer;
   NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: integer;
-
 begin with Params do
   begin
-    Code := CodeToolBoss.FindFile(textDocument.LocalPath);
+    Code := CodeToolBoss.FindFile(textDocument.localPath);
     X := position.character;
     Y := position.line;
+    { 
+      NOTE: currently goto definition is supported as goto declaration
+      
+      There is a definition for the following identifiers:
+        
+        - Methods
 
+      There is no definition for the following identifiers:
+  
+        - Function forwards
+        - Functions in the interface section
+        - External functions
+        - Class forwards
+        - External ObjC classes
+
+        https://www.cprogramming.com/declare_vs_define.html
+        https://stackoverflow.com/questions/1410563/what-is-the-difference-between-a-definition-and-a-declaration
+    }
     if CodeToolBoss.FindDeclaration(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine) then
       begin
-        Result := TLocation.Create(NewCode.Filename,NewY - 1,NewX-1,0);
+        Result := TLocation.Create(NewCode.Filename,NewY - 1, NewX - 1,0)
       end
     else
       begin
@@ -66,7 +85,5 @@ begin with Params do
   end;
 end;
 
-initialization
-  LSPHandlerManager.RegisterHandler('textDocument/declaration', TGotoDeclaraction);
 end.
 

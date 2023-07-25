@@ -3,6 +3,7 @@
   <ProjectGroup FileVersion="2">
     <Targets>
       <Target FileName="protocol/lspprotocol.lpk"/>
+      <Target FileName="serverprotocol/lspserver.lpk"/>
       <Target FileName="standard/pasls.lpi">
         <BuildModes>
           <Mode Name="Debug" Compile="True"/>
