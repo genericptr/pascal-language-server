@@ -966,7 +966,8 @@ begin
     begin
       Doc := nil;
       try
-        FN:=Dir + DirectorySeparator + 'environmentoptions.xml';
+        // This way we ensure we don't have 2 backslashes on the path
+        FN:= IncludeTrailingPathDelimiter(Dir) + 'environmentoptions.xml';
         if FileExists(FN) and LoadLazConfig(FN) then
         begin
           EnvironmentOptions := Root.FindNode('EnvironmentOptions');
@@ -984,7 +985,10 @@ begin
         FreeAndNil(Doc);
       end;
       try
-        if LoadLazConfig(Dir + DirectorySeparator + 'fpcdefines.xml') then
+        // This way we ensure we don't have 2 backslashes on the path
+        FN:= IncludeTrailingPathDelimiter(Dir) + 'fpcdefines.xml';
+        // Before this change, there were a lot of errors reported
+        if FileExists(FN) and LoadLazConfig(FN) then
         begin
           FPCConfigs := Root.FindNode('FPCConfigs');
           Item1 := nil;
