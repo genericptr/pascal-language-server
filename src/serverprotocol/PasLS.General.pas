@@ -343,6 +343,7 @@ begin
     Paths.Sorted:=True;
     Paths.Duplicates:=dupIgnore;
 
+    Result.capabilities.ApplySettings(Opt);
     Result.capabilities.executeCommandProvider.commands.Clear;
     CommandFactory.GetCommandList(Result.capabilities.executeCommandProvider.commands);
 
