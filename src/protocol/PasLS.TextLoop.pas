@@ -24,9 +24,10 @@ unit PasLS.TextLoop;
 interface
 
 uses
-  Classes, SysUtils, LSP.Base, LSP.Messages, fpjson;
+  Classes, SysUtils, ssockets, LSP.Base, LSP.Messages, fpjson;
 
 Type
+  TCreateLSPContextEvent = function(OutStream, LogStream: THandleStream): TLSPContext;
 
   { TTextLSPContext }
   PText = ^Text;
@@ -34,33 +35,100 @@ Type
   { TLSPTextTransport }
 
   TLSPTextTransport = class(TMessageTransport)
-    FOutput : PText;
-    FError : PText;
+    FOutput : THandleStream;
+    // Logging occurs to stdout (tcpip), or stderr (pipes)
+    FLog : THandleStream;
   Protected
     Procedure DoSendMessage(aMessage: TJSONData); override;
     Procedure DoSendDiagnostic(const aMessage: UTF8String); override;
   Public
-    constructor Create(aOutput,aError : PText); reintroduce;
+    constructor Create(aOutput,aLog : THandleStream); reintroduce;
     Procedure EmitMessage(aMessage: TJSONStringType);
   end;
 
-
-
-Procedure SetupTextLoop(var aInput,aOutput,aError : Text);
-Procedure RunMessageLoop(var aInput,aOutput,aError : Text; aContext : TLSPContext);
+Procedure SetupTextLoop();
+Procedure RunMessageLoop(aDoCreateContext: TCreateLSPContextEvent; aTcpip: Boolean; aListenIpAddress: string; aListenPort: Integer);
 procedure DebugSendMessage(var aFile : Text; aContext : TLSPContext; const aMethod, aParams: String);
 
 implementation
 
-Procedure SetupTextLoop(var aInput,aOutput,aError : Text);
+const
+  ContentType = 'application/vscode-jsonrpc; charset=utf-8';
+  CRLF = #13#10;
+
+type
+  TTcpipConnectionThread = class;
+
+  { TRunLoop }
+
+  // To be able to handle both TCP/IP and pipes, the THandleStream and
+  // TSocketStream classes are used.
+  //
+  // To handle the different nature of TCP/IP running as a server and piped
+  // communication two threads are used.
+  //
+  // The first thread is only started in case TCP/IP is used and this thread
+  // just waits for an incoming TCP/IP connection. (the client) Only one
+  // connection is accepted and the thread immediately ends afterwards.
+  // (In principle PasLS could be extended to handle multiple clients/sessions
+  // simultaneously, but this is not implemented)
+  //
+  // The second thread is started at application start (pipe) or on an incoming
+  // connection (TCP/IP) and waits in the background for incoming LSP messages
+  // and send those to the main-thread to be handled.
+  TRunLoop = class
+  private
+    FDoCreateContext: TCreateLSPContextEvent;
+    FListenIp: string;
+    FListenPort: Integer;
+    // We only allow one connection, this boolean is set when this connection is
+    // made
+    FHasConnection: Boolean;
+
+    FMustStop: Boolean;
+    FContext: TLSPContext;
+    FIO: TLSPTextTransport;
+    FLogStream: THandleStream;
+
+    procedure HandleNewConnection(aSender: TObject; aData: TSocketStream);
+    procedure StopExecution();
+    procedure ListenForIncomingConnections();
+    procedure InitializeLSPTextTransport(aOutStream, aLogStream: THandleStream);
+  public
+    constructor Create(aDoCreateContext: TCreateLSPContextEvent; aListenIpAddress: string; aListenPort: Integer);
+    procedure Execute(aTcpip: Boolean);
+    property DoCreateContext: TCreateLSPContextEvent read FDoCreateContext;
+  end;
+
+  { TTcpipConnectionThread }
+
+  TTcpipConnectionThread = class(TThread)
+  private
+    FInStream: THandleStream;
+    FContent: UnicodeString;
+    FContext: TLSPContext;
+    FIO: TLSPTextTransport;
+    FRunLoop: TRunLoop;
+  protected
+    // Processes all incoming LSP messages within the main thread and sends a
+    // LSP-response when applicable
+    procedure ProcessMessage();
+    // Waits for a new incoming LSP message and returns the message as a array of bytes
+    function AwaitMessage(aInStream: THandleStream; aVerboseOutput: Boolean): TBytes;
+  public
+    constructor Create(aInStream: THandleStream; aContext: TLSPContext; aIO: TLSPTextTransport; aRunLoop: TRunLoop);
+    destructor Destroy; override;
+    // Main execution loop that runs in a background thread and waits for incoming
+    // messages (blocking). Once a message is received it is signaled to be
+    // processed in the main-thread.
+    procedure Execute; override;
+  end;
+
+Procedure SetupTextLoop();
 
 begin
   TJSONData.CompressedJSON := True;
-  SetTextLineEnding(aInput, #13#10);
-  SetTextLineEnding(aOutput, #13#10);
-  SetTextLineEnding(aError, #13#10);
 end;
-
 
 procedure DebugSendMessage(var aFile : Text; aContext : TLSPContext; const aMethod, aParams: String);
 
@@ -88,43 +156,6 @@ begin
   end;
 end;
 
-
-
-Function ReadRequest(var aFile : text; aContext : TLSPContext) : TJSONData;
-
-Var
-  Header,Name,Value: String;
-  Content : TJSONStringType;
-  I,ContentLength : Integer;
-  P : PJSONCharType;
-
-begin
-  Result:=Nil;
-  aContext.Log('Reading request');
-  ReadLn(aFile,Header);
-  while Header <> '' do
-    begin
-      aContext.Log('Read header: %s',[Header]);
-      I := Pos(':', Header);
-      Name := Copy(Header, 1, I - 1);
-      Delete(Header, 1, i);
-      Value := Trim(Header);
-      if Name = 'Content-Length' then
-        ContentLength := StrToIntDef(Value,0);
-      ReadLn(aFile,Header);
-    end;
-  Content:='';
-  SetLength(Content,ContentLength);
-  P:=PJSONCharType(Content);
-  for I:=1 to ContentLength do
-    begin
-    Read(aFile,P^);
-    inc(P);
-    end;
-  if Content<>'' then
-    Result:=GetJSON(Content, True);
-end;
-
 Procedure SendResponse(aTransport : TMessageTransport; aContext : TLSPContext; aResponse : TJSONData; aFreeResponse : Boolean = True);
 
 Var
@@ -147,68 +178,170 @@ begin
   end;
 end;
 
-Procedure RunMessageLoop(var aInput,aOutput,aError : Text; aContext : TLSPContext);
+{ TTcpipConnectionThread }
 
+// Should always run in main thread
+procedure TTcpipConnectionThread.ProcessMessage();
 var
   Request, Response: TJSONData;
   VerboseDebugging: boolean = false;
-  IO : TLSPTextTransport;
-
 begin
-  IO:=Nil;
-  Request:=Nil;
-  try
-    if aContext.Transport is TLSPTextTransport then
-      IO:=aContext.Transport as TLSPTextTransport
-    else
-      IO:=TLSPTextTransport.Create(@aOutput,@aError);
-    while not EOF(aInput) do
-      begin
-      Request:=ReadRequest(aInput,aContext);
+  if FContent = '' then
+    begin
+    // Empty content means disconnect
+    FContext.Log('Lost connection, stop.');
+    FRunLoop.StopExecution;
+    end
+  else
+    begin
+    try
       // log request payload
       if VerboseDebugging then
-        begin
-          Writeln(aError, Request.FormatJSON);
-          Flush(aError);
-        end;
-      Response := aContext.Execute(Request);
+        FContext.Log(FContent);
+      Request:=GetJSON(FContent, True);
+
+      Response := FContext.Execute(Request);
       if Assigned(Response) then
         begin
         // log response payload
         if VerboseDebugging then
-          begin
-          writeln(aError, Response.asJSON);
-          Flush(aError);
-          end;
-        SendResponse(IO, aContext, Response,True);
+          FContext.Log(Response.AsJSON);
+
+        SendResponse(FIO, FContext, Response, True)
         end
       else
-        aContext.Log('No response to request');
-      FreeAndNil(Request);
+        FContext.Log('No response to request');
+    finally
+      Request.Free;
+    end;
+    end;
+end;
+
+function TTcpipConnectionThread.AwaitMessage(aInStream: THandleStream; aVerboseOutput: Boolean): TBytes;
+
+var
+  ContentSize: Integer;
+
+  procedure ParseLine(Line: AnsiString);
+  var
+    I: Integer;
+    Value, Name: String;
+  begin
+    FContext.Log('Read header: %s',[Line]);
+
+    I := Pos(':', Line);
+    Name := Copy(Line, 1, I - 1);
+    Delete(Line, 1, i);
+    Value := Trim(Line);
+    if Name = 'Content-Length' then
+      ContentSize := StrToIntDef(Value,0);
+  end;
+
+var
+  Buf: array[1..1023] of Byte;
+  s: AnsiString;
+  BytesRead: Integer;
+  Line: AnsiString;
+  PosCrLf: SizeInt;
+begin
+  Line := '';
+  ContentSize:=0;
+  s := '';
+  FContext.Log('Reading request');
+  repeat
+  PosCrLf := Pos(CRLF, s);
+  if PosCrLf > 0 then
+    begin
+    Line := Copy(s, 1, PosCrLf-1);
+    s := Copy(s, PosCrLf+2, MaxInt);
+    ParseLine(Line);
+    end
+  else
+    begin
+    // TInetSocket raises an exception when it is closed and then tried
+    // to read from. We don't want the exception but return without any response.
+    if (aInStream is TInetSocket) then
+      if TInetSocket(aInStream).Closed then
+        Exit([]);
+
+    BytesRead := aInStream.Read(Buf, SizeOf(Buf));
+    if BytesRead=0 then
+      begin
+      FContext.Log('Lost connection');
+      Exit([]);
       end;
+    s := s + TEncoding.ASCII.GetAnsiString(@Buf[1], 0, BytesRead);
+    end;
+  until (Line='') and (ContentSize>0);
+  Result := TEncoding.ASCII.GetAnsiBytes(s);
+  BytesRead:=Length(Result);
+  if BytesRead < ContentSize then
+    begin
+    SetLength(Result, ContentSize);
+    aInStream.ReadBuffer(Result, BytesRead, ContentSize-BytesRead);
+    end;
+end;
+
+procedure TTcpipConnectionThread.Execute;
+var
+  IncomingBytes: TBytes;
+begin
+  repeat
+  IncomingBytes := AwaitMessage(FInStream, True);
+  FContent := TEncoding.UTF8.GetString(IncomingBytes);
+  // Handle the message (or absence of a message) in the main thread
+  Synchronize(@ProcessMessage);
+
+  // If IncomingBytes is empty, AwaitMessage discovered a disconnect
+  until Length(IncomingBytes) = 0;
+end;
+
+constructor TTcpipConnectionThread.Create(aInStream: THandleStream; aContext: TLSPContext; aIO: TLSPTextTransport; aRunLoop: TRunLoop);
+begin
+  FInStream := aInStream;
+  FContext:=aContext;
+  FIO:=aIO;
+  FRunLoop:=aRunLoop;
+  inherited Create(False);
+end;
+
+destructor TTcpipConnectionThread.Destroy;
+begin
+  FInStream.Free;
+  inherited Destroy;
+end;
+
+Procedure RunMessageLoop(aDoCreateContext: TCreateLSPContextEvent; aTcpip: Boolean; aListenIpAddress: string; aListenPort: Integer);
+
+var
+  RunLoop: TRunLoop;
+
+begin
+  RunLoop := TRunLoop.Create(aDoCreateContext, aListenIpAddress, aListenPort);
+  try
+    RunLoop.Execute(aTcpip);
   finally
-    if IO<>aContext.Transport then
-      IO.Free;
-    Request.Free;
+    RunLoop.Free;
   end;
 end;
 
 { TTextLSPContext }
 
-constructor TLSPTextTransport.Create(aOutput, aError: PText);
+constructor TLSPTextTransport.Create(aOutput, aLog: THandleStream);
 begin
   FOutput:=aOutput;
-  FError:=aError;
+  FLog:=aLog;
 end;
 
 procedure TLSPTextTransport.EmitMessage(aMessage: TJSONStringType);
+var
+  Message: string;
 begin
   Try
-    WriteLn(Foutput^,'Content-Type: ', ContentType);
-    WriteLn(Foutput^,'Content-Length: ', Length(aMessage));
-    WriteLn(Foutput^);
-    Write(Foutput^,aMessage);
-    Flush(Foutput^);
+    Message:='Content-Type: '+ ContentType+CRLF;
+    Message:=Message+'Content-Length: '+IntToStr(Length(aMessage))+CRLF+CRLF;
+    FOutput.WriteBuffer(Message[1], Length(Message));
+    FOutput.WriteBuffer(aMessage[1], Length(aMessage));
   except
     on e : exception do
       DoLog('Exception %s during output: %s',[E.ClassName,E.Message]);
@@ -228,15 +361,116 @@ end;
 procedure TLSPTextTransport.DoSendDiagnostic(const aMessage: UTF8String);
 begin
   Try
-    WriteLn(FError^,aMessage);
-    Flush(FError^);
+    FLog.WriteBuffer(aMessage[1], Length(aMessage));
+    FLog.WriteBuffer(string(LineEnding)[1], Length(LineEnding));
   except
     on e : exception do
       DoLog('Exception %s during diagnostic output: %s',[E.ClassName,E.Message]);
   end;
 end;
 
+{ TRunLoop }
 
+procedure TRunLoop.HandleNewConnection(aSender: TObject; aData: TSocketStream);
+var
+  ConnThread: TTcpipConnectionThread;
+begin
+  FHasConnection:=True;
+  // StdOut is not used for (piped) communication, so log to stdout
+  FLogStream := THandleStream.Create(StdOutputHandle);
+  InitializeLSPTextTransport(aData, FLogStream);
+
+  FContext.Log('New incoming connection');
+
+  ConnThread := TTcpipConnectionThread.create(aData, FContext, FIO, Self);
+  ConnThread.FreeOnTerminate:=True;
+end;
+
+procedure TRunLoop.StopExecution();
+begin
+  FMustStop:=True;
+end;
+
+procedure TRunLoop.ListenForIncomingConnections();
+var
+  ServerSocket: TInetServer;
+begin
+  try
+    ServerSocket := TInetServer.Create(FListenIp, FListenPort, TSocketHandler.Create);
+    try
+      ServerSocket.OnConnect:=@HandleNewConnection;
+      // One connection, when the connection the language server stops.
+      // (In theory more scenario's are possible, but keep it simple for now)
+      ServerSocket.MaxConnections:=1;
+      ServerSocket.ReuseAddress:=True;
+      ServerSocket.StartAccepting;
+    finally
+      ServerSocket.Free;
+    end;
+  except
+    on E: Exception do
+      WriteLn('Network problem. ', E.Message);
+  end;
+  // When there is no connection, stop the application. When there is a connection,
+  // stop listening but keep the connection-thread (and application) running.
+  if not FHasConnection then
+    TThread.Synchronize(TThread.CurrentThread, @StopExecution);
+end;
+
+procedure TRunLoop.InitializeLSPTextTransport(aOutStream, aLogStream: THandleStream);
+begin
+  FContext := FDoCreateContext(aOutStream, aLogStream);
+  if FContext.Transport is TLSPTextTransport then
+    FIO:=FContext.Transport as TLSPTextTransport
+  else
+    FIO:=TLSPTextTransport.Create(aOutStream, aLogStream);
+end;
+
+constructor TRunLoop.Create(aDoCreateContext: TCreateLSPContextEvent; aListenIpAddress: string; aListenPort: Integer);
+begin
+  FDoCreateContext:=aDoCreateContext;
+  FListenIp:=aListenIpAddress;
+  FListenPort:=aListenPort;
+end;
+
+procedure TRunLoop.Execute(aTcpip: Boolean);
+var
+  InStream, OutStream: THandleStream;
+  ConnThread: TTcpipConnectionThread;
+begin
+  InStream:=nil;
+  OutStream:=nil;
+  try
+    if aTcpip then
+      // The biggest difference with a tcpip-server (listening) socket is that multiple
+      // connections can come in. So we have to wait for a connection before
+      // the real connection can be made using a TTcpipConnectionThread thread.
+      // So ListenForIncomingConnections is called in the background that will
+      // create a TTcpipConnectionThread when a (new) connection is made.
+      TThread.ExecuteInThread(@ListenForIncomingConnections)
+    else
+      begin
+      InStream := THandleStream.Create(StdInputHandle);
+      OutStream := THandleStream.Create(StdOutputHandle);
+      FLogStream := THandleStream.Create(StdErrorHandle);
+
+      InitializeLSPTextTransport(OutStream, FLogStream);
+
+      ConnThread := TTcpipConnectionThread.Create(InStream, FContext, FIO, Self);
+      ConnThread.FreeOnTerminate:=True;
+      end;
+
+    repeat
+    CheckSynchronize(-1);
+    until FMustStop;
+  finally
+    InStream.Free;
+    OutStream.Free;
+    FLogStream.Free;
+    if Assigned(FContext) and (FIO<>FContext.Transport) then
+      fIO.Free;
+  end;
+end;
 
 end.
 

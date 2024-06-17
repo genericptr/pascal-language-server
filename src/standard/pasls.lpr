@@ -27,7 +27,8 @@ uses
   Windows,
   {$ENDIF}
   { RTL }
-  SysUtils, Classes, FPJson, JSONParser, JSONScanner, TypInfo,
+  {$ifdef unix}cthreads,{$endif}
+  SysUtils, Classes, FPJson, JSONParser, JSONScanner, TyoInfo,
   { Protocol }
   PasLS.AllCommands, PasLS.Settings, PasLS.Commands,
   LSP.Base, LSP.Basic, LSP.Capabilities, LSP.Options,
@@ -294,6 +295,21 @@ begin
   Log('Transport log: '+Msg);
 end;
 
+function DoInitializeContext(OutStream, LogStream: THandleStream): TLSPContext;
+begin
+  aTransport:=TLSPTextTransport.Create(OutStream, LogStream);
+  aDisp:=TLSPLocalDispatcher.Create(aTransport,True);
+  aContext:=TLSPLogContext.Create(aTransport,aDisp,True);
+  aTransport.OnLog := @aContext.DoTransportLog;
+  if not ExecuteCommandLineMessages(aContext) then
+    exit(nil);
+  Result := aContext;
+end;
+
+var
+  Tcpip: Boolean;
+  ListenIp: String;
+  Port: Integer;
 
 begin
   // Show help for the server
@@ -325,16 +341,18 @@ begin
     if aCfg.LogFile<>'' then
       TLSPContext.LogFile := aCfg.LogFile;
     ConfigEnvironment(aCfg);
-    SetupTextLoop(Input,Output,StdErr);
-    aTransport:=TLSPTextTransport.Create(@Output,@StdErr);
-    aDisp:=TLSPLocalDispatcher.Create(aTransport,True);
-    aContext:=TLSPLogContext.Create(aTransport,aDisp,True);
-    aTransport.OnLog := @aContext.DoTransportLog;
-    if not ExecuteCommandLineMessages(aContext) then
-      exit;
-    RunMessageLoop(Input,Output,StdErr,aContext);
+
+    SetupTextLoop();
+
+    // ToDo: make these configurable
+    Tcpip := False;
+    ListenIp := '0.0.0.0';
+    Port := 4002;
+
+    RunMessageLoop(@DoInitializeContext, Tcpip, ListenIp, Port);
    Finally
      aContext.Free;
+     aTransport.Free;
      aCfg.Free;
    end;
 end.
