@@ -440,7 +440,7 @@ begin
         IdentifierList.SortForHistory := True;
         IdentifierList.SortMethodForCompletion:=icsScopedAlphabetic;
       end;
-
+    Result.Capabilities.ApplySettings(ServerSettings);
     // Set search path for codetools.
     RootPath:=TDefineTemplate.Create('RootPath','RootPath','',CodetoolsOptions.ProjectDir,da_Directory);
     if ServerSettings.includeWorkspaceFoldersAsUnitPaths then
