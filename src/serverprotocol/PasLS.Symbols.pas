@@ -108,6 +108,8 @@ type
     function AddClass(Node: TCodeTreeNode; const Name: String): TSymbol;
     function AddMethod(Node: TCodeTreeNode; const AClassName, AMethodName: String): TSymbol;
     function AddGlobalFunction(Node: TCodeTreeNode; const Name: String): TSymbol;
+    function AddProperty(Node: TCodeTreeNode; const AClassName, APropertyName: String): TSymbol;
+    function AddField(Node: TCodeTreeNode; const AClassName, AFieldName: String): TSymbol;
 
     // Serialization
     procedure SerializeSymbols;
@@ -465,6 +467,88 @@ begin
   end;
 end;
 
+function TSymbolBuilder.AddProperty(Node: TCodeTreeNode; const AClassName, APropertyName: String): TSymbol;
+var
+  ClassSymbol: TDocumentSymbolEx;
+  PropertySymbol: TDocumentSymbolEx;
+  CodePos, EndPos: TCodeXYPosition;
+begin
+  case FMode of
+    smFlat:
+      begin
+        // Flat mode: add property with containerName
+        if (FTool <> nil) and (Node <> nil) then
+          begin
+            FTool.CleanPosToCaret(Node.StartPos, CodePos);
+            FTool.CleanPosToCaret(Node.EndPos, EndPos);
+            Result := FEntry.AddSymbol(APropertyName, TSymbolKind._Property,
+                                       CodePos.Code.FileName,
+                                       CodePos.Y, CodePos.X,
+                                       EndPos.Y, EndPos.X);
+            if Result <> nil then
+              Result.containerName := AClassName;
+          end
+        else
+          Result := nil;
+      end;
+
+    smHierarchical:
+      begin
+        // Hierarchical mode: add property to class's children
+        ClassSymbol := FindOrCreateClass(AClassName, Node);
+        if ClassSymbol <> nil then
+          begin
+            PropertySymbol := TDocumentSymbolEx.Create(ClassSymbol.children);
+            PropertySymbol.name := APropertyName;
+            PropertySymbol.kind := TSymbolKind._Property;
+            SetNodeRange(PropertySymbol, Node);
+          end;
+        Result := nil; // Hierarchical symbols are not TSymbol
+      end;
+  end;
+end;
+
+function TSymbolBuilder.AddField(Node: TCodeTreeNode; const AClassName, AFieldName: String): TSymbol;
+var
+  ClassSymbol: TDocumentSymbolEx;
+  FieldSymbol: TDocumentSymbolEx;
+  CodePos, EndPos: TCodeXYPosition;
+begin
+  case FMode of
+    smFlat:
+      begin
+        // Flat mode: add field with containerName
+        if (FTool <> nil) and (Node <> nil) then
+          begin
+            FTool.CleanPosToCaret(Node.StartPos, CodePos);
+            FTool.CleanPosToCaret(Node.EndPos, EndPos);
+            Result := FEntry.AddSymbol(AFieldName, TSymbolKind._Field,
+                                       CodePos.Code.FileName,
+                                       CodePos.Y, CodePos.X,
+                                       EndPos.Y, EndPos.X);
+            if Result <> nil then
+              Result.containerName := AClassName;
+          end
+        else
+          Result := nil;
+      end;
+
+    smHierarchical:
+      begin
+        // Hierarchical mode: add field to class's children
+        ClassSymbol := FindOrCreateClass(AClassName, Node);
+        if ClassSymbol <> nil then
+          begin
+            FieldSymbol := TDocumentSymbolEx.Create(ClassSymbol.children);
+            FieldSymbol.name := AFieldName;
+            FieldSymbol.kind := TSymbolKind._Field;
+            SetNodeRange(FieldSymbol, Node);
+          end;
+        Result := nil; // Hierarchical symbols are not TSymbol
+      end;
+  end;
+end;
+
 procedure TSymbolBuilder.SerializeSymbols;
 var
   SerializedItems: TJSONArray;
@@ -677,7 +761,8 @@ procedure TSymbolExtractor.ExtractObjCClassMethods(ClassNode, Node: TCodeTreeNod
 var
   Child: TCodeTreeNode;
   ExternalClass: boolean = false;
-  TypeName: String;
+  TypeName, PropertyName, FieldName: String;
+  i: Integer;
 begin
   while Node <> nil do
     begin
@@ -702,6 +787,30 @@ begin
           begin
             AddSymbol(Node, TSymbolKind._Method, Tool.ExtractProcName(Node, []));
           end;
+        ctnProperty:
+          begin
+            // For property, skip the "property" keyword to get the actual property name
+            Tool.MoveCursorToCleanPos(Node.StartPos);
+            Tool.ReadNextAtom; // Skip "property" keyword
+            Tool.ReadNextAtom; // Move to property name
+            TypeName := GetIdentifierAtPos(Tool, ClassNode.StartPos, true, true);
+            // Extract property name from current atom
+            PropertyName := Copy(Tool.Scanner.CleanedSrc, Tool.CurPos.StartPos, 
+                                 Tool.CurPos.EndPos - Tool.CurPos.StartPos);
+            Builder.AddProperty(Node, TypeName, PropertyName);
+          end;
+        ctnVarDefinition:
+          begin
+            // Extract field (class member variable)
+            TypeName := GetIdentifierAtPos(Tool, ClassNode.StartPos, true, true);
+            // For field, extract identifier without the colon
+            FieldName := GetIdentifierAtPos(Tool, Node.StartPos, true, true);
+            // Remove trailing colon if present
+            i := Pos(':', FieldName);
+            if i > 0 then
+              FieldName := Copy(FieldName, 1, i - 1);
+            Builder.AddField(Node, TypeName, FieldName);
+          end;
         ctnClassPublic,ctnClassPublished,ctnClassPrivate,ctnClassProtected,
         ctnClassRequired,ctnClassOptional:
           if ExternalClass then
@@ -717,6 +826,13 @@ begin
                   AddSymbol(Node, TSymbolKind._Method, TypeName+'.'+Tool.ExtractProcName(Child, []));
                   Child := Child.NextBrother;
                 end;
+            end
+          else
+            begin
+              // For regular Pascal classes, recurse into visibility sections
+              Inc(IndentLevel);
+              ExtractObjCClassMethods(ClassNode, Node.FirstChild);
+              Dec(IndentLevel);
             end;
       end;
 
@@ -738,6 +854,9 @@ begin
           begin
             TypeName := GetIdentifierAtPos(Tool, TypeDefNode.StartPos, true, true);
             Builder.AddClass(TypeDefNode, TypeName);
+            Inc(IndentLevel);
+            ExtractObjCClassMethods(TypeDefNode, Node.FirstChild);
+            Dec(IndentLevel);
           end;
         ctnObject,ctnRecordType:
           begin
