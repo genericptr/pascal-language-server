@@ -78,6 +78,45 @@ type
     property RawJSON: String read GetRawJSON;
   end;
 
+  { TSymbolBuilder }
+
+  { Dual-mode symbol builder supporting both flat (SymbolInformation)
+    and hierarchical (DocumentSymbol) output }
+
+  TSymbolMode = (smFlat, smHierarchical);
+
+  TSymbolBuilder = class
+  private
+    FMode: TSymbolMode;
+    FEntry: TSymbolTableEntry;
+    FTool: TCodeTool;
+
+    // For hierarchical mode: map className -> TDocumentSymbolEx
+    FClassMap: TFPHashObjectList;
+    FRootSymbols: TDocumentSymbolExItems;
+
+    // For tracking current hierarchy
+    FCurrentClass: TDocumentSymbolEx;
+
+    function FindOrCreateClass(const AClassName: String; Node: TCodeTreeNode): TDocumentSymbolEx;
+    procedure SetNodeRange(Symbol: TDocumentSymbolEx; Node: TCodeTreeNode);
+  public
+    constructor Create(AEntry: TSymbolTableEntry; ATool: TCodeTool; AMode: TSymbolMode);
+    destructor Destroy; override;
+
+    // Add symbols based on mode
+    function AddClass(Node: TCodeTreeNode; const Name: String): TSymbol;
+    function AddMethod(Node: TCodeTreeNode; const AClassName, AMethodName: String): TSymbol;
+    function AddGlobalFunction(Node: TCodeTreeNode; const Name: String): TSymbol;
+
+    // Serialization
+    procedure SerializeSymbols;
+
+    property Mode: TSymbolMode read FMode;
+    property CurrentClass: TDocumentSymbolEx read FCurrentClass write FCurrentClass;
+    property RootSymbols: TDocumentSymbolExItems read FRootSymbols;
+  end;
+
   { TSymbolExtractor }
 
   TSymbolExtractor = class
@@ -85,6 +124,7 @@ type
     Code: TCodeBuffer;
     Tool: TCodeTool;
     Entry: TSymbolTableEntry;
+    Builder: TSymbolBuilder;
     OverloadMap: TFPHashList;
     RelatedFiles: TFPHashList;
     IndentLevel: integer;
@@ -182,6 +222,13 @@ type
 var
   SymbolManager: TSymbolManager = nil;
 
+// Client capabilities storage
+var
+  ClientSupportsHierarchicalSymbols: boolean = false;
+
+function GetSymbolMode: TSymbolMode;
+procedure SetClientCapabilities(SupportsHierarchical: boolean);
+
 implementation
 uses
   { RTL }
@@ -191,6 +238,19 @@ uses
   FindDeclarationTool, KeywordFuncLists,PascalParserTool,
   { Protocol }
   PasLS.Settings;
+
+function GetSymbolMode: TSymbolMode;
+begin
+  if ClientSupportsHierarchicalSymbols then
+    Result := smHierarchical
+  else
+    Result := smFlat;
+end;
+
+procedure SetClientCapabilities(SupportsHierarchical: boolean);
+begin
+  ClientSupportsHierarchicalSymbols := SupportsHierarchical;
+end;
 
 function GetFileKey(Path: String): ShortString;
 begin
@@ -231,6 +291,202 @@ constructor TSymbol.Create;
 begin
   // we need this dummy constructor for serializing
   Create(nil);
+end;
+
+{ TSymbolBuilder }
+
+constructor TSymbolBuilder.Create(AEntry: TSymbolTableEntry; ATool: TCodeTool; AMode: TSymbolMode);
+begin
+  FEntry := AEntry;
+  FTool := ATool;
+  FMode := AMode;
+  FCurrentClass := nil;
+
+  if FMode = smHierarchical then
+    begin
+      FClassMap := TFPHashObjectList.Create(False); // Don't own objects - they're owned by FRootSymbols
+      FRootSymbols := TDocumentSymbolExItems.Create;
+    end;
+end;
+
+destructor TSymbolBuilder.Destroy;
+begin
+  if FMode = smHierarchical then
+    begin
+      FreeAndNil(FClassMap);
+      FreeAndNil(FRootSymbols);
+    end;
+  inherited;
+end;
+
+procedure TSymbolBuilder.SetNodeRange(Symbol: TDocumentSymbolEx; Node: TCodeTreeNode);
+var
+  StartPos, EndPos: TCodeXYPosition;
+begin
+  if (FTool = nil) or (Symbol = nil) or (Node = nil) then
+    Exit;
+
+  FTool.CleanPosToCaret(Node.StartPos, StartPos);
+  FTool.CleanPosToCaret(Node.EndPos, EndPos);
+
+  Symbol.range.SetRange(StartPos.Y - 1, StartPos.X - 1, EndPos.Y - 1, EndPos.X - 1);
+  Symbol.selectionRange.SetRange(StartPos.Y - 1, StartPos.X - 1, StartPos.Y - 1, StartPos.X - 1);
+end;
+
+function TSymbolBuilder.FindOrCreateClass(const AClassName: String; Node: TCodeTreeNode): TDocumentSymbolEx;
+begin
+  Result := nil;
+
+  if FMode <> smHierarchical then
+    Exit;
+
+  // Check if class already exists
+  Result := TDocumentSymbolEx(FClassMap.Find(AClassName));
+
+  if Result = nil then
+    begin
+      // Create new class symbol in FRootSymbols
+      Result := FRootSymbols.Add;
+      Result.name := AClassName;
+      Result.kind := TSymbolKind._Class;
+
+      // Set ranges using the node
+      if Node <> nil then
+        SetNodeRange(Result, Node);
+
+      // Add reference to the FRootSymbols item in class map
+      // Note: FClassMap doesn't own objects - they're owned by FRootSymbols
+      FClassMap.Add(AClassName, Result);
+    end;
+end;
+
+function TSymbolBuilder.AddClass(Node: TCodeTreeNode; const Name: String): TSymbol;
+var
+  CodePos, EndPos: TCodeXYPosition;
+begin
+  case FMode of
+    smFlat:
+      begin
+        // Use existing flat mode: add to Entry.Symbols
+        if (FTool <> nil) and (Node <> nil) then
+          begin
+            FTool.CleanPosToCaret(Node.StartPos, CodePos);
+            FTool.CleanPosToCaret(Node.EndPos, EndPos);
+            Result := FEntry.AddSymbol(Name, TSymbolKind._Class,
+                                       CodePos.Code.FileName,
+                                       CodePos.Y, CodePos.X,
+                                       EndPos.Y, EndPos.X);
+          end
+        else
+          Result := nil;
+      end;
+
+    smHierarchical:
+      begin
+        // For hierarchical mode, we don't add duplicate class symbols
+        // Classes are created on-demand when methods reference them
+        FCurrentClass := FindOrCreateClass(Name, Node);
+        Result := nil; // Hierarchical classes are not TSymbol
+      end;
+  end;
+end;
+
+function TSymbolBuilder.AddMethod(Node: TCodeTreeNode; const AClassName, AMethodName: String): TSymbol;
+var
+  ClassSymbol: TDocumentSymbolEx;
+  MethodSymbol: TDocumentSymbolEx;
+  CodePos, EndPos: TCodeXYPosition;
+begin
+  case FMode of
+    smFlat:
+      begin
+        // Flat mode: add method with containerName
+        if (FTool <> nil) and (Node <> nil) then
+          begin
+            FTool.CleanPosToCaret(Node.StartPos, CodePos);
+            FTool.CleanPosToCaret(Node.EndPos, EndPos);
+            Result := FEntry.AddSymbol(AMethodName, TSymbolKind._Function,
+                                       CodePos.Code.FileName,
+                                       CodePos.Y, CodePos.X,
+                                       EndPos.Y, EndPos.X);
+            if Result <> nil then
+              Result.containerName := AClassName;
+          end
+        else
+          Result := nil;
+      end;
+
+    smHierarchical:
+      begin
+        // Hierarchical mode: add method to class's children
+        ClassSymbol := FindOrCreateClass(AClassName, Node);
+        if ClassSymbol <> nil then
+          begin
+            MethodSymbol := TDocumentSymbolEx.Create(ClassSymbol.children);
+            MethodSymbol.name := AMethodName;
+            MethodSymbol.kind := TSymbolKind._Function;
+            SetNodeRange(MethodSymbol, Node);
+          end;
+        Result := nil; // Hierarchical symbols are not TSymbol
+      end;
+  end;
+end;
+
+function TSymbolBuilder.AddGlobalFunction(Node: TCodeTreeNode; const Name: String): TSymbol;
+var
+  GlobalSymbol: TDocumentSymbolEx;
+  CodePos, EndPos: TCodeXYPosition;
+begin
+  case FMode of
+    smFlat:
+      begin
+        if (FTool <> nil) and (Node <> nil) then
+          begin
+            FTool.CleanPosToCaret(Node.StartPos, CodePos);
+            FTool.CleanPosToCaret(Node.EndPos, EndPos);
+            Result := FEntry.AddSymbol(Name, TSymbolKind._Function,
+                                       CodePos.Code.FileName,
+                                       CodePos.Y, CodePos.X,
+                                       EndPos.Y, EndPos.X);
+          end
+        else
+          Result := nil;
+      end;
+
+    smHierarchical:
+      begin
+        // Add to root level (not under any class)
+        GlobalSymbol := TDocumentSymbolEx.Create(FRootSymbols);
+        GlobalSymbol.name := Name;
+        GlobalSymbol.kind := TSymbolKind._Function;
+        SetNodeRange(GlobalSymbol, Node);
+        Result := nil; // Hierarchical symbols are not TSymbol
+      end;
+  end;
+end;
+
+procedure TSymbolBuilder.SerializeSymbols;
+var
+  SerializedItems: TJSONArray;
+begin
+  case FMode of
+    smFlat:
+      begin
+        // Use existing serialization
+        FEntry.SerializeSymbols;
+      end;
+
+    smHierarchical:
+      begin
+        // Serialize DocumentSymbol hierarchy
+        SerializedItems := specialize TLSPStreaming<TDocumentSymbolExItems>.ToJSON(FRootSymbols) as TJSONArray;
+        try
+          FEntry.fRawJSON := SerializedItems.AsJSON;
+        finally
+          SerializedItems.Free;
+        end;
+      end;
+  end;
 end;
 
 { TSymbolTableEntry }
@@ -468,9 +724,10 @@ begin
     end;
 end;
 
-procedure TSymbolExtractor.ExtractTypeDefinition(TypeDefNode, Node: TCodeTreeNode); 
+procedure TSymbolExtractor.ExtractTypeDefinition(TypeDefNode, Node: TCodeTreeNode);
 var
   Child: TCodeTreeNode;
+  TypeName: String;
 begin
   while Node <> nil do
     begin
@@ -479,7 +736,8 @@ begin
       case Node.Desc of
         ctnClass,ctnClassHelper,ctnRecordHelper,ctnTypeHelper:
           begin
-            AddSymbol(TypeDefNode, TSymbolKind._Class);
+            TypeName := GetIdentifierAtPos(Tool, TypeDefNode.StartPos, true, true);
+            Builder.AddClass(TypeDefNode, TypeName);
           end;
         ctnObject,ctnRecordType:
           begin
@@ -488,7 +746,8 @@ begin
         ctnObjCClass,ctnObjCCategory,ctnObjCProtocol:
           begin
             // todo: ignore forward defs!
-            AddSymbol(TypeDefNode, TSymbolKind._Class);
+            TypeName := GetIdentifierAtPos(Tool, TypeDefNode.StartPos, true, true);
+            Builder.AddClass(TypeDefNode, TypeName);
             Inc(IndentLevel);
             ExtractObjCClassMethods(TypeDefNode, Node.FirstChild);
             Dec(IndentLevel);
@@ -497,7 +756,8 @@ begin
           begin
             // todo: is this a class/record???
             PrintNodeDebug(Node.FirstChild, true);
-            AddSymbol(TypeDefNode, TSymbolKind._Class);
+            TypeName := GetIdentifierAtPos(Tool, TypeDefNode.StartPos, true, true);
+            Builder.AddClass(TypeDefNode, TypeName);
           end;
         ctnEnumerationType:
           begin
@@ -559,8 +819,13 @@ begin
       end;
     end;
 
-  Symbol := AddSymbol(Node, TSymbolKind._Function, Name);
-  Symbol.containerName:=containerName;
+  // Create symbol for overload tracking metadata only
+  // Builder will handle actual addition to Entry.Symbols or FRootSymbols
+  Symbol := TSymbol.Create(nil);
+  Symbol.name := Name;
+  Symbol.kind := TSymbolKind._Function;
+  Symbol.containerName := containerName;
+
   OverloadMap.Add(Key, Symbol);
 
   // recurse into procedures to find nested procedures
@@ -668,16 +933,36 @@ begin
 
             Symbol:= ExtractProcedure(nil, Node);
 
-            if (Symbol<>nil) and  (Symbol.containerName<>'') then
+            if (Symbol<>nil) then
               begin
-                 if (LastClassSymbol=nil) or  (Symbol.containerName<>LastClassSymbol.name) then
-                 begin
-                     LastClassSymbol:=AddSymbol(Node,TSymbolKind._Class,Symbol.containerName);
-                 end
-                 else
-                 begin
-                    LastClassSymbol.location.range.&end:=Symbol.location.range.&end;
-                 end;
+                // Use Builder to add methods or global functions based on containerName
+                if Symbol.containerName<>'' then
+                  begin
+                    // This is a class method
+                    Builder.AddMethod(Node, Symbol.containerName, Symbol.name);
+
+                    // In flat mode, we also need to track class symbols for range updates
+                    if Builder.Mode = smFlat then
+                      begin
+                        if (LastClassSymbol=nil) or (Symbol.containerName<>LastClassSymbol.name) then
+                          LastClassSymbol:=AddSymbol(Node,TSymbolKind._Class,Symbol.containerName)
+                        else
+                          LastClassSymbol.location.range.&end:=Symbol.location.range.&end;
+                      end;
+                  end
+                else
+                  begin
+                    // This is a global function
+                    // In hierarchical mode, skip interface declarations
+                    // to avoid duplicates - only show implementations
+                    if (Builder.Mode = smHierarchical) and
+                       (CodeSection = ctnInterface) then
+                      begin
+                        // Skip interface declaration - will be added from implementation
+                      end
+                    else
+                      Builder.AddGlobalFunction(Node, Symbol.name);
+                  end;
               end;
 
           end;
@@ -692,12 +977,15 @@ begin
   Entry := _Entry;
   Code := _Code;
   Tool := _Tool;
+  Builder := TSymbolBuilder.Create(Entry, Tool, GetSymbolMode);
   OverloadMap := TFPHashList.Create;
   RelatedFiles := TFPHashList.Create;
 end;
 
-destructor TSymbolExtractor.Destroy; 
+destructor TSymbolExtractor.Destroy;
 begin
+  Builder.SerializeSymbols;
+  Builder.Free;
   OverloadMap.Free;
   RelatedFiles.Free;
   inherited;
@@ -1186,10 +1474,12 @@ begin
   try
     Extractor.ExtractCodeSection(Tool.Tree.Root);
   finally
-    Extractor.Free;
+    Extractor.Free;  // This calls Builder.SerializeSymbols in the destructor
   end;
 
-  Entry.SerializeSymbols;
+  // Note: Entry.fRawJSON is already set by Builder.SerializeSymbols in Extractor.Destroy
+  // Don't call Entry.SerializeSymbols here as it would overwrite with flat format!
+
   DoLog('Reloaded %s in %d ms', [Code.FileName, MilliSecondsBetween(Now,StartTime)]);
 end;
 

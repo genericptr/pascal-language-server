@@ -150,6 +150,24 @@ type
 
   TSymbolInformationItems = specialize TGenericCollection<TSymbolInformation>;
 
+  { TDocumentSymbolEx }
+
+  { Extended DocumentSymbol with additional fields for pasls-specific needs }
+
+  TSymbolFlag = (sfForwardDeclaration, sfDeprecated);
+  TSymbolFlags = set of TSymbolFlag;
+
+  TDocumentSymbolEx = class(TDocumentSymbol)
+  private
+    fRawJSON: String;
+    fFlags: TSymbolFlags;
+  public
+    property RawJSON: String read fRawJSON write fRawJSON;
+    property Flags: TSymbolFlags read fFlags write fFlags;
+  end;
+
+  TDocumentSymbolExItems = specialize TGenericCollection<TDocumentSymbolEx>;
+
   { TDocumentSymbolParams }
 
   TDocumentSymbolParams = class(TLSPStreamable)

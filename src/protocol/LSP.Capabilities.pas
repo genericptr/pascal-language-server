@@ -88,9 +88,30 @@ type
     property workspaceFolders: TWorkspaceFoldersServerCapabilities read fWorkspaceFolders write SetWorkspaceFolders;
   end;
 
+  { TDocumentSymbolClientCapabilities }
+
+  TDocumentSymbolClientCapabilities = class(TLSPStreamable)
+  private
+    fHierarchicalDocumentSymbolSupport: boolean;
+  Public
+    Procedure Assign(Source : TPersistent); override;
+  published
+    // The client supports hierarchical document symbols.
+    property hierarchicalDocumentSymbolSupport: boolean read fHierarchicalDocumentSymbolSupport write fHierarchicalDocumentSymbolSupport;
+  end;
+
   { TTextDocumentClientCapabilities }
 
   TTextDocumentClientCapabilities = class(TLSPStreamable)
+  private
+    fDocumentSymbol: TDocumentSymbolClientCapabilities;
+    procedure SetDocumentSymbol(AValue: TDocumentSymbolClientCapabilities);
+  Public
+    constructor Create; override;
+    destructor Destroy; override;
+    Procedure Assign(Source : TPersistent); override;
+  published
+    property documentSymbol: TDocumentSymbolClientCapabilities read fDocumentSymbol write SetDocumentSymbol;
   end;
 
   { TClientCapabilities }
@@ -158,6 +179,53 @@ type
   end;
 
 implementation
+
+{ TDocumentSymbolClientCapabilities }
+
+procedure TDocumentSymbolClientCapabilities.Assign(Source : TPersistent);
+var
+  Src : TDocumentSymbolClientCapabilities absolute Source;
+begin
+  if Source is TDocumentSymbolClientCapabilities then
+    begin
+    HierarchicalDocumentSymbolSupport := Src.HierarchicalDocumentSymbolSupport;
+    end
+  else
+    inherited Assign(Source);
+end;
+
+{ TTextDocumentClientCapabilities }
+
+procedure TTextDocumentClientCapabilities.SetDocumentSymbol(
+  AValue: TDocumentSymbolClientCapabilities);
+begin
+  if fDocumentSymbol=AValue then Exit;
+  fDocumentSymbol.Assign(AValue);
+end;
+
+constructor TTextDocumentClientCapabilities.Create;
+begin
+  Inherited;
+  fDocumentSymbol := TDocumentSymbolClientCapabilities.Create;
+end;
+
+destructor TTextDocumentClientCapabilities.Destroy;
+begin
+  FreeAndNil(fDocumentSymbol);
+  inherited Destroy;
+end;
+
+procedure TTextDocumentClientCapabilities.Assign(Source : TPersistent);
+var
+  Src : TTextDocumentClientCapabilities absolute Source;
+begin
+  if Source is TTextDocumentClientCapabilities then
+    begin
+    DocumentSymbol := Src.DocumentSymbol;
+    end
+  else
+    inherited Assign(Source);
+end;
 
 { TWorkspaceClientCapabilities }
 

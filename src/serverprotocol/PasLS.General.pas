@@ -349,6 +349,14 @@ begin
     ServerSettings.Assign(Params.initializationOptions);
     PasLS.Settings.ClientInfo.Assign(Params.ClientInfo);
 
+    // Detect hierarchical document symbol support
+    if Assigned(Params.capabilities) and
+       Assigned(Params.capabilities.textDocument) and
+       Assigned(Params.capabilities.textDocument.documentSymbol) then
+      SetClientCapabilities(Params.capabilities.textDocument.documentSymbol.hierarchicalDocumentSymbolSupport)
+    else
+      SetClientCapabilities(false);
+
     // replace macros in server settings
     Macros.Add('tmpdir', GetTempDir(true));
     Macros.Add('root', URIToPath(Params.rootUri));
