@@ -1,0 +1,20 @@
+# Lazarus session files
+*.lps
+
+# Lazarus backup / temp
+*.bak
+*.~*
+*.ppu
+*.o
+*.or
+*.rst
+
+# Lazarus build output
+/lib/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Lazarus config
+*.compiled
