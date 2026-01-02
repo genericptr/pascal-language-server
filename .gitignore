@@ -15,6 +15,7 @@
 *.dll
 *.so
 *.dylib
+lib
 
 # Lazarus config
 *.compiled
