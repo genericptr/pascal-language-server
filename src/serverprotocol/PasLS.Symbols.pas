@@ -164,7 +164,7 @@ type
     function ExtractProcedure(ParentNode, Node: TCodeTreeNode):TSymbol;
     procedure ProcessNestedFunctions(Node: TCodeTreeNode; ParentSymbol: TDocumentSymbolEx; const ParentPath: String);
     procedure ExtractTypeDefinition(TypeDefNode, Node: TCodeTreeNode); 
-    procedure ExtractObjCClassMethods(ClassNode, Node: TCodeTreeNode);
+    procedure ExtractSymbols(ClassNode, Node: TCodeTreeNode);
   public
     constructor Create(_Entry: TSymbolTableEntry; _Code: TCodeBuffer; _Tool: TCodeTool);
     destructor Destroy; override;
@@ -1007,7 +1007,7 @@ begin
   Result := Entry.AddSymbol(Name, Kind, CodePos.Code.FileName, CodePos.Y, CodePos.X, EndPos.Y,EndPos.X);
 end;
 
-procedure TSymbolExtractor.ExtractObjCClassMethods(ClassNode, Node: TCodeTreeNode);
+procedure TSymbolExtractor.ExtractSymbols(ClassNode, Node: TCodeTreeNode);
 var
   Child: TCodeTreeNode;
   ExternalClass: boolean = false;
@@ -1041,36 +1041,35 @@ begin
             Builder.AddMethod(Node, TypeName, Tool.ExtractProcName(Node, []));
           end;
         ctnProperty:
-          begin
-            // For property, skip the "property" keyword to get the actual property name
-            Tool.MoveCursorToCleanPos(Node.StartPos);
-            Tool.ReadNextAtom; // Skip "property" keyword
-            Tool.ReadNextAtom; // Move to property name
-            TypeName := GetIdentifierAtPos(Tool, ClassNode.StartPos, true, true);
-            // Extract property name from current atom
-            PropertyName := Copy(Tool.Scanner.CleanedSrc, Tool.CurPos.StartPos,
-                                 Tool.CurPos.EndPos - Tool.CurPos.StartPos);
-            Builder.AddProperty(Node, TypeName, PropertyName);
-          end;
+          if ServerSettings.includeFieldsInSymbols then
+            begin
+              // For property, skip the "property" keyword to get the actual property name
+              Tool.MoveCursorToCleanPos(Node.StartPos);
+              Tool.ReadNextAtom; // Skip "property" keyword
+              Tool.ReadNextAtom; // Move to property name
+              TypeName := GetIdentifierAtPos(Tool, ClassNode.StartPos, true, true);
+              // Extract property name from current atom
+              PropertyName := Copy(Tool.Scanner.CleanedSrc, Tool.CurPos.StartPos,
+                                   Tool.CurPos.EndPos - Tool.CurPos.StartPos);
+              Builder.AddProperty(Node, TypeName, PropertyName);
+            end;
         ctnVarDefinition:
-          begin
-            // Extract field (class member variable)
-            TypeName := GetIdentifierAtPos(Tool, ClassNode.StartPos, true, true);
-            // For field, extract identifier without the colon
-            FieldName := GetIdentifierAtPos(Tool, Node.StartPos, true, true);
-            // Remove trailing colon if present
-            i := Pos(':', FieldName);
-            if i > 0 then
-              FieldName := Copy(FieldName, 1, i - 1);
-            Builder.AddField(Node, TypeName, FieldName);
-          end;
+          if ServerSettings.includeFieldsInSymbols then
+            begin
+              // Extract field (class member variable)
+              TypeName := GetIdentifierAtPos(Tool, ClassNode.StartPos, true, true);
+              // For field, extract identifier without the colon
+              FieldName := GetIdentifierAtPos(Tool, Node.StartPos, true, true);
+              // Remove trailing colon if present
+              i := Pos(':', FieldName);
+              if i > 0 then
+                FieldName := Copy(FieldName, 1, i - 1);
+              Builder.AddField(Node, TypeName, FieldName);
+            end;
         ctnClassPublic,ctnClassPublished,ctnClassPrivate,ctnClassProtected,
         ctnClassRequired,ctnClassOptional:
           if ExternalClass then
             begin
-              // if the class is external then search methods
-              //if ExternalClass then
-              //  ExtractObjCClassMethods(ClassNode, Node.FirstChild);
               TypeName := GetIdentifierAtPos(Tool, ClassNode.StartPos, true, true);
               Child := Node.FirstChild;
               while Child <> nil do
@@ -1085,7 +1084,7 @@ begin
             begin
               // For regular Pascal classes, recurse into visibility sections
               Inc(IndentLevel);
-              ExtractObjCClassMethods(ClassNode, Node.FirstChild);
+              ExtractSymbols(ClassNode, Node.FirstChild);
               Dec(IndentLevel);
             end;
       end;
@@ -1137,7 +1136,7 @@ begin
             TypeName := CleanTypeName(GetIdentifierAtPos(Tool, TypeDefNode.StartPos, true, true));
             Builder.AddClass(TypeDefNode, TypeName);
             Inc(IndentLevel);
-            ExtractObjCClassMethods(TypeDefNode, Node.FirstChild);
+            ExtractSymbols(TypeDefNode, Node.FirstChild);
             Dec(IndentLevel);
           end;
         ctnObject,ctnRecordType:
@@ -1151,7 +1150,7 @@ begin
             TypeName := CleanTypeName(GetIdentifierAtPos(Tool, TypeDefNode.StartPos, true, true));
             Builder.AddClass(TypeDefNode, TypeName);
             Inc(IndentLevel);
-            ExtractObjCClassMethods(TypeDefNode, Node.FirstChild);
+            ExtractSymbols(TypeDefNode, Node.FirstChild);
             Dec(IndentLevel);
           end;
         ctnSpecialize:

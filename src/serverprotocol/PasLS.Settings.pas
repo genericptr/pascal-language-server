@@ -103,6 +103,8 @@ type
     property config: String read fConfig write fConfig;
     // Check inactive regions
     property checkInactiveRegions : Boolean read fBooleans[11] write fBooleans[11];
+    // Include properties and fields in document symbols
+    property includeFieldsInSymbols : Boolean read fBooleans[12] write fBooleans[12];
     // Client profile feature overrides
     property clientProfileEnableFeatures: TStrings
       read fClientProfileEnableFeatures write SetClientProfileEnableFeatures;
@@ -301,6 +303,7 @@ begin
     'ignoreTextCompletions': Result := 'Ignores completion items like "begin" and "var"';
     'config': Result := 'Config file or directory to read settings from';
     'checkInactiveRegions': Result := 'Check inactive regions';
+    'includeFieldsInSymbols': Result := 'Include properties and fields in document symbols';
     'clientProfileEnableFeatures': Result := 'List of features to force-enable regardless of client profile';
     'clientProfileDisableFeatures': Result := 'List of features to force-disable regardless of client profile';
     else
@@ -330,7 +333,8 @@ begin
   ignoreTextCompletions := true;
   workspaceSymbols := true;
   minimalisticCompletions := false;
-  
+  includeFieldsInSymbols := false;
+
   // errors/diagnostics
   checkSyntax := false;
   publishDiagnostics := false;
