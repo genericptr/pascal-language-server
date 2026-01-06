@@ -66,8 +66,8 @@ end;
 
 procedure TCompletionItemHelper.SetSecondaryText(text: string);
 begin
-  if not TClientProfile.Current.HasFeature(cfFilterTextOnly) then
-    &label := text;
+  if (not TClientProfile.Current.HasFeature(cfFilterTextOnly)) and TClientProfile.Current.HasFeature(cfUseSecondaryText) then
+    &label := &label + ' ' + text;
 end;
 
 

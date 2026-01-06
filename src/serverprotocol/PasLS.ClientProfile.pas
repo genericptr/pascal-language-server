@@ -34,7 +34,8 @@ type
     cfExcludeInterfaceMethodDecls, // Don't include method/function/procedure declarations from interface section
     cfExcludeImplClassDefs,        // Don't include class definitions from implementation section
     cfNullDocumentVersion,         // Use nil instead of 0 for document version
-    cfFilterTextOnly               // Only set filterText in completion, not label
+    cfFilterTextOnly,              // Only set filterText in completion, not label
+    cfUseSecondaryText             // Use secondaryText field in completion items  
   );
   TClientFeatures = set of TClientFeature;
 
@@ -78,7 +79,8 @@ const
     'excludeInterfaceMethodDecls',
     'excludeImplClassDefs',
     'nullDocumentVersion',
-    'filterTextOnly'
+    'filterTextOnly',
+    'useSecondaryText'  
   );
 
 function TryStrToFeature(const S: string; out F: TClientFeature): Boolean;
