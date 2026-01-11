@@ -325,7 +325,9 @@ end;
 class function TLSPStreaming.ToObject(const JSON: TJSONData): T;
 begin
   Result := T.Create;
-  DeStreamer.JSONToObject(JSON as TJSONObject, TObject(Result));
+  // JSON-RPC 2.0 allows params to be omitted or null for certain methods
+  if Assigned(JSON) and (JSON is TJSONObject) then
+    DeStreamer.JSONToObject(JSON as TJSONObject, TObject(Result));
 end;
 
 class function TLSPStreaming.ToObject(const JSON: TJSONStringType): T;
