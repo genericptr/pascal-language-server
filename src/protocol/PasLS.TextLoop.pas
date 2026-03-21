@@ -519,6 +519,7 @@ var
 begin
   InStream:=nil;
   OutStream:=nil;
+  UseTcpIp:=false;
   try
     if ForceTcpip then
       UseTcpIp:=True
@@ -528,6 +529,11 @@ begin
       // received on stdin. If this is the case, use stdin, if not, use tcpip.
       InStream := THandleStream.Create(StdInputHandle);
       UseTcpIp := not AutoSenseDABProtocol(InStream, InitialBuffer);
+      if UseTcpIp then
+        begin
+        WriteLn('There was no client detected using standard input. To force using ');
+        WriteLn('standard input set the FORCESTDIN=TRUE environment variable.');
+        end;
       end;
 
     if UseTcpIp then
@@ -536,7 +542,10 @@ begin
       // the real connection can be made using a TTcpipConnectionThread thread.
       // So ListenForIncomingConnections is called in the background that will
       // create a TTcpipConnectionThread when a (new) connection is made.
+      begin
+      WriteLn('Start listening for incoming JSON/RPC connections on '+FListenIp+':'+IntToStr(FListenPort)+'.');
       TThread.ExecuteInThread(@ListenForIncomingConnections)
+      end
     else
       begin
       OutStream := THandleStream.Create(StdOutputHandle);

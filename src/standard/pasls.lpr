@@ -29,6 +29,8 @@ uses
   { RTL }
   {$ifdef unix}cthreads,{$endif}
   SysUtils, Classes, FPJson, JSONParser, JSONScanner, TypInfo,
+  { Lazarus }
+  LazUTF8,
   { Protocol }
   PasLS.AllCommands, PasLS.Settings, PasLS.Commands,
   LSP.Base, LSP.Basic, LSP.Capabilities, LSP.Options,
@@ -306,6 +308,23 @@ begin
   Result := aContext;
 end;
 
+procedure ApplyEnvironmentVariables;
+const
+  sListenIpEnv = 'LISTENIP';
+  sListenPortEnv = 'LISTENPORT';
+  sForceStdin = 'FORCESTDIN';
+  sForceTcpip = 'FORCETCPIP';
+begin
+  if GetEnvironmentVariableUTF8(sListenIpEnv)<>'' then
+    aCfg.ListenIp:=GetEnvironmentVariableUTF8(sListenIpEnv);
+  if GetEnvironmentVariableUTF8(sListenPortEnv)<>'' then
+    aCfg.ListenPort:=StrToInt(GetEnvironmentVariableUTF8(sListenPortEnv));
+  if GetEnvironmentVariableUTF8(sForceStdin)<>'' then
+    aCfg.ForceStdin:=StrToBoolDef(GetEnvironmentVariableUTF8(sForceStdin), False);
+  if GetEnvironmentVariableUTF8(sForceTcpip)<>'' then
+    aCfg.ForceTcpip:=StrToBoolDef(GetEnvironmentVariableUTF8(sForceTcpip), False);
+end;
+
 var
   ForceTcpip, ForceStdIn: Boolean;
   ListenIp: String;
@@ -342,13 +361,20 @@ begin
       TLSPContext.LogFile := aCfg.LogFile;
     ConfigEnvironment(aCfg);
 
+    ApplyEnvironmentVariables();
+
     SetupTextLoop();
 
-    // ToDo: make these configurable
-    ForceTcpip := false;
-    ForceStdIn := false;
-    ListenIp := '0.0.0.0';
-    Port := 4002;
+    if aCfg.ForceTcpip and aCfg.ForceStdin then
+      begin
+      WriteLn('It is not possible to use tcp/ip and stdin simultaneously. Stdin is used.');
+      aCfg.ForceTcpip:=False;
+      end;
+
+    ForceTcpip := aCfg.ForceTcpip;
+    ForceStdIn := aCfg.ForceStdin;
+    ListenIp := aCfg.ListenIp;
+    Port := aCfg.ListenPort;
 
     RunMessageLoop(@DoInitializeContext, ForceTcpip, ForceStdIn, ListenIp, Port);
    Finally

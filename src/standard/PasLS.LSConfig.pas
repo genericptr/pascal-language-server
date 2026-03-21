@@ -33,6 +33,10 @@ Const
   DefaultFPCDir = '';
   DefaultTargetOS = {$i %FPCTARGETOS%};
   DefaultTargetCPU = {$i %FPCTARGETCPU%};
+  DefaultListenPort = 4002;
+  DefaultListenIP = '0.0.0.0';
+  DefaultForceStdin = false;
+  DefaultForceTcpip = false;
 
 Type
   { TLSPServerConfig }
@@ -40,8 +44,12 @@ Type
   TLSPServerConfig = Class(TObject)
   private
     FCompiler: string;
+    FForceStdin: Boolean;
+    FForceTcpip: Boolean;
     FFPCDir: string;
     FLazarusDir: string;
+    FListenIp: string;
+    FListenPort: word;
     FLogFile: String;
     FTargetCPU: string;
     FTargetOS: string;
@@ -60,6 +68,10 @@ Type
     property LazarusDir : string read FLazarusDir write FLazarusDir;
     property TargetOS : string read FTargetOS write FTargetOS;
     property TargetCPU : string read FTargetCPU write FTargetCPU;
+    property ListenIp : string read FListenIp write FListenIp;
+    property ListenPort : word read FListenPort write FListenPort;
+    property ForceStdin : Boolean read FForceStdin write FForceStdin;
+    property ForceTcpip : Boolean read FForceTcpip write FForceTcpip;
   end;
 
 
@@ -75,6 +87,10 @@ Const
   KeyLazarusDir = 'LazarusDir';
   KeyTargetCPU = 'TargetCPU';
   KeyTargetOS = 'TargetOS';
+  KeyListenIp = 'ListenIp';
+  KeyListenPort = 'ListenPort';
+  KeyForceStdin = 'ForceStdin';
+  KeyForceTcpip = 'ForceTcpip';
 
 { TLSPServerConfig }
 
@@ -91,6 +107,10 @@ begin
   LazarusDir:=DefaultLazarusDir;
   TargetCPU:=DefaultTargetCPU;
   TargetOS:=DefaultTargetOS;
+  ListenPort:=DefaultListenPort;
+  ListenIP:=DefaultListenIP;
+  ForceStdin:=DefaultForceStdin;
+  ForceTcpip:=DefaultForceTcpip;
 end;
 
 class function TLSPServerConfig.DefaultConfigFile: String;
@@ -135,6 +155,10 @@ begin
   With aIni do
     begin
     FLogFile:=ReadString(SServer,KeyLogFile,LogFile);
+    ListenIp:=ReadString(SServer,KeyListenIp,ListenIp);
+    ListenPort:=ReadInteger(SServer,KeyListenPort,ListenPort);
+    ForceTcpip:=ReadBool(SServer,KeyForceTcpip,ForceTcpip);
+    ForceStdin:=ReadBool(SServer,KeyForceStdin,ForceStdin);
     Compiler:=ReadString(SCodeTools,KeyCompiler,Compiler);
     FPCDir:=ReadString(SCodetools,KeyFPCDir,FPCDir);
     LazarusDir:=ReadString(SCodetools,KeyLazarusDir,LazarusDir);
@@ -148,6 +172,10 @@ begin
   With aIni do
     begin
     WriteString(SServer,KeyLogFile,LogFile);
+    WriteString(SServer,KeyListenIp,ListenIp);
+    WriteInteger(SServer,KeyListenPort,ListenPort);
+    WriteBool(SServer,KeyForceStdin,ForceStdin);
+    WriteBool(SServer,KeyForceTcpip,ForceTcpip);
     WriteString(SCodeTools,KeyCompiler,Compiler);
     WriteString(SCodetools,KeyFPCDir,FPCDir);
     WriteString(SCodetools,KeyLazarusDir,LazarusDir);
