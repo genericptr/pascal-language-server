@@ -97,13 +97,27 @@ The `lspprotocol.lpk` package and `pasls.lpi` are both in the
 `pascallanguageserver.lpg`project group; if you have project group support enabled,
 then you can use this to compile this package and the executable.
 
+## Run
+
+When the Pascal Language Server is started as stand-alone executable, it starts
+listening for incoming network connections on a configurable port. So that any
+client/editor can connect to it.
+
+When the application is started as a sub-proces by a client/editor, it will
+automatically detect this and use standard input to communicate with the
+client.
+
 ## Debugging the LSP server
 
-### The problem
+To debug the Pascal language Server, just run it in the debugger and let
+the editor/client connect to it usint tcp/ip.
+
+### Another way to debug
 
 VS Code and other editors that use the LSP server start the LSP server and
 send messages in JSON-RPC style to standard input, and read replies through
-standard output. This makes the LSP server process hard to debug.
+standard output. When the regular way to run the LSP server in tcp/ip mode
+is not suitable, this makes the LSP server process hard to debug.
 
 ### The solution
 To solve this, 2 extra projects have been added:
