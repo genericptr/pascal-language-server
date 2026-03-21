@@ -303,7 +303,6 @@ var
   IncomingBytes: TBytes;
 begin
   IncomingBytes := AwaitMessage(FInStream, True, FInitialBuffer);
-  FContext.Log('Tadaa');
   // If IncomingBytes is empty, AwaitMessage discovered a disconnect
   while Length(IncomingBytes) > 0 do
     begin
