@@ -28,7 +28,7 @@ uses
   {$ENDIF}
   { RTL }
   {$ifdef unix}cthreads,{$endif}
-  SysUtils, Classes, FPJson, JSONParser, JSONScanner, TyoInfo,
+  SysUtils, Classes, FPJson, JSONParser, JSONScanner, TypInfo,
   { Protocol }
   PasLS.AllCommands, PasLS.Settings, PasLS.Commands,
   LSP.Base, LSP.Basic, LSP.Capabilities, LSP.Options,
@@ -307,7 +307,7 @@ begin
 end;
 
 var
-  Tcpip: Boolean;
+  ForceTcpip, ForceStdIn: Boolean;
   ListenIp: String;
   Port: Integer;
 
@@ -345,11 +345,12 @@ begin
     SetupTextLoop();
 
     // ToDo: make these configurable
-    Tcpip := False;
+    ForceTcpip := false;
+    ForceStdIn := false;
     ListenIp := '0.0.0.0';
     Port := 4002;
 
-    RunMessageLoop(@DoInitializeContext, Tcpip, ListenIp, Port);
+    RunMessageLoop(@DoInitializeContext, ForceTcpip, ForceStdIn, ListenIp, Port);
    Finally
      aContext.Free;
      aTransport.Free;

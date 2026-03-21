@@ -31,7 +31,9 @@ import {
 	ServerOptions,
 	NotificationType
 } from 'vscode-languageclient';
+import { StreamMessageReader, StreamMessageWriter } from 'vscode-languageserver-protocol';
 import * as fs from 'fs';
+import * as net from 'net';
 import { 
 	InputRegion ,
 	DecorationRangesPair,
@@ -59,6 +61,7 @@ const InactiveRegionNotification: NotificationType<InactiveRegionParams> = new N
 let client: LanguageClient;
 let completecmd: Command;
 let inactiveRegionsDecorations = new Map<string, DecorationRangesPair>();
+let tcpSocket: net.Socket | undefined;
     
 function invokeFormat(document: TextDocument, range: Range) {
 	let activeEditor = window.activeTextEditor;
@@ -236,17 +239,70 @@ export function activate(context: ExtensionContext) {
 	});
 
 
-	let run: Executable = {
-		command: executable,
-		options: {
-			env: userEnvironmentVariables
-		}
-	};
-	let debug: Executable = run;
-	let serverOptions: ServerOptions = {
-		run: run,
-		debug: debug
-	};
+	let transport: string = workspace.getConfiguration('pascalLanguageServer').get('transport') || 'stdio';
+	transport = transport.toLowerCase();
+	let tcpHost: string = workspace.getConfiguration('pascalLanguageServer').get('tcp.host') || '127.0.0.1';
+	let tcpPort: number = workspace.getConfiguration('pascalLanguageServer').get('tcp.port') || 4002;
+
+	let serverOptions: ServerOptions;
+
+	if (transport === 'tcp') {
+		serverOptions = () => {
+			return new Promise((resolve, reject) => {
+				let settled = false;
+
+				const startTime = Date.now();
+				const maxWaitMs = 10_000;
+				const retryDelayMs = 200;
+
+				const attemptConnect = () => {
+					if (settled) return;
+
+					let socket = net.connect({ host: tcpHost, port: tcpPort });
+					tcpSocket = socket;
+					socket.setNoDelay(true);
+
+					socket.once('connect', () => {
+						if (settled) return;
+						settled = true;
+
+						resolve({
+							detached: false,
+							reader: new StreamMessageReader(socket),
+							writer: new StreamMessageWriter(socket)
+						} as any);
+					});
+
+					socket.once('error', (err: Error) => {
+						socket.destroy();
+						tcpSocket = undefined;
+
+						if (settled) return;
+						if (Date.now() - startTime >= maxWaitMs) {
+							settled = true;
+							reject(err);
+							return;
+						}
+						setTimeout(attemptConnect, retryDelayMs);
+					});
+				};
+
+				attemptConnect();
+			});
+		};
+	} else {
+		let run: Executable = {
+			command: executable,
+			options: {
+				env: userEnvironmentVariables
+			}
+		};
+		let debug: Executable = run;
+		serverOptions = {
+			run: run,
+			debug: debug
+		};
+	}
 
 	let initializationOptions = workspace.getConfiguration('pascalLanguageServer.initializationOptions');
 
@@ -313,7 +369,16 @@ export function activate(context: ExtensionContext) {
 
 export function deactivate(): Thenable<void> | undefined {
 	if (!client) {
+		if (tcpSocket) {
+			tcpSocket.destroy();
+			tcpSocket = undefined;
+		}
 		return undefined;
 	}
-	return client.stop();
+	return client.stop().then(() => {
+		if (tcpSocket) {
+			tcpSocket.destroy();
+			tcpSocket = undefined;
+		}
+	});
 }

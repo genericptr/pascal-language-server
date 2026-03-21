@@ -77,10 +77,32 @@
 					"default": "off",
 					"description": "Traces the communication between VS Code and the language server."
 				},
+				"pascalLanguageServer.transport": {
+					"type": "string",
+					"scope": "application",
+					"default": "stdio",
+					"enum": [
+						"stdio",
+						"tcp"
+					],
+					"description": "Communication transport used between VS Code and the language server."
+				},
+				"pascalLanguageServer.tcp.host": {
+					"type": "string",
+					"scope": "application",
+					"default": "127.0.0.1",
+					"description": "Host to connect to when `pascalLanguageServer.transport` is `tcp`."
+				},
+				"pascalLanguageServer.tcp.port": {
+					"type": "number",
+					"scope": "application",
+					"default": 4002,
+					"description": "Port to connect to when `pascalLanguageServer.transport` is `tcp`."
+				},
 				"pascalLanguageServer.executable": {
 					"type": "string",
 					"default": "/usr/local/bin/pasls",
-					"description": "Path to the language server executable."
+					"description": "Path to the language server executable that is started when `pascalLanguageServer.transport` is `stdio`."
 				},
 				"pascalLanguageServer.initializationOptions.program": {
 					"type": "string",
@@ -221,6 +243,7 @@
 		"build": "vsce package"
 	},
 	"dependencies": {
+		"vsce": "^2.15.0",
 		"vscode-languageclient": "^6.1.3"
 	},
 	"devDependencies": {

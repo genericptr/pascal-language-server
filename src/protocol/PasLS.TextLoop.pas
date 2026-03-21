@@ -24,6 +24,15 @@ unit PasLS.TextLoop;
 interface
 
 uses
+  {$IFDEF UNIX}
+  BaseUnix,
+  termio,
+  {$ENDIF}
+  {$IFDEF Windows}
+  Windows,
+  WinSock2,
+  ssockets,
+  {$ENDIF}
   Classes, SysUtils, ssockets, LSP.Base, LSP.Messages, fpjson;
 
 Type
@@ -47,7 +56,7 @@ Type
   end;
 
 Procedure SetupTextLoop();
-Procedure RunMessageLoop(aDoCreateContext: TCreateLSPContextEvent; aTcpip: Boolean; aListenIpAddress: string; aListenPort: Integer);
+Procedure RunMessageLoop(aDoCreateContext: TCreateLSPContextEvent; aForceTcpip, aForceStdin: Boolean; aListenIpAddress: string; aListenPort: Integer);
 procedure DebugSendMessage(var aFile : Text; aContext : TLSPContext; const aMethod, aParams: String);
 
 implementation
@@ -90,13 +99,17 @@ type
     FIO: TLSPTextTransport;
     FLogStream: THandleStream;
 
+    // Wait a brief period of time to check whether valid lsp-commands are received
+    // on the stream. InitialBuffer returns the content of the
+    // stream that has already been consumed by the detection-mechanism.
+    function AutoSenseDABProtocol(const Stream: TStream; out InitialBuffer: string): Boolean;
     procedure HandleNewConnection(aSender: TObject; aData: TSocketStream);
     procedure StopExecution();
     procedure ListenForIncomingConnections();
     procedure InitializeLSPTextTransport(aOutStream, aLogStream: THandleStream);
   public
     constructor Create(aDoCreateContext: TCreateLSPContextEvent; aListenIpAddress: string; aListenPort: Integer);
-    procedure Execute(aTcpip: Boolean);
+    procedure Execute(ForceTcpip, ForceStdin: Boolean);
     property DoCreateContext: TCreateLSPContextEvent read FDoCreateContext;
   end;
 
@@ -109,14 +122,17 @@ type
     FContext: TLSPContext;
     FIO: TLSPTextTransport;
     FRunLoop: TRunLoop;
+    FInitialBuffer: string;
   protected
     // Processes all incoming LSP messages within the main thread and sends a
     // LSP-response when applicable
     procedure ProcessMessage();
     // Waits for a new incoming LSP message and returns the message as a array of bytes
-    function AwaitMessage(aInStream: THandleStream; aVerboseOutput: Boolean): TBytes;
+    function AwaitMessage(aInStream: THandleStream; aVerboseOutput: Boolean; anInitialBuffer: string = ''): TBytes;
   public
-    constructor Create(aInStream: THandleStream; aContext: TLSPContext; aIO: TLSPTextTransport; aRunLoop: TRunLoop);
+    // The contents in the initial buffer are processed before the content of the
+    // stream.
+    constructor Create(aInStream: THandleStream; aContext: TLSPContext; aIO: TLSPTextTransport; aRunLoop: TRunLoop; anInitialBuffer: string);
     destructor Destroy; override;
     // Main execution loop that runs in a background thread and waits for incoming
     // messages (blocking). Once a message is received it is signaled to be
@@ -217,7 +233,7 @@ begin
     end;
 end;
 
-function TTcpipConnectionThread.AwaitMessage(aInStream: THandleStream; aVerboseOutput: Boolean): TBytes;
+function TTcpipConnectionThread.AwaitMessage(aInStream: THandleStream; aVerboseOutput: Boolean; anInitialBuffer: string): TBytes;
 
 var
   ContentSize: Integer;
@@ -246,7 +262,7 @@ var
 begin
   Line := '';
   ContentSize:=0;
-  s := '';
+  s := anInitialBuffer;
   FContext.Log('Reading request');
   repeat
   PosCrLf := Pos(CRLF, s);
@@ -286,22 +302,25 @@ procedure TTcpipConnectionThread.Execute;
 var
   IncomingBytes: TBytes;
 begin
-  repeat
-  IncomingBytes := AwaitMessage(FInStream, True);
-  FContent := TEncoding.UTF8.GetString(IncomingBytes);
-  // Handle the message (or absence of a message) in the main thread
-  Synchronize(@ProcessMessage);
-
+  IncomingBytes := AwaitMessage(FInStream, True, FInitialBuffer);
+  FContext.Log('Tadaa');
   // If IncomingBytes is empty, AwaitMessage discovered a disconnect
-  until Length(IncomingBytes) = 0;
+  while Length(IncomingBytes) > 0 do
+    begin
+    FContent := TEncoding.UTF8.GetString(IncomingBytes);
+    // Handle the message (or absence of a message) in the main thread
+    Synchronize(@ProcessMessage);
+    IncomingBytes := AwaitMessage(FInStream, True);
+    end;
 end;
 
-constructor TTcpipConnectionThread.Create(aInStream: THandleStream; aContext: TLSPContext; aIO: TLSPTextTransport; aRunLoop: TRunLoop);
+constructor TTcpipConnectionThread.Create(aInStream: THandleStream; aContext: TLSPContext; aIO: TLSPTextTransport; aRunLoop: TRunLoop; anInitialBuffer: string);
 begin
   FInStream := aInStream;
   FContext:=aContext;
   FIO:=aIO;
   FRunLoop:=aRunLoop;
+  FInitialBuffer:=anInitialBuffer;
   inherited Create(False);
 end;
 
@@ -311,7 +330,7 @@ begin
   inherited Destroy;
 end;
 
-Procedure RunMessageLoop(aDoCreateContext: TCreateLSPContextEvent; aTcpip: Boolean; aListenIpAddress: string; aListenPort: Integer);
+Procedure RunMessageLoop(aDoCreateContext: TCreateLSPContextEvent; aForceTcpip, aForceStdIn: Boolean; aListenIpAddress: string; aListenPort: Integer);
 
 var
   RunLoop: TRunLoop;
@@ -319,7 +338,7 @@ var
 begin
   RunLoop := TRunLoop.Create(aDoCreateContext, aListenIpAddress, aListenPort);
   try
-    RunLoop.Execute(aTcpip);
+    RunLoop.Execute(aForceTcpip, aForceStdIn);
   finally
     RunLoop.Free;
   end;
@@ -382,7 +401,7 @@ begin
 
   FContext.Log('New incoming connection');
 
-  ConnThread := TTcpipConnectionThread.create(aData, FContext, FIO, Self);
+  ConnThread := TTcpipConnectionThread.create(aData, FContext, FIO, Self, '');
   ConnThread.FreeOnTerminate:=True;
 end;
 
@@ -433,15 +452,86 @@ begin
   FListenPort:=aListenPort;
 end;
 
-procedure TRunLoop.Execute(aTcpip: Boolean);
+function TRunLoop.AutoSenseDABProtocol(const Stream: TStream; out InitialBuffer: string): Boolean;
+
+  function NumBytesAvailable: DWord;
+  begin
+    {$IFDEF Unix}
+    if fpioctl((Stream as THandleStream).Handle, FIONREAD, @Result)<0 then
+      Result := 0;
+    {$ENDIF Unix}
+    {$IFDEF Windows}
+    if Stream is TSocketStream then
+      begin
+      if ioctlsocket(TSocketStream(Stream).Handle, FIONREAD, @Result)<0 then
+        Result := 0;
+      end
+    else if Stream is THandleStream then
+      begin
+      if not PeekNamedPipe(THandleStream(Stream).Handle, nil, 0, nil, @Result, nil) then
+        Result := 0;
+      end
+    else
+      Result := 0;
+    {$ENDIF}
+  end;
+
+var
+  Buf: string;
+  i,l: LongInt;
+begin
+  Result := False;
+  InitialBuffer := '';
+
+  // TInputPipeStream could not be used, because it closes the handle when it
+  // gets destroyed.
+
+  // Wait at the most 20*10 milliseconds for enough input on the console to detect
+  // the DAB-protocol.
+  for i := 0 to 20 do
+    begin
+    if NumBytesAvailable > 15 then
+      begin
+      // There are at least 16 bytes in the buffer. Check if these bytes look
+      // like a DAB-header.
+      Buf:='';
+      SetLength(Buf,16);
+      l := Stream.Read(Buf[1], 16);
+      SetLength(Buf, l);
+      Result := Buf = 'Content-Length: ';
+
+      // Fill the initial-buffer with the data that we 'peeked' from stdin
+      // I could not find a reliable, cross-platform way to perform a 'real'
+      // peek.
+      InitialBuffer := Buf;
+      break;
+      end;
+    sleep(10);
+    end;
+end;
+
+
+procedure TRunLoop.Execute(ForceTcpip, ForceStdin: Boolean);
 var
   InStream, OutStream: THandleStream;
   ConnThread: TTcpipConnectionThread;
+  InitialBuffer: string;
+  UseTcpIp: Boolean;
 begin
   InStream:=nil;
   OutStream:=nil;
   try
-    if aTcpip then
+    if ForceTcpip then
+      UseTcpIp:=True
+    else if not ForceStdin then
+      begin
+      // Wait for a small period of time to check whether valid commands are
+      // received on stdin. If this is the case, use stdin, if not, use tcpip.
+      InStream := THandleStream.Create(StdInputHandle);
+      UseTcpIp := not AutoSenseDABProtocol(InStream, InitialBuffer);
+      end;
+
+    if UseTcpIp then
       // The biggest difference with a tcpip-server (listening) socket is that multiple
       // connections can come in. So we have to wait for a connection before
       // the real connection can be made using a TTcpipConnectionThread thread.
@@ -450,14 +540,17 @@ begin
       TThread.ExecuteInThread(@ListenForIncomingConnections)
     else
       begin
-      InStream := THandleStream.Create(StdInputHandle);
       OutStream := THandleStream.Create(StdOutputHandle);
       FLogStream := THandleStream.Create(StdErrorHandle);
 
       InitializeLSPTextTransport(OutStream, FLogStream);
 
-      ConnThread := TTcpipConnectionThread.Create(InStream, FContext, FIO, Self);
+      ConnThread := TTcpipConnectionThread.Create(InStream, FContext, FIO, Self, InitialBuffer);
       ConnThread.FreeOnTerminate:=True;
+      // By assigning nil to InStream, it is not freed.
+      // This is done because stdin cannot be closed, or else rtl will raise an
+      // exception when the application terminates.
+      InStream := nil;
       end;
 
     repeat
