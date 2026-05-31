@@ -139,6 +139,14 @@
         <UnitName Value="PasLS.InactiveRegions"/>
       </Item>
       <Item>
+        <Filename Value="PasLS.Command.RemoveUnusedUnits.pas"/>
+        <UnitName Value="PasLS.Command.RemoveUnusedUnits"/>
+      </Item>
+      <Item>
+        <Filename Value="PasLS.RemoveUnusedUnits.pas"/>
+        <UnitName Value="PasLS.RemoveUnusedUnits"/>
+      </Item>
+      <Item>
         <Filename Value="PasLS.Rename.pas"/>
         <UnitName Value="PasLS.Rename"/>
       </Item>

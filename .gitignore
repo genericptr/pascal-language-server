@@ -47,3 +47,5 @@ clients/pasls-vscode/out/*
 *.code-workspace
 *.sublime-project
 *.sublime-workspace
+
+/src/tests/testlsp

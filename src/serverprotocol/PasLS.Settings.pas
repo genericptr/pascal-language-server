@@ -249,7 +249,7 @@ procedure TServerSettings.ReplaceMacros(Macros: TMacroMap);
   var
     I: Integer;
   begin
-    { supported multiple formats: 
+    { supported multiple formats:
       1) $macro
       2) $MACRO
       3) $(macro)
@@ -258,6 +258,8 @@ procedure TServerSettings.ReplaceMacros(Macros: TMacroMap);
     Result := S;
     for I := 0 to Macros.Count - 1 do
       begin
+        Result := StringReplace(Result, '$('+Macros.Keys[I]+')', Macros.Data[I], [rfReplaceAll, rfIgnoreCase]);
+        Result := StringReplace(Result, '$'+Macros.Keys[I], Macros.Data[I], [rfReplaceAll, rfIgnoreCase]);
         Result := StringReplace(Result, '$('+LowerCase(Macros.Keys[I])+')', Macros.Data[I], [rfReplaceAll]);
         Result := StringReplace(Result, '$('+UpperCase(Macros.Keys[I])+')', Macros.Data[I], [rfReplaceAll]);
         Result := StringReplace(Result, '$'+LowerCase(Macros.Keys[I]), Macros.Data[I], [rfReplaceAll]);

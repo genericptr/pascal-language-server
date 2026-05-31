@@ -57,6 +57,8 @@ Type
     Package:          TPackage;
   end;
 
+  TPackageLinkPriority = (plGlobalLink, plDiscoveredConfig, plExplicitConfig);
+
   TLazProjectConfig = class;
 
   TPackage = class
@@ -120,6 +122,7 @@ Type
   Private
     Class var
       PkgNameToPath: TFPStringHashTable;
+      PkgNameToPriority: TFPStringHashTable;
     // Map Path -> TPackage
       PkgCache:      TFPObjectHashTable;
       _FakeAppName,
@@ -133,6 +136,17 @@ Type
     procedure LoadAllPackagesUnderPath(const Dir: string);
     function LoadPackageOrProject(const FileName: string): TPackage;
     function LookupGlobalPackage(const Name: String): String;
+    function ContainsUnresolvedMacro(const Path: string): Boolean;
+    function ExpandPathMacros(const Path: string; const BaseDir: string = '';
+      const ProjOutDir: string = ''): string;
+    function NormalizeConfigDir(const ConfigPath: string): string;
+    function ReadPackageNameFromFile(const FileName: string): string;
+    function ReadNodeValue(Parent: TDomNode; const NodeName: domstring): string;
+    procedure RegisterPackageLink(const Name, FileName, BaseDir: string;
+      Priority: TPackageLinkPriority);
+    procedure PopulateGlobalLinks(const LazarusDirectory: string);
+    procedure PopulatePackageFiles(const ConfigDir: string;
+      Priority: TPackageLinkPriority);
     procedure PopulateGlobalPackages(const SearchPaths: array of string);
   Protected
     procedure DebugLog(const Msg: string); overload;
@@ -144,13 +158,15 @@ Type
     Class Constructor Init;
     Class Destructor Done;
     Constructor create(aTransport : TMessageTransport; aOptions: TCodeToolsOptions);
-    Procedure GuessCodeToolConfig;
+    Procedure GuessCodeToolConfig(const ConfigDir: string = '');
     procedure ConfigurePaths(const Dir: string);
     procedure ConfigureSingleProject(const aProjectFile : string);
   end;
 
-procedure GuessCodeToolConfig(aTransport : TMessageTransport; aOptions: TCodeToolsOptions);
-procedure ConfigureSingleProject(aTransport : TMessageTransport; const aProjectFile : string);
+procedure GuessCodeToolConfig(aTransport : TMessageTransport; aOptions: TCodeToolsOptions;
+  const ConfigDir: string = '');
+procedure ConfigureSingleProject(aTransport : TMessageTransport; const aProjectFile : string;
+  aOptions: TCodeToolsOptions = nil);
 
 
 implementation
@@ -160,7 +176,8 @@ uses strutils;
 // CodeTools needs to know the paths for the global packages, the FPC source
 // files, the path of the compiler and the target architecture.
 // Attempt to guess the correct settings from Lazarus config files.
-procedure GuessCodeToolConfig(aTransport : TMessageTransport; aOptions: TCodeToolsOptions);
+procedure GuessCodeToolConfig(aTransport : TMessageTransport; aOptions: TCodeToolsOptions;
+  const ConfigDir: string);
 
 var
   Cfg : TLazProjectConfig;
@@ -168,19 +185,19 @@ var
 begin
   Cfg:=TLazProjectConfig.Create(aTransport,aOptions);
   try
-    Cfg.GuessCodeToolConfig;
+    Cfg.GuessCodeToolConfig(ConfigDir);
   finally
     Cfg.Free;
   end;
 end;
 
 procedure ConfigureSingleProject(aTransport: TMessageTransport;
-  const aProjectFile: string);
+  const aProjectFile: string; aOptions: TCodeToolsOptions);
 var
   Cfg : TLazProjectConfig;
 
 begin
-  Cfg:=TLazProjectConfig.Create(aTransport,Nil);
+  Cfg:=TLazProjectConfig.Create(aTransport,aOptions);
   try
     Cfg.ConfigureSingleProject(aProjectFile);
   finally
@@ -287,7 +304,7 @@ end;
 
 procedure TLazProjectConfig.DebugLog(const Msg: string);
 begin
-  if  (Msg <> '') then
+  if  (Msg <> '') and Assigned(FTransport) then
     FTransPort.SendDiagnostic(Msg);
 end;
 
@@ -348,7 +365,9 @@ begin
 
     for FileName in Files do
     begin
-      Name := ExtractFileNameOnly(FileName);
+      Name := ReadPackageNameFromFile(FileName);
+      if Name = '' then
+        Name := ExtractFileNameOnly(FileName);
       PkgNameToPath[UpperCase(Name)] := FileName;
     end;
     DebugLog('  Found %d packages', [Files.Count]);
@@ -381,7 +400,7 @@ function TPackage.GetAdditionalPaths(SearchPaths: TDomNode; const What: domstrin
 var
   Node: TDomNode;
   Segments: TStringArray;
-  S, Segment, AbsSegment: string;
+  S, Segment, ExpandedSegment, AbsSegment, ProjOutDir: string;
 begin
   Result := '';
 
@@ -393,10 +412,21 @@ begin
 
   S := UTF8Encode(Node.NodeValue);
   Segments := S.Split([';'], TStringSplitOptions.ExcludeEmpty);
+  ProjOutDir := FConfig.ReadNodeValue(SearchPaths, 'UnitOutputDirectory');
+  if ProjOutDir <> '' then
+  begin
+    ProjOutDir := FConfig.ExpandPathMacros(ProjOutDir, Dir);
+    if not FConfig.ContainsUnresolvedMacro(ProjOutDir) then
+      ProjOutDir := CreateAbsolutePath(ProjOutDir, Dir);
+  end;
 
   for Segment in Segments do
   begin
-    AbsSegment := CreateAbsolutePath(Segment, Dir);
+    ExpandedSegment := FConfig.ExpandPathMacros(Segment, Dir, ProjOutDir);
+    if FConfig.ContainsUnresolvedMacro(ExpandedSegment) then
+      AbsSegment := ExpandedSegment
+    else
+      AbsSegment := CreateAbsolutePath(ExpandedSegment, Dir);
     Result     := Result + ';' + AbsSegment;
   end;
 end;
@@ -487,8 +517,9 @@ end;
 Procedure TPackage.LoadFromFile(const aFileName : string);
 
 var
-  Doc:     TXMLDocument;
-  Root:    TDomNode;
+  Doc:        TXMLDocument;
+  ConfigRoot,
+  Root:       TDomNode;
 
 begin
   Valid := False;
@@ -497,21 +528,30 @@ begin
 
   try
     try
-      ReadXMLFile(doc, afilename);
+      ReadXMLFile(Doc, afilename);
 
-      Root := Doc.DocumentElement;
-      if Root.NodeName <> 'CONFIG' then
+      ConfigRoot := Doc.DocumentElement;
+      if ConfigRoot.NodeName <> 'CONFIG' then
         Exit;
 
       if UpperCase(ExtractFileExt(aFileName)) = '.LPK' then
-        Root := Root.FindNode('Package')
+      begin
+        Root := ConfigRoot.FindNode('Package');
+        if not Assigned(Root) then
+          Exit;
+        LoadPaths(Root);
+      end
       else
-        Root := Root.FindNode('ProjectOptions');
+      begin
+        Root := ConfigRoot.FindNode('ProjectOptions');
+        if not Assigned(Root) then
+          Exit;
+        LoadPaths(ConfigRoot);
+      end;
 
       if not Assigned(Root) then
         Exit;
 
-      LoadPaths(Root);
       LoadDeps(Root);
 
       Valid := True;
@@ -537,17 +577,264 @@ begin
   Result := PkgNameToPath[UpperCase(Name)];
 end;
 
+function TLazProjectConfig.ContainsUnresolvedMacro(const Path: string): Boolean;
+begin
+  Result := Pos('$', Path) > 0;
+end;
+
+function TLazProjectConfig.ExpandPathMacros(const Path: string; const BaseDir: string;
+  const ProjOutDir: string): string;
+var
+  SrcOS, SrcOS2, FPCVer, ProjectDir: string;
+
+  procedure ReplaceMacro(const MacroName, Value: string);
+  begin
+    if Value = '' then
+      Exit;
+    Result := StringReplace(Result, '$(' + MacroName + ')', Value, [rfReplaceAll, rfIgnoreCase]);
+    Result := StringReplace(Result, '$(#' + MacroName + ')', Value, [rfReplaceAll, rfIgnoreCase]);
+    Result := StringReplace(Result, '$' + MacroName, Value, [rfReplaceAll, rfIgnoreCase]);
+  end;
+
+begin
+  Result := StringReplace(Path, '\', DirectorySeparator, [rfReplaceAll]);
+  ProjectDir := IncludeTrailingPathDelimiter(BaseDir);
+  if BaseDir <> '' then
+  begin
+    ReplaceMacro('ProjPath', ProjectDir);
+    ReplaceMacro('ProjDir', ProjectDir);
+  end;
+  ReplaceMacro('ProjOutDir', ProjOutDir);
+
+  if not Assigned(Options) then
+    Exit;
+
+  SrcOS := GetDefaultSrcOSForTargetOS(Options.TargetOS);
+  SrcOS2 := GetDefaultSrcOS2ForTargetOS(Options.TargetOS);
+  FPCVer := {$I %FPCVERSION%};
+
+  ReplaceMacro('LazarusDir', Options.LazarusSrcDir);
+  ReplaceMacro('LazarusSrcDir', Options.LazarusSrcDir);
+  ReplaceMacro('FPCSrcDir', Options.FPCSrcDir);
+  ReplaceMacro('TargetOS', Options.TargetOS);
+  ReplaceMacro('TargetCPU', Options.TargetProcessor);
+  ReplaceMacro('SrcOS', SrcOS);
+  ReplaceMacro('SrcOS2', SrcOS2);
+  ReplaceMacro('LCLWidgetType', Options.LCLWidgetType);
+  ReplaceMacro('FPCVer', FPCVer);
+  ReplaceMacro('FPCVersion', FPCVer);
+end;
+
+function TLazProjectConfig.NormalizeConfigDir(const ConfigPath: string): string;
+var
+  ExpandedPath: string;
+begin
+  Result := '';
+  if ConfigPath = '' then
+    Exit;
+
+  ExpandedPath := ExpandFileName(ConfigPath);
+  if DirectoryExists(ExpandedPath) then
+    Result := ExpandedPath
+  else if FileExists(ExpandedPath) then
+    Result := ExtractFilePath(ExpandedPath);
+end;
+
+function TLazProjectConfig.ReadNodeValue(Parent: TDomNode;
+  const NodeName: domstring): string;
+var
+  Node: TDomNode;
+begin
+  Result := '';
+  if not Assigned(Parent) then
+    Exit;
+
+  Node := Parent.FindNode(NodeName);
+  if Assigned(Node) then
+    Node := Node.Attributes.GetNamedItem('Value');
+  if Assigned(Node) then
+    Result := UTF8Encode(Node.NodeValue);
+end;
+
+function TLazProjectConfig.ReadPackageNameFromFile(const FileName: string): string;
+var
+  Doc: TXMLDocument;
+  Root, PackageNode, NameNode: TDomNode;
+begin
+  Result := '';
+  Doc := nil;
+  try
+    try
+      ReadXMLFile(Doc, FileName);
+      Root := Doc.DocumentElement;
+      if not Assigned(Root) or (Root.NodeName <> 'CONFIG') then
+        Exit;
+
+      PackageNode := Root.FindNode('Package');
+      if not Assigned(PackageNode) then
+        Exit;
+
+      NameNode := PackageNode.FindNode('Name');
+      if Assigned(NameNode) then
+        NameNode := NameNode.Attributes.GetNamedItem('Value');
+      if Assigned(NameNode) then
+        Result := UTF8Encode(NameNode.NodeValue);
+    except
+      on E: Exception do
+        DebugLog('Error %s reading package name from %s: %s', [E.ClassName, FileName, E.Message]);
+    end;
+  finally
+    FreeAndNil(Doc);
+  end;
+end;
+
+procedure TLazProjectConfig.RegisterPackageLink(const Name, FileName, BaseDir: string;
+  Priority: TPackageLinkPriority);
+var
+  PackageName, PackageFile, Key: string;
+  ExistingPriority: Integer;
+begin
+  PackageFile := Trim(FileName);
+  if PackageFile = '' then
+    Exit;
+
+  PackageFile := ExpandPathMacros(PackageFile, BaseDir);
+  if not ContainsUnresolvedMacro(PackageFile) then
+    PackageFile := CreateAbsolutePath(PackageFile, BaseDir);
+
+  if not FileExists(PackageFile) then
+    Exit;
+
+  PackageName := Trim(Name);
+  if PackageName = '' then
+    PackageName := ReadPackageNameFromFile(PackageFile);
+  if PackageName = '' then
+    PackageName := ExtractFileNameOnly(PackageFile);
+
+  Key := UpperCase(PackageName);
+  ExistingPriority := StrToIntDef(PkgNameToPriority[Key], -1);
+  if ExistingPriority > Ord(Priority) then
+    Exit;
+
+  PkgNameToPath[Key] := PackageFile;
+  PkgNameToPriority[Key] := IntToStr(Ord(Priority));
+  DebugLog('  Package link: %s -> %s', [PackageName, PackageFile]);
+end;
+
+procedure TLazProjectConfig.PopulatePackageFiles(const ConfigDir: string;
+  Priority: TPackageLinkPriority);
+var
+  Doc: TXMLDocument;
+  Root, Links, Item, NameNode, FileNode: TDomNode;
+  Count: Integer;
+  FN, BaseDir, Name, FileName: string;
+
+  procedure LoadLinks(const LinkNodeName: string);
+  var
+    i: Integer;
+  begin
+    Links := Root.FindNode(LinkNodeName);
+    if not Assigned(Links) then
+      Exit;
+
+    for i := 0 to Links.ChildNodes.Count - 1 do
+    begin
+      Item := Links.ChildNodes.Item[i];
+      Name := '';
+      FileName := '';
+
+      NameNode := Item.FindNode('Name');
+      if Assigned(NameNode) then
+        NameNode := NameNode.Attributes.GetNamedItem('Value');
+      if Assigned(NameNode) then
+        Name := UTF8Encode(NameNode.NodeValue);
+
+      FileNode := Item.FindNode('Filename');
+      if Assigned(FileNode) then
+        FileNode := FileNode.Attributes.GetNamedItem('Value');
+      if Assigned(FileNode) then
+        FileName := UTF8Encode(FileNode.NodeValue);
+
+      if FileName <> '' then
+      begin
+        RegisterPackageLink(Name, FileName, BaseDir, Priority);
+        Inc(Count);
+      end;
+    end;
+  end;
+
+begin
+  if ConfigDir = '' then
+    Exit;
+
+  FN := IncludeTrailingPathDelimiter(ConfigDir) + 'packagefiles.xml';
+  if not FileExists(FN) then
+    Exit;
+
+  DebugLog('Reading package links from %s', [FN]);
+  Doc := nil;
+  Count := 0;
+  BaseDir := IncludeTrailingPathDelimiter(ConfigDir);
+  try
+    try
+      ReadXMLFile(Doc, FN);
+      Root := Doc.DocumentElement;
+      if not Assigned(Root) or (Root.NodeName <> 'CONFIG') then
+        Exit;
+
+      LoadLinks('UserPkgLinks');
+      LoadLinks('GlobalPkgLinks');
+      DebugLog('  Found %d package file links', [Count]);
+    except
+      on E: Exception do
+        DebugLog('Error %s reading package links from %s: %s', [E.ClassName, FN, E.Message]);
+    end;
+  finally
+    FreeAndNil(Doc);
+  end;
+end;
+
+procedure TLazProjectConfig.PopulateGlobalLinks(const LazarusDirectory: string);
+var
+  Files: TStringList;
+  LinkFile, PackageFile, LinkDir: string;
+begin
+  if LazarusDirectory = '' then
+    Exit;
+
+  LinkDir := IncludeTrailingPathDelimiter(LazarusDirectory) + 'packager' +
+    DirectorySeparator + 'globallinks';
+  if not DirectoryExists(LinkDir) then
+    Exit;
+
+  DebugLog('Reading global package links from %s/*.lpl', [LinkDir]);
+  Files := TStringList.Create;
+  try
+    FindAllFiles(Files, LinkDir, '*.lpl', False);
+    for LinkFile in Files do
+    begin
+      PackageFile := Trim(ReadFileToString(LinkFile));
+      RegisterPackageLink('', PackageFile, ExtractFilePath(LinkFile), plGlobalLink);
+    end;
+    DebugLog('  Found %d global package links', [Files.Count]);
+  finally
+    Files.Free;
+  end;
+end;
+
 { TLazProjectConfig }
 
 class constructor TLazProjectConfig.Init;
 begin
-  PkgNameToPath := TFPStringHashTable.Create;
-  PkgCache      := TFPObjectHashTable.Create;
+  PkgNameToPath     := TFPStringHashTable.Create;
+  PkgNameToPriority := TFPStringHashTable.Create;
+  PkgCache          := TFPObjectHashTable.Create;
 end;
 
 class destructor TLazProjectConfig.Done;
 begin
   FreeAndNil(PkgNameToPath);
+  FreeAndNil(PkgNameToPriority);
   FreeAndNil(PkgCache);
 end;
 
@@ -613,8 +900,8 @@ end;
 //
 // Consider the following scenario:
 //
-//   A requires: 
-//     - B (found) 
+//   A requires:
+//     - B (found)
 //     - C (NOT found)
 //   B requires:
 //     - C (found)
@@ -718,11 +1005,11 @@ var
   DirName: string;
 begin
   Dirname := lowercase(ExtractFileName(Dir));
-  Result := 
-    (DirName = '.git')                              or 
+  Result :=
+    (DirName = '.git')                              or
     ((Length(DirName) >= 1) and (DirName[1] = '.')) or
-    (DirName = 'backup')                            or 
-    (DirName = 'lib')                               or 
+    (DirName = 'backup')                            or
+    (DirName = 'lib')                               or
     (Pos('.dsym', DirName) > 0)                     or
     (Pos('.app', DirName) > 0);
 end;
@@ -732,7 +1019,7 @@ procedure TLazProjectConfig.LoadAllPackagesUnderPath(const Dir: string);
 var
   Packages,
   SubDirectories:    TStringList;
-  i:                 integer;     
+  i:                 integer;
   Pkg:               TPackage;
 begin
   if IgnoreDirectory(Dir) then
@@ -892,6 +1179,7 @@ begin
   if FileExists(FN) then
     begin
     Pkg := GetPackageOrProject(FN);
+    Pkg.ResolveDeps;
     Pkg.ResolvePaths;
     Pkg.Configure;
     end;
@@ -902,20 +1190,21 @@ begin
 end;
 
 
-procedure TLazProjectConfig.GuessCodeToolConfig;
+procedure TLazProjectConfig.GuessCodeToolConfig(const ConfigDir: string);
 
 var
   ConfigDirs:         TStringList;
+  PackageConfigDirs:  TStringList;
   Doc:                TXMLDocument;
 
   Root,
-  EnvironmentOptions, 
-  FPCConfigs, 
+  EnvironmentOptions,
+  FPCConfigs,
   Item1:              TDomNode;
 
-  LazarusDirectory, 
-  FPCSourceDirectory, 
-  CompilerFilename, 
+  LazarusDirectory,
+  FPCSourceDirectory,
+  CompilerFilename,
   OS, CPU:            string;
 
   function LoadLazConfig(Path: string): Boolean;
@@ -955,13 +1244,35 @@ var
 Var
   FN:                 string;
   Dir:                string;
+  ExplicitConfigDir:  string;
+
+  procedure AddConfigDir(List: TStringList; const Path: string);
+  var
+    ExpandedPath: string;
+  begin
+    if Path = '' then
+      Exit;
+    ExpandedPath := ExpandFileName(Path);
+    if List.IndexOf(ExpandedPath) = -1 then
+      List.Add(ExpandedPath);
+  end;
 
 begin
   ConfigDirs := TStringList.Create;
+  PackageConfigDirs := TStringList.Create;
   try
-    ConfigDirs.Add(GetConfigDirForApp('lazarus', '', False));
-    ConfigDirs.Add(GetUserDir + DirectorySeparator + '.lazarus');
-    ConfigDirs.Add(GetConfigDirForApp('lazarus', '', True));  ;
+    ExplicitConfigDir := NormalizeConfigDir(ConfigDir);
+
+    AddConfigDir(ConfigDirs, ExplicitConfigDir);
+    AddConfigDir(ConfigDirs, GetConfigDirForApp('lazarus', '', False));
+    AddConfigDir(ConfigDirs, GetUserDir + DirectorySeparator + '.lazarus');
+    AddConfigDir(ConfigDirs, GetConfigDirForApp('lazarus', '', True));
+
+    AddConfigDir(PackageConfigDirs, GetConfigDirForApp('lazarus', '', True));
+    AddConfigDir(PackageConfigDirs, GetUserDir + DirectorySeparator + '.lazarus');
+    AddConfigDir(PackageConfigDirs, GetConfigDirForApp('lazarus', '', False));
+    AddConfigDir(PackageConfigDirs, ExplicitConfigDir);
+
     for Dir in ConfigDirs do
     begin
       Doc := nil;
@@ -1005,7 +1316,16 @@ begin
         FreeAndNil(Doc);
       end;
     end;
+    PopulateGlobalLinks(Options.LazarusSrcDir);
+    for Dir in PackageConfigDirs do
+    begin
+      if Dir = ExplicitConfigDir then
+        PopulatePackageFiles(Dir, plExplicitConfig)
+      else
+        PopulatePackageFiles(Dir, plDiscoveredConfig);
+    end;
   finally
+    FreeAndNil(PackageConfigDirs);
     FreeAndNil(ConfigDirs);
   end;
 end;

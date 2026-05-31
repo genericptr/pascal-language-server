@@ -439,11 +439,11 @@ begin
       FPCTARGETCPU = FPC target cpu like i386, x86_64, arm }
     CodeToolsOptions.InitWithEnvironmentVariables;
 
-    GuessCodeToolConfig(Transport, CodeToolsOptions);
+    GuessCodeToolConfig(Transport, CodeToolsOptions, ServerSettings.config);
     if Assigned(Opt) then
       Proj := Opt.&program;
     if (Proj <> '') and FileExists(Proj) then
-      ConfigureSingleProject(Transport, Proj);
+      ConfigureSingleProject(Transport, Proj, CodeToolsOptions);
 
     // load the symbol manager if it's enabled
     if ServerSettings.documentSymbols or ServerSettings.workspaceSymbols then
@@ -605,4 +605,3 @@ begin
 end;
 
 end.
-
