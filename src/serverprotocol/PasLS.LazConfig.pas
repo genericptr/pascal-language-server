@@ -167,6 +167,8 @@ procedure GuessCodeToolConfig(aTransport : TMessageTransport; aOptions: TCodeToo
   const ConfigDir: string = '');
 procedure ConfigureSingleProject(aTransport : TMessageTransport; const aProjectFile : string;
   aOptions: TCodeToolsOptions = nil);
+procedure ConfigureProjectPaths(aTransport : TMessageTransport; const aProjectDir : string;
+  aOptions: TCodeToolsOptions = nil);
 
 
 implementation
@@ -200,6 +202,20 @@ begin
   Cfg:=TLazProjectConfig.Create(aTransport,aOptions);
   try
     Cfg.ConfigureSingleProject(aProjectFile);
+  finally
+    Cfg.Free;
+  end;
+end;
+
+procedure ConfigureProjectPaths(aTransport: TMessageTransport; const aProjectDir: string;
+  aOptions: TCodeToolsOptions);
+var
+  Cfg : TLazProjectConfig;
+
+begin
+  Cfg:=TLazProjectConfig.Create(aTransport,aOptions);
+  try
+    Cfg.ConfigurePaths(aProjectDir);
   finally
     Cfg.Free;
   end;
@@ -1025,6 +1041,8 @@ begin
   if IgnoreDirectory(Dir) then
     Exit;
 
+  Packages := nil;
+  SubDirectories := nil;
   try
     Packages := FindAllFiles(
       Dir, '*.lpi;*.lpk', False, faAnyFile and not faDirectory
@@ -1045,7 +1063,7 @@ begin
   finally
     if Assigned(Packages) then
       FreeAndNil(Packages);
-    if Assigned(Packages) then
+    if Assigned(SubDirectories) then
       FreeAndNil(SubDirectories);
   end;
 end;
@@ -1061,6 +1079,8 @@ begin
   if IgnoreDirectory(Dir) then
     Exit;
 
+  Packages := nil;
+  SubDirectories := nil;
   try
     Packages := FindAllFiles(
       Dir, '*.lpi;*.lpk', False, faAnyFile and not faDirectory
@@ -1080,7 +1100,7 @@ begin
   finally
     if Assigned(Packages) then
       FreeAndNil(Packages);
-    if Assigned(Packages) then
+    if Assigned(SubDirectories) then
       FreeAndNil(SubDirectories);
   end;
 end;
@@ -1137,6 +1157,7 @@ begin
     for i := 0 to Packages.Count - 1 do
     begin
       Pkg := GetPackageOrProject(Packages[i]);
+      Pkg.ResolveDeps;
       Pkg.ResolvePaths;
     end;
 
@@ -1156,7 +1177,7 @@ begin
   finally
     if Assigned(Packages) then
       FreeAndNil(Packages);
-    if Assigned(Packages) then
+    if Assigned(SubDirectories) then
       FreeAndNil(SubDirectories);
   end;
 end;

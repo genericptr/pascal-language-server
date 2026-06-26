@@ -25,6 +25,8 @@ type
   TDiagnosticTests = class(TTestCase)
   private
     procedure Log(const Msg: String);
+    function MakeTempDir(const Prefix: String): String;
+    procedure WriteText(const FileName, Text: String);
   protected
     procedure SetUp; override;
     procedure TearDown; override;
@@ -55,6 +57,12 @@ type
 
     // Test 9: Full initialization simulation
     procedure Test09_SimulateInitialization;
+
+    // Test 10: Project .pasls.cfg loading and relative path handling
+    procedure Test10_ProjectConfigLoadsRelativePaths;
+
+    // Test 11: Project main program persistence writes only project config
+    procedure Test11_SaveProjectMainProgram;
   end;
 
 implementation
@@ -67,6 +75,27 @@ uses
 procedure TDiagnosticTests.Log(const Msg: String);
 begin
   WriteLn('[DIAG] ' + Msg);
+end;
+
+function TDiagnosticTests.MakeTempDir(const Prefix: String): String;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False)) + Prefix + '-' +
+    IntToStr(Random(1000000)) + DirectorySeparator;
+  ForceDirectories(Result);
+end;
+
+procedure TDiagnosticTests.WriteText(const FileName, Text: String);
+var
+  S: TStringList;
+begin
+  ForceDirectories(ExtractFilePath(FileName));
+  S := TStringList.Create;
+  try
+    S.Text := Text;
+    S.SaveToFile(FileName);
+  finally
+    S.Free;
+  end;
 end;
 
 procedure TDiagnosticTests.SetUp;
@@ -392,6 +421,85 @@ begin
     Macros.Free;
     DeStreamer.Free;
     Settings.Free;
+  end;
+end;
+
+procedure TDiagnosticTests.Test10_ProjectConfigLoadsRelativePaths;
+var
+  Root, ConfigFile: String;
+  Config: TPasLSFileConfig;
+  Settings: TServerSettings;
+  Env: TConfigEnvironmentSettings;
+begin
+  Root := MakeTempDir('pasls-config');
+  ConfigFile := IncludeTrailingPathDelimiter(Root) + kPasLSProjectConfigFile;
+  WriteText(ConfigFile,
+    '[Project]' + LineEnding +
+    'MainProgram=src/app.lpr' + LineEnding +
+    LineEnding +
+    '[PasLS]' + LineEnding +
+    'CodeToolsConfig=codetools.config' + LineEnding +
+    'LazarusConfig=.lazarus' + LineEnding +
+    LineEnding +
+    '[CodeTools]' + LineEnding +
+    'Compiler=bin/fpc' + LineEnding +
+    'FPCDir=fpcsrc' + LineEnding +
+    'LazarusDir=lazarus' + LineEnding +
+    'TargetOS=linux' + LineEnding +
+    'TargetCPU=x86_64' + LineEnding +
+    'FPCOptions=-Fuunits -Fiinclude -dDEBUG' + LineEnding);
+
+  Config := TPasLSFileConfig.Create;
+  Settings := TServerSettings.Create;
+  Env := TConfigEnvironmentSettings.Create;
+  try
+    Config.LoadFromFile(ConfigFile, Root);
+    Config.ApplyToServerSettings(Settings, True);
+    Config.ApplyToEnvironment(Env, False);
+
+    AssertEquals('program path', ExpandFileName(Root + 'src/app.lpr'), Settings.&program);
+    AssertEquals('codetools config', ExpandFileName(Root + 'codetools.config'), Settings.codeToolsConfig);
+    AssertEquals('lazarus config', ExpandFileName(Root + '.lazarus'), Settings.config);
+    AssertEquals('fpc options count', 3, Settings.fpcOptions.Count);
+    AssertEquals('unit path option', '-Fu' + ExpandFileName(Root + 'units'), Settings.fpcOptions[0]);
+    AssertEquals('include path option', '-Fi' + ExpandFileName(Root + 'include'), Settings.fpcOptions[1]);
+    AssertEquals('define option', '-dDEBUG', Settings.fpcOptions[2]);
+
+    AssertEquals('compiler', ExpandFileName(Root + 'bin/fpc'), Env.pp);
+    AssertEquals('fpc dir', ExpandFileName(Root + 'fpcsrc'), Env.fpcDir);
+    AssertEquals('lazarus dir', ExpandFileName(Root + 'lazarus'), Env.lazarusDir);
+    AssertEquals('target os', 'linux', Env.fpcTarget);
+    AssertEquals('target cpu', 'x86_64', Env.fpcTargetCPU);
+  finally
+    Env.Free;
+    Settings.Free;
+    Config.Free;
+  end;
+end;
+
+procedure TDiagnosticTests.Test11_SaveProjectMainProgram;
+var
+  Root, ConfigFile, MainFile: String;
+  Config: TPasLSFileConfig;
+begin
+  Root := MakeTempDir('pasls-save');
+  ConfigFile := IncludeTrailingPathDelimiter(Root) + kPasLSProjectConfigFile;
+  MainFile := IncludeTrailingPathDelimiter(Root) + 'src' + DirectorySeparator + 'app.lpr';
+  WriteText(MainFile, 'program app; begin end.' + LineEnding);
+  if FileExists(ConfigFile) then
+    DeleteFile(ConfigFile);
+
+  SetProjectConfigContext(Root, ConfigFile);
+  AssertFalse('config file should not exist before save', FileExists(ConfigFile));
+  AssertTrue('save should create project config', SaveProjectMainProgram(MainFile));
+  AssertTrue('config file should exist after save', FileExists(ConfigFile));
+
+  Config := TPasLSFileConfig.Create;
+  try
+    Config.LoadFromFile(ConfigFile, Root);
+    AssertEquals('saved main program', ExpandFileName(MainFile), Config.MainProgram);
+  finally
+    Config.Free;
   end;
 end;
 

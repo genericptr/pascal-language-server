@@ -30,6 +30,7 @@ uses
 const
   kSymbolName_Interface = 'interface';
   kSymbolName_Implementation = 'implementation';
+  kPasLSProjectConfigFile = '.pasls.cfg';
 
 type
   TOverloadPolicy = ( __UNUSED__,
@@ -175,6 +176,43 @@ type
     property fpcTargetCPU : string read ffpcTargetCPU write ffpcTargetCPU;
   end;
 
+  { TPasLSFileConfig }
+
+  TPasLSFileConfig = class
+  private
+    fBaseDir: String;
+    fCodeToolsConfig: String;
+    fCompiler: String;
+    fFPCDir: String;
+    fFPCOptions: TStrings;
+    fLazarusConfig: String;
+    fLazarusDir: String;
+    fMainProgram: String;
+    fTargetCPU: String;
+    fTargetOS: String;
+    function ExpandConfigPath(const APath: String): String;
+    function ExpandFPCOption(const AOption: String): String;
+    function QuotePath(const APath: String): String;
+    procedure SetFPCOptions(AValue: TStrings);
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Clear;
+    procedure LoadFromFile(const AFileName: String; const ABaseDir: String = '');
+    procedure ApplyToServerSettings(ASettings: TServerSettings; OnlyIfEmpty: Boolean);
+    procedure ApplyToEnvironment(ASettings: TConfigEnvironmentSettings; OnlyIfEmpty: Boolean);
+    property BaseDir: String read fBaseDir;
+    property MainProgram: String read fMainProgram;
+    property CodeToolsConfig: String read fCodeToolsConfig;
+    property LazarusConfig: String read fLazarusConfig;
+    property Compiler: String read fCompiler;
+    property FPCDir: String read fFPCDir;
+    property LazarusDir: String read fLazarusDir;
+    property TargetOS: String read fTargetOS;
+    property TargetCPU: String read fTargetCPU;
+    property FPCOptions: TStrings read fFPCOptions write SetFPCOptions;
+  end;
+
 
 type
   TClients = class
@@ -186,16 +224,52 @@ type
 Function ServerSettings: TServerSettings;
 Function ClientInfo: TClientInfo;
 Function EnvironmentSettings:TConfigEnvironmentSettings;
+Function UserConfigFileName: String;
+Function ProjectConfigFileName(const ProjectRoot: String): String;
+Procedure SetProjectConfigContext(const ProjectRoot, ConfigFile: String);
+Function ProjectRoot: String;
+Function ProjectConfigFile: String;
+Function SaveProjectMainProgram(const MainProgram: String): Boolean;
 
 implementation
 
 uses
-  SysUtils, lazUTF8;
+  SysUtils, IniFiles, StrUtils, lazUTF8;
 
 var
   _ServerSettings: TServerSettings;
   _ClientInfo: TClientInfo;
   _EnvironmentSettings:TConfigEnvironmentSettings;
+  _ProjectRoot: String;
+  _ProjectConfigFile: String;
+
+const
+  SProject = 'Project';
+  SPasLS = 'PasLS';
+  SCodeTools = 'CodeTools';
+  KeyMainProgram = 'MainProgram';
+  KeyCodeToolsConfig = 'CodeToolsConfig';
+  KeyLazarusConfig = 'LazarusConfig';
+  KeyCompiler = 'Compiler';
+  KeyFPCDir = 'FPCDir';
+  KeyLazarusDir = 'LazarusDir';
+  KeyTargetOS = 'TargetOS';
+  KeyTargetCPU = 'TargetCPU';
+  KeyFPCOptions = 'FPCOptions';
+
+function IsAbsoluteConfigPath(const APath: String): Boolean;
+begin
+  Result := False;
+  if APath = '' then
+    Exit;
+  {$IFDEF WINDOWS}
+  Result := ((Length(APath) >= 3) and (APath[2] = ':') and
+    ((APath[3] = '\') or (APath[3] = '/'))) or
+    ((Length(APath) >= 2) and (APath[1] = '\') and (APath[2] = '\'));
+  {$ELSE}
+  Result := APath[1] = DirectorySeparator;
+  {$ENDIF}
+end;
 
 { TExcludableSymbol helper functions }
 
@@ -223,6 +297,61 @@ begin
   if _EnvironmentSettings=Nil then
     _EnvironmentSettings:=TConfigEnvironmentSettings.Create;
   Result:=_EnvironmentSettings;
+end;
+
+function UserConfigFileName: String;
+begin
+  Result := IncludeTrailingPathDelimiter(GetUserDir) + kPasLSProjectConfigFile;
+end;
+
+function ProjectConfigFileName(const ProjectRoot: String): String;
+begin
+  if ProjectRoot = '' then
+    Result := ''
+  else
+    Result := IncludeTrailingPathDelimiter(ProjectRoot) + kPasLSProjectConfigFile;
+end;
+
+procedure SetProjectConfigContext(const ProjectRoot, ConfigFile: String);
+begin
+  _ProjectRoot := ProjectRoot;
+  _ProjectConfigFile := ConfigFile;
+end;
+
+function ProjectRoot: String;
+begin
+  Result := _ProjectRoot;
+end;
+
+function ProjectConfigFile: String;
+begin
+  Result := _ProjectConfigFile;
+end;
+
+function SaveProjectMainProgram(const MainProgram: String): Boolean;
+var
+  Ini: TMemIniFile;
+  NormalizedMain, StoredMain, RootWithSep: String;
+begin
+  Result := False;
+  if (_ProjectRoot = '') or (_ProjectConfigFile = '') or (MainProgram = '') then
+    Exit;
+
+  NormalizedMain := ExpandFileName(MainProgram);
+  RootWithSep := IncludeTrailingPathDelimiter(ExpandFileName(_ProjectRoot));
+  if AnsiStartsText(RootWithSep, NormalizedMain) then
+    StoredMain := ExtractRelativePath(RootWithSep, NormalizedMain)
+  else
+    StoredMain := NormalizedMain;
+
+  Ini := TMemIniFile.Create(_ProjectConfigFile);
+  try
+    Ini.WriteString(SProject, KeyMainProgram, StoredMain);
+    Ini.UpdateFile;
+    Result := True;
+  finally
+    Ini.Free;
+  end;
 end;
 
 Function ServerSettings: TServerSettings;
@@ -473,6 +602,147 @@ begin
     end
   else
     inherited Assign(aSource);
+end;
+
+{ TPasLSFileConfig }
+
+constructor TPasLSFileConfig.Create;
+begin
+  inherited Create;
+  fFPCOptions := TStringList.Create;
+end;
+
+destructor TPasLSFileConfig.Destroy;
+begin
+  FreeAndNil(fFPCOptions);
+  inherited Destroy;
+end;
+
+procedure TPasLSFileConfig.Clear;
+begin
+  fBaseDir := '';
+  fMainProgram := '';
+  fCodeToolsConfig := '';
+  fLazarusConfig := '';
+  fCompiler := '';
+  fFPCDir := '';
+  fLazarusDir := '';
+  fTargetOS := '';
+  fTargetCPU := '';
+  fFPCOptions.Clear;
+end;
+
+function TPasLSFileConfig.QuotePath(const APath: String): String;
+begin
+  if Pos(' ', APath) > 0 then
+    Result := '"' + APath + '"'
+  else
+    Result := APath;
+end;
+
+function TPasLSFileConfig.ExpandConfigPath(const APath: String): String;
+begin
+  Result := Trim(APath);
+  if Result = '' then
+    Exit;
+  if (fBaseDir <> '') and not IsAbsoluteConfigPath(Result) then
+    Result := ExpandFileName(IncludeTrailingPathDelimiter(fBaseDir) + Result)
+  else
+    Result := ExpandFileName(Result);
+end;
+
+function TPasLSFileConfig.ExpandFPCOption(const AOption: String): String;
+var
+  Prefix, PathPart: String;
+begin
+  Result := Trim(AOption);
+  if (Result = '') or (fBaseDir = '') then
+    Exit;
+
+  Prefix := '';
+  PathPart := '';
+  if AnsiStartsStr('-Fu', Result) or AnsiStartsStr('-Fi', Result) then
+  begin
+    Prefix := Copy(Result, 1, 3);
+    PathPart := Copy(Result, 4, MaxInt);
+  end
+  else if AnsiStartsStr('-I', Result) then
+  begin
+    Prefix := Copy(Result, 1, 2);
+    PathPart := Copy(Result, 3, MaxInt);
+  end;
+
+  if (Prefix <> '') and (PathPart <> '') and not IsAbsoluteConfigPath(PathPart) then
+    Result := Prefix + QuotePath(ExpandFileName(IncludeTrailingPathDelimiter(fBaseDir) + PathPart));
+end;
+
+procedure TPasLSFileConfig.SetFPCOptions(AValue: TStrings);
+begin
+  if fFPCOptions = AValue then
+    Exit;
+  fFPCOptions.Assign(AValue);
+end;
+
+procedure TPasLSFileConfig.LoadFromFile(const AFileName: String;
+  const ABaseDir: String);
+var
+  Ini: TMemIniFile;
+  RawOptions, Option: String;
+  ParsedOptions: TStringList;
+begin
+  Clear;
+  fBaseDir := ABaseDir;
+  Ini := TMemIniFile.Create(AFileName);
+  ParsedOptions := TStringList.Create;
+  try
+    fMainProgram := ExpandConfigPath(Ini.ReadString(SProject, KeyMainProgram, ''));
+    fCodeToolsConfig := ExpandConfigPath(Ini.ReadString(SPasLS, KeyCodeToolsConfig, ''));
+    fLazarusConfig := ExpandConfigPath(Ini.ReadString(SPasLS, KeyLazarusConfig, ''));
+    fCompiler := ExpandConfigPath(Ini.ReadString(SCodeTools, KeyCompiler, ''));
+    fFPCDir := ExpandConfigPath(Ini.ReadString(SCodeTools, KeyFPCDir, ''));
+    fLazarusDir := ExpandConfigPath(Ini.ReadString(SCodeTools, KeyLazarusDir, ''));
+    fTargetOS := Ini.ReadString(SCodeTools, KeyTargetOS, '');
+    fTargetCPU := Ini.ReadString(SCodeTools, KeyTargetCPU, '');
+
+    RawOptions := Ini.ReadString(SCodeTools, KeyFPCOptions, '');
+    if RawOptions <> '' then
+    begin
+      ExtractStrings([' '], ['"'], PChar(RawOptions), ParsedOptions);
+      for Option in ParsedOptions do
+        fFPCOptions.Add(ExpandFPCOption(Option));
+    end;
+  finally
+    ParsedOptions.Free;
+    Ini.Free;
+  end;
+end;
+
+procedure TPasLSFileConfig.ApplyToServerSettings(ASettings: TServerSettings;
+  OnlyIfEmpty: Boolean);
+begin
+  if (fMainProgram <> '') and ((not OnlyIfEmpty) or (ASettings.&program = '')) then
+    ASettings.&program := fMainProgram;
+  if (fCodeToolsConfig <> '') and ((not OnlyIfEmpty) or (ASettings.codeToolsConfig = '')) then
+    ASettings.codeToolsConfig := fCodeToolsConfig;
+  if (fLazarusConfig <> '') and ((not OnlyIfEmpty) or (ASettings.config = '')) then
+    ASettings.config := fLazarusConfig;
+  if (fFPCOptions.Count > 0) and ((not OnlyIfEmpty) or (ASettings.fpcOptions.Count = 0)) then
+    ASettings.fpcOptions := fFPCOptions;
+end;
+
+procedure TPasLSFileConfig.ApplyToEnvironment(ASettings: TConfigEnvironmentSettings;
+  OnlyIfEmpty: Boolean);
+begin
+  if (fCompiler <> '') and ((not OnlyIfEmpty) or (ASettings.pp = '')) then
+    ASettings.pp := fCompiler;
+  if (fFPCDir <> '') and ((not OnlyIfEmpty) or (ASettings.fpcDir = '')) then
+    ASettings.fpcDir := fFPCDir;
+  if (fLazarusDir <> '') and ((not OnlyIfEmpty) or (ASettings.lazarusDir = '')) then
+    ASettings.lazarusDir := fLazarusDir;
+  if (fTargetOS <> '') and ((not OnlyIfEmpty) or (ASettings.fpcTarget = '')) then
+    ASettings.fpcTarget := fTargetOS;
+  if (fTargetCPU <> '') and ((not OnlyIfEmpty) or (ASettings.fpcTargetCPU = '')) then
+    ASettings.fpcTargetCPU := fTargetCPU;
 end;
 
 finalization

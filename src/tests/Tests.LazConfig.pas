@@ -26,6 +26,8 @@ type
     procedure WriteText(const FileName, Text: string);
     procedure WritePackage(const FileName, PackageName, UnitPath: string;
       const ExtraSearchPath: string = '');
+    procedure WritePackageWithDependency(const FileName, PackageName, UnitPath,
+      DepPackageName, DepPackageFile: string);
     procedure WritePackageFiles(const ConfigDir, PackageName, PackageFile: string);
     procedure WriteProject(const FileName, PackageName: string);
     function NewOptions(const LazarusDir: string): TCodeToolsOptions;
@@ -38,6 +40,7 @@ type
     procedure TestExplicitPackageLinkOverridesGlobalLink;
     procedure TestConfigFilePathLoadsPackageFilesFromContainingDirectory;
     procedure TestPathMacroExpansionKeepsUnknownMacrosRelative;
+    procedure TestWorkspacePackagePathsResolveDependencies;
   end;
 
 implementation
@@ -112,6 +115,30 @@ begin
     '        <OtherUnitFiles Value="' + SearchPath + '"/>' + LineEnding +
     '      </SearchPaths>' + LineEnding +
     '    </CompilerOptions>' + LineEnding +
+    '  </Package>' + LineEnding +
+    '</CONFIG>' + LineEnding);
+end;
+
+procedure TTestLazConfig.WritePackageWithDependency(const FileName, PackageName,
+  UnitPath, DepPackageName, DepPackageFile: string);
+begin
+  ForceDirectories(UnitPath);
+  WriteText(FileName,
+    '<?xml version="1.0" encoding="UTF-8"?>' + LineEnding +
+    '<CONFIG>' + LineEnding +
+    '  <Package Version="5">' + LineEnding +
+    '    <Name Value="' + PackageName + '"/>' + LineEnding +
+    '    <CompilerOptions>' + LineEnding +
+    '      <SearchPaths>' + LineEnding +
+    '        <OtherUnitFiles Value="' + UnitPath + '"/>' + LineEnding +
+    '      </SearchPaths>' + LineEnding +
+    '    </CompilerOptions>' + LineEnding +
+    '    <RequiredPkgs>' + LineEnding +
+    '      <Item>' + LineEnding +
+    '        <PackageName Value="' + DepPackageName + '"/>' + LineEnding +
+    '        <DefaultFilename Value="' + DepPackageFile + '"/>' + LineEnding +
+    '      </Item>' + LineEnding +
+    '    </RequiredPkgs>' + LineEnding +
     '  </Package>' + LineEnding +
     '</CONFIG>' + LineEnding);
 end;
@@ -278,6 +305,36 @@ begin
     Pos(ExpectedLazarusPath, UnitPath) > 0);
   AssertFalse('unknown macro should not be absolutized under package dir',
     Pos(IncludeTrailingPathDelimiter(PackageDir) + '$(UnknownMacro)', UnitPath) > 0);
+end;
+
+procedure TTestLazConfig.TestWorkspacePackagePathsResolveDependencies;
+var
+  LazarusDir, WorkspaceDir, AppPackageFile, DepPackageFile, AppUnitDir,
+  DepUnitDir, UnitPath: string;
+  Options: TCodeToolsOptions;
+begin
+  LazarusDir := MakeDir(['lazarus']);
+  WorkspaceDir := MakeDir(['workspace']);
+  AppUnitDir := MakeDir(['workspace', 'app']);
+  DepUnitDir := MakeDir(['workspace', 'dep']);
+  AppPackageFile := IncludeTrailingPathDelimiter(WorkspaceDir) + 'app.lpk';
+  DepPackageFile := IncludeTrailingPathDelimiter(WorkspaceDir) + 'dep.lpk';
+
+  WritePackage(DepPackageFile, 'DepPkg', DepUnitDir);
+  WritePackageWithDependency(AppPackageFile, 'AppPkg', AppUnitDir, 'DepPkg',
+    DepPackageFile);
+
+  Options := NewOptions(LazarusDir);
+  try
+    GuessCodeToolConfig(FTransport, Options);
+    ConfigureProjectPaths(FTransport, WorkspaceDir, Options);
+    UnitPath := CodeToolBoss.GetUnitPathForDirectory(AppUnitDir, False);
+  finally
+    Options.Free;
+  end;
+
+  AssertTrue('workspace package config should include dependency unit path',
+    Pos(DepUnitDir, UnitPath) > 0);
 end;
 
 initialization

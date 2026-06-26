@@ -143,6 +143,10 @@
         <UnitName Value="PasLS.Command.RemoveUnusedUnits"/>
       </Item>
       <Item>
+        <Filename Value="PasLS.Command.SelectMainProgram.pas"/>
+        <UnitName Value="PasLS.Command.SelectMainProgram"/>
+      </Item>
+      <Item>
         <Filename Value="PasLS.RemoveUnusedUnits.pas"/>
         <UnitName Value="PasLS.RemoveUnusedUnits"/>
       </Item>
