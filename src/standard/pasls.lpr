@@ -322,6 +322,7 @@ begin
   try
     RegisterAllCommands;
     aCfg.LoadFromFile(aCfg.DefaultConfigFile);
+    aCfg.LoadFromFile(aCfg.UserConfigFile);
     if aCfg.LogFile<>'' then
       TLSPContext.LogFile := aCfg.LogFile;
     ConfigEnvironment(aCfg);

@@ -5,7 +5,7 @@ program testlsp;
 uses
   Classes, consoletestrunner, Tests.Basic, Tests.DocumentSymbol,
   Tests.SublimeProfile, Tests.SymbolPersistence, Tests.WorkspaceSymbol,
-  Tests.Diagnostic, Tests.ScanExamples, Tests.Streaming;
+  Tests.Diagnostic, Tests.ScanExamples, Tests.Streaming, Tests.LazConfig;
 
 type
 

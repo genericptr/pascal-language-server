@@ -49,6 +49,7 @@ Type
     Constructor Create; virtual;
     Procedure Reset; virtual;
     class Function DefaultConfigFile : String;
+    class Function UserConfigFile : String;
     Procedure LoadFromFile(const aFileName : String);
     Procedure SaveToFile(const aFileName : String);
     Procedure LoadFromIni(aIni : TCustomIniFile); virtual;
@@ -100,6 +101,11 @@ begin
 {$ELSE}
   Result:=ChangeFileExt(ParamStr(0),'.ini');
 {$ENDIF}
+end;
+
+class function TLSPServerConfig.UserConfigFile: String;
+begin
+  Result:=IncludeTrailingPathDelimiter(GetUserDir)+'.pasls.cfg';
 end;
 
 procedure TLSPServerConfig.LoadFromFile(const aFileName: String);
@@ -158,4 +164,3 @@ end;
 
 
 end.
-

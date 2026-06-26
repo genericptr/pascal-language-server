@@ -121,6 +121,37 @@ configuration options.
 
 ### Configuration  
 
+#### pasls
+The standard language server reads configuration in this order:
+
+1. built-in defaults
+2. `/etc/pasls.cfg`
+3. `~/.pasls.cfg`
+4. `.pasls.cfg` in the workspace root
+5. process environment variables
+6. LSP initialization options
+
+Project selections are saved only to the workspace `.pasls.cfg`. If multiple
+main programs are discovered, clients can call `pasls.selectMainProgram` with
+the selected `.lpr` or `.dpr` path to persist it.
+
+```ini
+[Project]
+MainProgram=src/app.lpr
+
+[PasLS]
+CodeToolsConfig=codetools.config
+LazarusConfig=.lazarus
+
+[CodeTools]
+Compiler=/usr/bin/fpc
+FPCDir=/usr/share/fpcsrc
+LazarusDir=/usr/share/lazarus
+TargetOS=linux
+TargetCPU=x86_64
+FPCOptions=-Fuunits -Fiinclude -dDEBUG
+```
+
 #### paslssock
 The paslssock server can read an initialization file with 2 sections, 
 `Server` and `CodeTools`. These can be used to set another port on which to

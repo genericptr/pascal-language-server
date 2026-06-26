@@ -62,7 +62,10 @@ type
     procedure SetFPCPaths(Paths, Opts: TStrings; AsUnitPath, asIncludePath: Boolean);
     procedure SetPlatformDefaults(CodeToolsOptions : TCodeToolsOptions);
     procedure ApplyConfigSettings(CodeToolsOptions: TCodeToolsOptions);
+    procedure ApplyProjectCodeToolsConfig(CodeToolsOptions: TCodeToolsOptions; ProjectConfig: TPasLSFileConfig);
+    procedure ApplyGeneralInferences(CodeToolsOptions: TCodeToolsOptions);
     procedure FindPascalSourceDirectories(RootPath: String; Results: TStrings; ExcludeFolders: TStrings);
+    procedure InferMainProgram(const RootPath: String);
     procedure ShowConfigStatus(Params : TInitializeParams; CodeToolsOptions: TCodeToolsOptions);
   public
     function Process(var Params : TLSPInitializeParams): TInitializeResult; override;
@@ -94,7 +97,7 @@ type
 
 implementation
 uses
-  SysUtils, RegExpr, IdentCompletionTool, DefineTemplates,
+  SysUtils, StrUtils, RegExpr, IdentCompletionTool, DefineTemplates, FileUtil, DOM, XMLRead,
   PasLS.CodeUtils;
 
 const
@@ -125,6 +128,198 @@ begin
       LazarusSrcDir := MaybeSet(Env.lazarusDir, LazarusSrcDir);
       TargetOS := MaybeSet(Env.fpcTarget, TargetOS);
       TargetProcessor := MaybeSet(Env.fpcTargetCPU, TargetProcessor);
+    end;
+end;
+
+procedure TInitialize.ApplyProjectCodeToolsConfig(
+  CodeToolsOptions: TCodeToolsOptions; ProjectConfig: TPasLSFileConfig);
+begin
+  with CodeToolsOptions do
+    begin
+      if ProjectConfig.Compiler <> '' then
+        FPCPath := ProjectConfig.Compiler;
+      if ProjectConfig.FPCDir <> '' then
+        FPCSrcDir := ProjectConfig.FPCDir;
+      if ProjectConfig.LazarusDir <> '' then
+        LazarusSrcDir := ProjectConfig.LazarusDir;
+      if ProjectConfig.TargetOS <> '' then
+        TargetOS := ProjectConfig.TargetOS;
+      if ProjectConfig.TargetCPU <> '' then
+        TargetProcessor := ProjectConfig.TargetCPU;
+    end;
+end;
+
+procedure TInitialize.ApplyGeneralInferences(CodeToolsOptions: TCodeToolsOptions);
+
+  function PathDelimiter: Char;
+  begin
+    {$IFDEF WINDOWS}
+    Result := ';';
+    {$ELSE}
+    Result := ':';
+    {$ENDIF}
+  end;
+
+  function FindExecutableInPath(const Names: array of String): String;
+  var
+    Paths: TStringList;
+    PathEntry, Name, Candidate: String;
+  begin
+    Result := '';
+    Paths := TStringList.Create;
+    try
+      Paths.StrictDelimiter := True;
+      Paths.Delimiter := PathDelimiter;
+      Paths.DelimitedText := GetEnvironmentVariable('PATH');
+      for PathEntry in Paths do
+        for Name in Names do
+          begin
+            Candidate := IncludeTrailingPathDelimiter(PathEntry) + Name;
+            {$IFDEF WINDOWS}
+            if ExtractFileExt(Candidate) = '' then
+              Candidate := Candidate + '.exe';
+            {$ENDIF}
+            if FileExists(Candidate) then
+              Exit(ExpandFileName(Candidate));
+          end;
+    finally
+      Paths.Free;
+    end;
+  end;
+
+  procedure AddDirectoryCandidate(Candidates: TStrings; const Candidate: String);
+  var
+    Normalized: String;
+  begin
+    if Candidate = '' then
+      Exit;
+    Normalized := ExcludeTrailingPathDelimiter(Candidate);
+    if Candidates.IndexOf(Normalized) = -1 then
+      Candidates.Add(Normalized);
+  end;
+
+  function ExistingDirectory(Candidates: TStrings): String;
+  var
+    Candidate: String;
+  begin
+    Result := '';
+    for Candidate in Candidates do
+      if DirectoryExists(Candidate) then
+        Exit(ExpandFileName(Candidate));
+  end;
+
+  function ParentDir(const Path: String): String;
+  begin
+    Result := ExcludeTrailingPathDelimiter(ExtractFilePath(ExcludeTrailingPathDelimiter(Path)));
+  end;
+
+  procedure AddFPCSourceCandidates(Candidates: TStrings; const Root: String);
+  var
+    Base: String;
+  begin
+    if Root = '' then
+      Exit;
+    Base := IncludeTrailingPathDelimiter(Root);
+    AddDirectoryCandidate(Candidates, Base + 'share' + DirectorySeparator + 'fpcsrc');
+    AddDirectoryCandidate(Candidates, Base + 'share' + DirectorySeparator + 'fpcsrc' + DirectorySeparator + {$I %FPCVERSION%});
+    AddDirectoryCandidate(Candidates, Base + 'source');
+    AddDirectoryCandidate(Candidates, Base + 'source' + DirectorySeparator + {$I %FPCVERSION%});
+    AddDirectoryCandidate(Candidates, Base + 'src');
+    AddDirectoryCandidate(Candidates, Base + 'fpcsrc');
+  end;
+
+  procedure AddFPCSourceCandidatesFromLazarus(Candidates: TStrings; const LazarusDir: String);
+  var
+    ShareDir: String;
+  begin
+    if LazarusDir = '' then
+      Exit;
+    ShareDir := ParentDir(LazarusDir);
+    AddDirectoryCandidate(Candidates, IncludeTrailingPathDelimiter(ShareDir) + 'fpcsrc');
+    AddDirectoryCandidate(Candidates, IncludeTrailingPathDelimiter(ShareDir) + 'fpcsrc' + DirectorySeparator + {$I %FPCVERSION%});
+    AddFPCSourceCandidates(Candidates, ParentDir(ShareDir));
+  end;
+
+  procedure ApplyTargetFromOptions;
+  var
+    I: Integer;
+    Option: String;
+  begin
+    I := 0;
+    while I < ServerSettings.fpcOptions.Count do
+    begin
+      Option := ServerSettings.fpcOptions[I];
+      if AnsiStartsStr('-T', Option) and (Length(Option) > 2) then
+        CodeToolsOptions.TargetOS := Copy(Option, 3, MaxInt)
+      else if (Option = '-T') and (I + 1 < ServerSettings.fpcOptions.Count) then
+        begin
+          Inc(I);
+          CodeToolsOptions.TargetOS := ServerSettings.fpcOptions[I];
+        end
+      else if AnsiStartsStr('-P', Option) and (Length(Option) > 2) then
+        CodeToolsOptions.TargetProcessor := Copy(Option, 3, MaxInt)
+      else if (Option = '-P') and (I + 1 < ServerSettings.fpcOptions.Count) then
+        begin
+          Inc(I);
+          CodeToolsOptions.TargetProcessor := ServerSettings.fpcOptions[I];
+        end;
+      Inc(I);
+    end;
+  end;
+
+var
+  CompilerDir, InstallRoot, InferredCompiler, InferredFPCSrc: String;
+  Candidates: TStringList;
+begin
+  if (CodeToolsOptions.FPCPath = '') or not FileExists(CodeToolsOptions.FPCPath) then
+    begin
+      InferredCompiler := FindExecutableInPath(['fpc', 'ppcx64', 'ppc386', 'ppca64', 'ppcarm']);
+      if InferredCompiler <> '' then
+        begin
+          CodeToolsOptions.FPCPath := InferredCompiler;
+          DoLog(kStatusPrefix+'Inferred compiler: '+InferredCompiler);
+        end;
+    end;
+
+  ApplyTargetFromOptions;
+
+  if (CodeToolsOptions.FPCSrcDir = '') or not DirectoryExists(CodeToolsOptions.FPCSrcDir) then
+    begin
+      CompilerDir := ExtractFilePath(CodeToolsOptions.FPCPath);
+      InstallRoot := ParentDir(CompilerDir);
+      Candidates := TStringList.Create;
+      try
+        AddDirectoryCandidate(Candidates, GetEnvironmentVariable('FPCDIR'));
+        AddFPCSourceCandidatesFromLazarus(Candidates, CodeToolsOptions.LazarusSrcDir);
+        AddFPCSourceCandidates(Candidates, InstallRoot);
+        AddFPCSourceCandidates(Candidates, ParentDir(InstallRoot));
+
+        {$IFDEF WINDOWS}
+        AddDirectoryCandidate(Candidates, 'C:\FPC\' + {$I %FPCVERSION%} + '\source');
+        AddDirectoryCandidate(Candidates, 'C:\FPC\source');
+        AddDirectoryCandidate(Candidates, 'C:\FPC\Src');
+        {$ELSE}
+        {$IFDEF DARWIN}
+        AddDirectoryCandidate(Candidates, '/opt/homebrew/share/fpcsrc');
+        AddDirectoryCandidate(Candidates, '/opt/homebrew/share/fpcsrc/' + {$I %FPCVERSION%});
+        AddDirectoryCandidate(Candidates, '/opt/local/share/fpcsrc');
+        AddDirectoryCandidate(Candidates, '/opt/local/share/fpcsrc/' + {$I %FPCVERSION%});
+        {$ENDIF}
+        AddDirectoryCandidate(Candidates, '/usr/share/fpcsrc');
+        AddDirectoryCandidate(Candidates, '/usr/share/fpcsrc/' + {$I %FPCVERSION%});
+        AddDirectoryCandidate(Candidates, '/usr/local/share/fpcsrc');
+        AddDirectoryCandidate(Candidates, '/usr/local/share/fpcsrc/' + {$I %FPCVERSION%});
+        {$ENDIF}
+
+        InferredFPCSrc := ExistingDirectory(Candidates);
+        if InferredFPCSrc <> '' then
+          begin
+            CodeToolsOptions.FPCSrcDir := InferredFPCSrc;
+            DoLog(kStatusPrefix+'Inferred FPC source directory: '+InferredFPCSrc);
+          end;
+      finally
+        Candidates.Free;
+      end;
     end;
 end;
 
@@ -161,7 +356,8 @@ var
   E : String;
 begin
   E := LowerCase(aExtension);
-  result := (E = '.pas') or (E = '.pp') or (E = '.inc');
+  result := (E = '.pas') or (E = '.pp') or (E = '.p') or
+            (E = '.inc') or (E = '.lpr') or (E = '.dpr');
 end;
 
 procedure TInitialize.DoLog(const Msg: String);
@@ -243,6 +439,109 @@ var
 begin
   for Item in workspaceFolders do
     FindPascalSourceDirectories(IncludeTrailingPathDelimiter(UriToPath(TWorkspaceFolder(Item).uri)), aPaths, ExcludeFolders);
+end;
+
+procedure TInitialize.InferMainProgram(const RootPath: String);
+
+  function AttrValue(Node: TDOMNode; const AttrName: String): String;
+  var
+    Attr: TDOMNode;
+  begin
+    Result := '';
+    if not Assigned(Node) or not Assigned(Node.Attributes) then
+      Exit;
+    Attr := Node.Attributes.GetNamedItem(AttrName);
+    if Assigned(Attr) then
+      Result := UTF8Encode(Attr.NodeValue);
+  end;
+
+  procedure AddCandidate(Candidates: TStrings; const Candidate: String);
+  var
+    FullPath: String;
+  begin
+    if Candidate = '' then
+      Exit;
+    FullPath := ExpandFileName(Candidate);
+    if FileExists(FullPath) and (Candidates.IndexOf(FullPath) = -1) then
+      Candidates.Add(FullPath);
+  end;
+
+  procedure AddMainFromLPI(Candidates: TStrings; const LPIFile: String);
+  var
+    Doc: TXMLDocument;
+    UnitsNode, UnitNode, FileNode: TDOMNode;
+    I: Integer;
+    FileName, Ext: String;
+  begin
+    Doc := nil;
+    try
+      try
+        ReadXMLFile(Doc, LPIFile);
+        if not Assigned(Doc.DocumentElement) then
+          Exit;
+        UnitsNode := Doc.DocumentElement.FindNode('ProjectOptions');
+        if Assigned(UnitsNode) then
+          UnitsNode := UnitsNode.FindNode('Units');
+        if not Assigned(UnitsNode) then
+          Exit;
+
+        for I := 0 to UnitsNode.ChildNodes.Count - 1 do
+        begin
+          UnitNode := UnitsNode.ChildNodes.Item[I];
+          FileNode := UnitNode.FindNode('Filename');
+          if not Assigned(FileNode) then
+            Continue;
+          FileName := AttrValue(FileNode, 'Value');
+          Ext := LowerCase(ExtractFileExt(FileName));
+          if (Ext = '.lpr') or (Ext = '.dpr') then
+            AddCandidate(Candidates, ExpandFileName(IncludeTrailingPathDelimiter(ExtractFilePath(LPIFile)) + FileName));
+        end;
+      except
+        on E: Exception do
+          DoLog(kFailedPrefix+'Unable to inspect project file '+LPIFile+': '+E.Message);
+      end;
+    finally
+      FreeAndNil(Doc);
+    end;
+  end;
+
+var
+  Candidates, Files: TStringList;
+  FileName: String;
+begin
+  if (ServerSettings.&program <> '') or (RootPath = '') or not DirectoryExists(RootPath) then
+    Exit;
+
+  Candidates := TStringList.Create;
+  Files := TStringList.Create;
+  try
+    Candidates.Sorted := True;
+    Candidates.Duplicates := dupIgnore;
+
+    FindAllFiles(Files, RootPath, '*.lpi', True);
+    for FileName in Files do
+      AddMainFromLPI(Candidates, FileName);
+
+    Files.Clear;
+    FindAllFiles(Files, RootPath, '*.lpr;*.dpr', True);
+    for FileName in Files do
+      AddCandidate(Candidates, FileName);
+
+    if Candidates.Count = 1 then
+      begin
+        ServerSettings.&program := Candidates[0];
+        DoLog(kStatusPrefix+'Inferred main program file: '+ServerSettings.&program);
+      end
+    else if Candidates.Count > 1 then
+      begin
+        DoLog(kFailedPrefix+'Multiple main program files found. Select one with pasls.selectMainProgram to save it in .pasls.cfg:');
+        for FileName in Candidates do
+          DoLog(kEmptyPrefix+FileName);
+      end;
+  finally
+    Files.Free;
+    Candidates.Free;
+  end;
 end;
 
 procedure TInitialize.ShowConfigStatus(Params: TInitializeParams; CodeToolsOptions: TCodeToolsOptions);
@@ -360,13 +659,14 @@ function TInitialize.Process(var Params : TLSPInitializeParams): TInitializeResu
   end;
 
 var
-  Proj, Option, aPath, ConfigPath: String;
+  Proj, Option, aPath, ConfigPath, RootDir: String;
   CodeToolsOptions: TCodeToolsOptions;
   PathSwitchRegex: TRegExpr;
   Macros: TMacroMap;
   WorkspacePaths: TStringList;
   RootPath, IncludePathTemplate, UnitPathTemplate: TDefineTemplate;
   Opt: TServerSettings;
+  ProjectConfig: TPasLSFileConfig;
   FPCOptions: TStringArray;
 begin
   if Params.initializationOptions is TServerSettings then
@@ -379,10 +679,12 @@ begin
   PathSwitchRegex := nil;
   WorkspacePaths := nil;
   Macros := nil;
+  ProjectConfig := nil;
   FPCOptions := [];
 
   try
     Macros := TMacroMap.Create;
+    ProjectConfig := TPasLSFileConfig.Create;
     CodeToolsOptions := TCodeToolsOptions.Create;
     PathSwitchRegex := TRegExpr.Create('^(-(Fu|Fi)+)(.*)$');
     
@@ -398,6 +700,22 @@ begin
     ServerSettings.Assign(Params.initializationOptions);
     PasLS.Settings.ClientInfo.Assign(Params.ClientInfo);
 
+    RootDir := '';
+    if Params.rootUri <> '' then
+      RootDir := URIToPath(Params.rootURI)
+    else if Params.workspaceFolders.Count > 0 then
+      RootDir := URIToPath(TWorkspaceFolder(Params.workspaceFolders.Items[0]).uri);
+    if RootDir <> '' then
+      RootDir := IncludeTrailingPathDelimiter(ExpandFileName(RootDir));
+
+    SetProjectConfigContext(RootDir, ProjectConfigFileName(RootDir));
+    if FileExists(ProjectConfigFile) then
+      begin
+        ProjectConfig.LoadFromFile(ProjectConfigFile, RootDir);
+        ProjectConfig.ApplyToServerSettings(ServerSettings, True);
+        DoLog(kStatusPrefix+'Project config: '+ProjectConfigFile);
+      end;
+
     // Detect hierarchical document symbol support
     if Assigned(Params.capabilities) and
        Assigned(Params.capabilities.textDocument) and
@@ -408,13 +726,13 @@ begin
 
     // replace macros in server settings
     Macros.Add('tmpdir', GetTempDir(true));
-    Macros.Add('root', URIToPath(Params.rootUri));
+    Macros.Add('root', RootDir);
 
     ServerSettings.ReplaceMacros(Macros);
 
     // set the project directory based on root URI path
-    if Params.rootUri <> '' then
-      CodeToolsOptions.ProjectDir := URIToPath(Params.rootURI);
+    if RootDir <> '' then
+      CodeToolsOptions.ProjectDir := RootDir;
 
     // print the root URI so we know which workspace folder is default
     DoLog(kStatusPrefix+'RootURI: '+Params.rootUri);
@@ -428,6 +746,7 @@ begin
     // set some built-in defaults based on platform
     SetPlatformDefaults(CodeToolsOptions);
     ApplyConfigSettings(CodeToolsOptions);
+    ApplyProjectCodeToolsConfig(CodeToolsOptions, ProjectConfig);
 
     { Override default settings with environment variables.
       These are the required values which must be set:
@@ -438,12 +757,16 @@ begin
       FPCTARGET    = FPC target OS like linux, win32, darwin
       FPCTARGETCPU = FPC target cpu like i386, x86_64, arm }
     CodeToolsOptions.InitWithEnvironmentVariables;
+    ApplyGeneralInferences(CodeToolsOptions);
 
-    GuessCodeToolConfig(Transport, CodeToolsOptions);
-    if Assigned(Opt) then
-      Proj := Opt.&program;
+    GuessCodeToolConfig(Transport, CodeToolsOptions, ServerSettings.config);
+    InferMainProgram(RootDir);
+    CheckProgramSetting;
+    Proj := ServerSettings.&program;
     if (Proj <> '') and FileExists(Proj) then
-      ConfigureSingleProject(Transport, Proj);
+      ConfigureSingleProject(Transport, Proj, CodeToolsOptions)
+    else if RootDir <> '' then
+      ConfigureProjectPaths(Transport, RootDir, CodeToolsOptions);
 
     // load the symbol manager if it's enabled
     if ServerSettings.documentSymbols or ServerSettings.workspaceSymbols then
@@ -502,8 +825,6 @@ begin
           end;
       end;
 
-    CheckProgramSetting;
-
     ShowConfigStatus(Params, CodeToolsOptions);
 
     with CodeToolBoss do
@@ -532,6 +853,7 @@ begin
     WorkspacePaths.Free;
     PathSwitchRegex.Free;
     CodeToolsOptions.Free;
+    ProjectConfig.Free;
     Macros.Free;
   end;
 end;
@@ -605,4 +927,3 @@ begin
 end;
 
 end.
-

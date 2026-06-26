@@ -53,7 +53,8 @@ uses
   PasLS.Command.CompleteCode,
   PasLS.Command.InvertAssignment,
   PasLS.Command.RemoveEmptyMethods,
-  PasLS.Command.RemoveUnusedUnits;
+  PasLS.Command.RemoveUnusedUnits,
+  PasLS.Command.SelectMainProgram;
 
 procedure RegisterAllCommands;
 
@@ -90,4 +91,3 @@ begin
 end;
 
 end.
-
