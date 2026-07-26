@@ -168,6 +168,7 @@ Type
     Class function GetLogFile: String; static;
     procedure SetDispatcher(AValue: TLSPBaseDispatcher);
     Class procedure SetLogFile(const AValue: String); static;
+    class procedure RemoveEmptyStringKeys(AData: TJSONData); static;
   Protected
     Class Procedure DoLog(const Msg : String);
     Class Procedure DoLog(const Fmt : String; Const Args : Array of const);
@@ -556,6 +557,43 @@ begin
   Result:=assigned(_LogFile);
 end;
 
+
+class procedure TLSPContext.RemoveEmptyStringKeys(AData: TJSONData);
+var
+  i: Integer;
+  Child: TJSONData;
+  Obj: TJSONObject;
+  Arr: TJSONArray;
+begin
+  if AData = nil then Exit;
+
+  case AData.JSONType of
+    jtObject:
+      begin
+        Obj := TJSONObject(AData);
+        for i := Obj.Count - 1 downto 0 do
+        begin
+          Child := Obj.Items[i];
+
+          if (Child.JSONType = jtString) and (Child.AsString = '') then
+          begin
+            if (Obj.Names[I] = 'sortText') or (Obj.Names[I] = 'filterText') or
+               (Obj.Names[I] = 'insertText') then
+               Obj.Delete(i);
+          end else
+            RemoveEmptyStringKeys(Child);
+        end;
+      end;
+
+    jtArray:
+      begin
+        Arr := TJSONArray(AData);
+        for i := 0 to Arr.Count - 1 do
+          RemoveEmptyStringKeys(Arr.Items[i]);
+      end;
+  end;
+end;
+
 function TLSPContext.Execute(aRequest: TJSONData): TJSONData;
 
 begin
@@ -563,6 +601,9 @@ begin
     DoLog('Executing request: %s',[aRequest.AsJSON]);
   try
     Result:=Dispatcher.ExecuteRequest(aRequest);
+
+    TLSPContext.RemoveEmptyStringKeys(Result);
+
     If HaveLog then
       if Result<>Nil then
         DoLog('Request response: %s',[Result.AsJSON])
