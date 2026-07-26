@@ -129,6 +129,7 @@ var
   Identifier: TIdentifierListItem;
   Completion: TCompletionItem;
   OverloadMap: TFPHashList;
+  TextEdit: TTextEdit;
   IdentContext, IdentDetails: ShortString;
   ObjectMember: boolean;
   Kind: TCompletionItemKind;
@@ -224,6 +225,11 @@ begin with Params do
 
                   Completion := Completions.Add;
                   Completion.&label := Identifier.Identifier;
+                  Completion.insertTextFormat := TInsertTextFormat.PlainText;
+                  TextEdit := TTextEdit.Create(nil);
+                  TextEdit.newText := Identifier.Identifier;
+                  TextEdit.range.SetRange(Y, PStart - 1, Length(CodeToolBoss.IdentifierList.Prefix));
+                  Completion.SetTextEdit(TextEdit);
                   if not ServerSettings.minimalisticCompletions then
                     Completion.detail := IdentDetails;
                   Completion.kind := Kind;
