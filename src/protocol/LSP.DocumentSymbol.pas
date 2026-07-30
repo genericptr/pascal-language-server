@@ -74,7 +74,7 @@ type
   TDocumentSymbol = class(TCollectionItem)
   private
     fName: string;
-    fDetail: string;
+    fDetail: TOptionalString;
     fKind: TSymbolKind;
     fDeprecated: boolean;
     fRange: TRange;
@@ -92,7 +92,7 @@ type
     // an empty string or a string only consisting of white spaces.
     property name: string read fName write fName;
     // More detail for this symbol, e.g the signature of a function.
-    property detail: string read fDetail write fDetail;
+    property detail: TOptionalString read fDetail write fDetail;
     // The kind of this symbol.
     property kind: TSymbolKind read fKind write fKind;
     // Indicates if this symbol is deprecated.

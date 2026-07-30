@@ -53,7 +53,7 @@ type
     fLabel: String; // string | InlayHintLabelPart[] (not supported now)
     fKind: TOptionalInlayHintKind;
     fTextEdits: TTextEdits;
-    fTooltip: String;
+    fTooltip: TOptionalString;
   public
     Constructor Create(ACollection: TCollection); override;
   published
@@ -81,7 +81,7 @@ type
     //
     // Depending on the client capability `inlayHint.resolveSupport` clients
     // might resolve this property late using the resolve request.
-    property tooltip: String read fTooltip write fTooltip;
+    property tooltip: TOptionalString read fTooltip write fTooltip;
   public
     destructor Destroy; override;
   end;

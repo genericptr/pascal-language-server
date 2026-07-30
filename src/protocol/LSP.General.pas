@@ -59,14 +59,14 @@ type
   TClientInfo = class(TLSPStreamable)
   private
     fName: string;
-    fVersion: string;
+    fVersion: TOptionalString;
   Public
     Procedure Assign(aSource : TPersistent); override;
   published
     // The name of the client as defined by the client.
     property name: string read fName write fName;
     // The client's version as defined by the client.
-    property version: string read fVersion write fVersion;
+    property version: TOptionalString read fVersion write fVersion;
   end;
 
 

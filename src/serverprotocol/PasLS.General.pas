@@ -248,11 +248,17 @@ end;
 procedure TInitialize.ShowConfigStatus(Params: TInitializeParams; CodeToolsOptions: TCodeToolsOptions);
 var
   ExcludeList, Option: String;
+  clientInfoVersion: String;
   I: Integer;
   FPCOptions: TStringArray;
 begin
+  if Params.clientInfo.version.HasValue then
+    clientInfoVersion := ' ' + Params.clientInfo.version.Value
+  else
+    clientInfoVersion := '';
+
   DoLog(kStatusPrefix+'Server: ' + {$INCLUDE %DATE%});
-  DoLog(kStatusPrefix+'Client: ' + Params.clientInfo.name + ' ' + Params.clientInfo.version);
+  DoLog(kStatusPrefix+'Client: ' + Params.clientInfo.name + clientInfoVersion);
 
   DoLog(kStatusPrefix+'FPCPath: ' + CodeToolsOptions.FPCPath);
   DoLog(kStatusPrefix+'FPCSrcDir: ' + CodeToolsOptions.FPCSrcDir);

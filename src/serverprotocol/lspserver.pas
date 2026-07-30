@@ -18,7 +18,6 @@ uses
   PasLS.DocumentSymbol, PasLS.Commands, PasLS.Formatter, PasLS.ExecuteCommand, 
   PasLS.CodeUtils, PasLS.InvertAssign, PasLS.LazConfig, PasLS.Parser, 
   PasLS.Symbols, PasLS.CheckInactiveRegions, PasLS.InactiveRegions, 
-  PasLS.Command.RemoveUnusedUnits, PasLS.RemoveUnusedUnits,
   PasLS.Rename, LazarusPackageIntf;
 
 implementation

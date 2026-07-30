@@ -152,12 +152,12 @@ type
     fLabel: string;
     fKind: TCompletionItemKind;
     fTags: TCompletionItemTags;
-    fDetail: string;
+    fDetail: TOptionalString;
     fDocumentation: TMarkupContent;
     fPreselect: Boolean;
-    fSortText: string;
-    fFilterText: string;
-    fInsertText: string;
+    fSortText: TOptionalString;
+    fFilterText: TOptionalString;
+    fInsertText: TOptionalString;
     fInsertTextFormat: TInsertTextFormat;
     fTextEdit: TTextEdit;
     fAdditionalTextEdits: TTextEdits;
@@ -184,7 +184,7 @@ type
     property tags: TCompletionItemTags read fTags write fTags;
     // A human-readable string with additional information about this
     // item, like type or symbol information.
-    property detail: string read fDetail write fDetail;
+    property detail: TOptionalString read fDetail write fDetail;
     // A human-readable string that represents a doc-comment.
     property documentation: TMarkupContent read fDocumentation write SetDocumentation;
     // Select this item when showing.
@@ -195,10 +195,10 @@ type
     property preselect: Boolean read fPreselect write fPreselect;
     // A string that should be used when comparing this item
     // with other items. When `falsy` the label is used.
-    property sortText: string read fSortText write fSortText;
+    property sortText: TOptionalString read fSortText write fSortText;
     // A string that should be used when filtering a set of
     // completion items. When `falsy` the label is used.
-    property filterText: string read fFilterText write fFilterText;
+    property filterText: TOptionalString read fFilterText write fFilterText;
     // A string that should be inserted into a document when selecting
     // this completion. When `falsy` the label is used.
     //
@@ -209,7 +209,7 @@ type
     // `insertText` of `console` is provided it will only insert
     // `sole`. Therefore it is recommended to use `textEdit` instead
     // since it avoids additional client side interpretation.
-    property insertText: string read fInsertText write fInsertText;
+    property insertText: TOptionalString read fInsertText write fInsertText;
     // The format of the insert text. The format applies to both the
     // `insertText` property and the `newText` property of a provided
     // `textEdit`. If omitted defaults to

@@ -376,8 +376,8 @@ type
   private
     fRange: TRange;
     fSeverity: TDiagnosticSeverity;
-    fCode: integer;
-    fSource: string;
+    fCode: TOptionalInteger;
+    fSource: TOptionalString;
     fMessage: string;
     procedure SetRange(AValue: TRange);
   Public
@@ -391,10 +391,10 @@ type
     // client to interpret diagnostics as error, warning, info or hint.
     property severity: TDiagnosticSeverity read fSeverity write fSeverity;
     // The diagnostic's code, which might appear in the user interface.
-    property code: integer read fCode write fCode;
+    property code: TOptionalInteger read fCode write fCode;
     // A human-readable string describing the source of this
     // diagnostic, e.g. 'typescript' or 'super lint'.
-    property source: string read fSource write fSource;
+    property source: TOptionalString read fSource write fSource;
     // The diagnostic's message.
     property message: string read fMessage write fMessage;
 
@@ -1107,7 +1107,8 @@ begin
     Severity:=Src.severity;
     Code:=Src.Code;
     self.Source:=Src.Source;
-    Message:=Src.Source;
+    if Src.source.HasValue then
+      Message:=Src.Source.Value;
     end
   else
     inherited Assign(Source);
@@ -1115,4 +1116,3 @@ end;
 
 
 end.
-  
