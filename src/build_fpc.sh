@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Build pasls using FPC directly (without lazbuild/lpk dependencies)
 #
@@ -19,6 +19,7 @@
 # Environment variables:
 #   LAZARUSDIR   Path to Lazarus source directory (for CodeTools)
 #   FPC          Path to FPC compiler
+#   FPC_CFG      Path to FPC configuration file (should be auto-detected)
 #   FPCUPDELUXE  Path to fpcupdeluxe installation (auto-detects FPC and Lazarus)
 #   FPC_CROSS_UNITS  Additional unit search path for cross-compilation RTL
 #
@@ -79,6 +80,7 @@ show_help() {
     echo "Environment variables:"
     echo "  LAZARUSDIR   Path to Lazarus source directory (for CodeTools)"
     echo "  FPC          Path to FPC compiler"
+    echo "  FPC_CFG      Path to FPC configuration file (should be auto-detected)"
     echo "  FPCUPDELUXE  Path to fpcupdeluxe installation"
     echo "               (auto-detects FPC and Lazarus from this)"
     echo ""
@@ -151,15 +153,14 @@ to_windows_path() {
 # We prefer fpc.sh if available, otherwise use fpc with explicit @fpc.cfg.
 #=============================================================================
 
-# Global: will be set by detect_fpc
-FPC_CFG=""
-
 detect_fpc() {
     # 1. Explicit FPC environment variable
     if [ -n "$FPC" ] && [ -x "$FPC" ]; then
         # Check for fpc.cfg in the same directory
         local fpc_dir=$(dirname "$FPC")
-        [ -f "$fpc_dir/fpc.cfg" ] && FPC_CFG="$fpc_dir/fpc.cfg"
+        if [ ! -n "$FPC_CFG" ] || [ ! -f "$FPC_CFG" ]; then
+            [ -f "$fpc_dir/fpc.cfg" ] && FPC_CFG="$fpc_dir/fpc.cfg"
+        fi
         echo "$FPC"
         return 0
     fi
