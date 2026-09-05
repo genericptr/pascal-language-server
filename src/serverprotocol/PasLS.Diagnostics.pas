@@ -94,6 +94,8 @@ end;
 Procedure TDiagnosticsHandler.AddUserDiagnostic(aTransport: TMessageTransport; UserMessage : String);
 
 begin
+  // Clear previous user message on new message
+  fPublishDiagnostics.ClearUserMessages;
   // Message on stdErr
   aTransport.SendDiagnostic(UserMessage);
   // Actual diagnostic
