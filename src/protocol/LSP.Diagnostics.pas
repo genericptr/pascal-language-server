@@ -85,7 +85,7 @@ type
     procedure Add(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
     procedure ClearCodeToolErrors(fileName: string);
     procedure ClearParserError(fileName: string);
-    procedure ClearUserMessages;    
+    procedure ClearUserMessages;
     procedure Clear(fileName: string);
   end;
 
