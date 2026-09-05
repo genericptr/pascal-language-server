@@ -275,7 +275,7 @@ begin
   if Length(fileName) = 0 then
     for TCollectionItem(Diagnostic) in fUserMessages do
       begin
-        if notIsHaveDiagnostics then
+        if not IsHaveDiagnostics then
           begin
             IsHaveDiagnostics := True;
             Clear(fileName);
