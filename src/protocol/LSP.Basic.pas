@@ -26,7 +26,7 @@ unit LSP.Basic;
 
 interface
 uses
-  FPJson,
+  FPJson, fgl,
   Classes, SysUtils, LSP.BaseTypes, LSP.Messages;
 
 type
@@ -410,6 +410,7 @@ type
   end;
 
   TDiagnosticItems = specialize TGenericCollection<TDiagnostic>;
+  TUriDiagnostics = specialize TFPGMapObject<string, TDiagnosticItems>;
 
   { TCommand
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#command
