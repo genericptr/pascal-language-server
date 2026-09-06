@@ -25,9 +25,9 @@ interface
 
 uses
   { RTL }
-  Classes,
+  Classes, sysutils,
   { Code Tools }
-  CodeToolManager, CodeCache,
+  CodeToolManager, CodeCache, BasicCodeTools, CodeTree,
   { Protocol }
   LSP.Base, LSP.Basic;
 
@@ -48,13 +48,15 @@ function TGotoDefinition.Process(var Params: TTextDocumentPositionParams): TLoca
 var
   Code: TCodeBuffer;
   NewCode: TCodeBuffer;
-  X, Y: Integer;
+  X, Y, AbsPos: Integer;
   NewX, NewY, NewTopLine: integer;
+
 begin with Params do
   begin
     Code := CodeToolBoss.FindFile(textDocument.localPath);
     X := position.character;
     Y := position.line;
+
     { 
       NOTE: Use FindMainDeclaration to skip forward declarations and find
       the main/complete declaration. This is the correct behavior for
@@ -70,11 +72,19 @@ begin with Params do
       
       FindMainDeclaration returns the main declaration location.
     }
-    if CodeToolBoss.FindMainDeclaration(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine) then
+    if IsIdentifier(Code, X + 1, Y + 1) then
       begin
-        Result := TLocation.Create;
-        Result.uri := PathToURI(NewCode.Filename);
-        Result.range := GetIdentifierRangeAtPos(NewCode, NewX, NewY - 1);
+        if CodeToolBoss.FindMainDeclaration(Code, X + 1, Y + 1, NewCode, NewX, NewY, NewTopLine) then
+          begin
+            Result := TLocation.Create;
+            Result.uri := PathToURI(NewCode.Filename);
+            Result.range := GetIdentifierRangeAtPos(NewCode, NewX, NewY - 1);
+          end
+        else
+          begin
+            Result := nil;
+            PublishCodeToolsError(Transport,'');
+          end;
       end
     else
       begin

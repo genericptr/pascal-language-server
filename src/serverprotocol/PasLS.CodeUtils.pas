@@ -29,7 +29,7 @@ uses
   SysUtils, Classes, FPJSON,
   { CodeTools }
   CodeCache, CodeTree, PascalReaderTool, PascalParserTool, IdentCompletionTool, BasicCodeTools,
-  CodeToolManager,
+  CodeToolManager, CodeAtom,
   { LazUtils }
   FileUtil,
   { Pasls }
@@ -68,6 +68,7 @@ type
     end;
 
 { Functions }
+function IsIdentifier(CodeBuffer: TCodeBuffer; X, Y: Integer): Boolean; 
 function GetIdentifierAtPos(Tool: TPascalReaderTool; StartPos: Longint; aSkipAmp: Boolean = true; IncludeDot: Boolean = false; IncludeOps: Boolean = false): String;
 function GetIdentifierRangeAtPos(Code: TCodeBuffer; X, Y: Integer): TRange;
 function FindIdentifierClass(Identifier: TIdentifierListItem): ShortString;
@@ -85,6 +86,46 @@ function ConvertBytesToHumanReadable(bytes: cardinal): ShortString;
 procedure GetProjectUnits(const MainFilename: String; Files: TStrings; PreLoad: Boolean; Transport: TMessageTransport = nil);
 
 implementation
+
+function IsIdentifier(CodeBuffer: TCodeBuffer; X, Y: Integer): Boolean; 
+var
+  IsString, IsComment, isKeyword: Boolean;
+  CursorPos: TCodeXYPosition;
+  CodeTool: TCodeTool;
+  SameArea: TAtomPosition;
+  CleanPos: integer;
+begin
+  IsString := False;
+  IsComment := False;
+  isKeyword := False;
+
+  CursorPos.Code := CodeBuffer;
+  CursorPos.X := X;
+  CursorPos.Y := Y;
+  CodeTool:=TCodeTool(CodeToolBoss.FindCodeToolForSource(CodeBuffer));
+
+  if CodeTool.CaretToCleanPos(CursorPos, CleanPos) <> 0 then
+    exit;
+
+  CodeTool.BuildTreeAndGetCleanPos(CursorPos, CleanPos);
+  CodeTool.GetCleanPosInfo(-1, CleanPos, false, SameArea);
+  
+  if SameArea.Flag = cafNone then
+    IsComment := (SameArea.StartPos <= CleanPos) and (CleanPos < SameArea.EndPos);
+
+  if not IsComment then
+    begin
+      CodeTool.MoveCursorToCleanPos(SameArea.StartPos);
+      CodeTool.ReadNextAtom;
+      
+      if CodeTool.AtomIsStringConstant then
+        IsString := True
+      else if CodeTool.StringIsKeyWord(CodeTool.GetAtom) then
+        isKeyword := True;
+    end;
+
+  Result := not (IsString or isKeyword or IsComment);
+end;
 
 function GetIdentifierRangeAtPos(Code: TCodeBuffer; X, Y: Integer): TRange;
 var
