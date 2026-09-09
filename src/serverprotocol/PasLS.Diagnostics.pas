@@ -27,7 +27,7 @@ uses
   { RTL }
   Classes, Types,
   { Code Tools }
-  CodeToolManager, CodeCache,
+  CodeToolManager, CodeCache, CodeTree, CodeAtom,
   { Protocol }
   LSP.BaseTypes, LSP.Base, LSP.Basic, LSP.Window, LSP.Messages, LSP.Diagnostics;
 
@@ -247,8 +247,6 @@ Var
   Reporter : TErrorReporter;
 
 begin
-  fPublishDiagnostics.ClearParserError(Code.FileName);
-  
   Args:=[];
   Result:=False;
   Module:=nil;
@@ -290,6 +288,8 @@ begin
     exit;
   // Check code. These routines will possibly send messages to a window or stdout, depending on settings.
   fPublishDiagnostics.ClearCodeToolErrors(Code.Filename);
+  fPublishDiagnostics.ClearParserError(Code.Filename);
+  
   CodeOk:=CodeToolsCheckSyntax(aTransport,Code);
   if CodeOK then
       CodeOK:=StrictSyntaxCheck(aTransport,Code);
@@ -302,14 +302,102 @@ function TDiagnosticsHandler.CodeToolsCheckSyntax(aTransport : TMessageTransport
 
 var
   Tool: TCodeTool;
+  Node: TCodeTreeNode;
+  Identifier: string;
+  CursorPos: TCodeXYPosition;
+  NewCode: TCodeBuffer;
+  NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: Integer;
+
+
+  function IsIdentifier(CodeBuffer: TCodeBuffer; X, Y: Integer): Boolean; 
+  var
+    IsString, IsComment, isKeyword: Boolean;
+    CursorPos: TCodeXYPosition;
+    CodeTool: TCodeTool;
+    SameArea: TAtomPosition;
+    CleanPos: integer;
+  begin
+    IsString := False;
+    IsComment := False;
+    isKeyword := False;
+  
+    CursorPos.Code := CodeBuffer;
+    CursorPos.X := X;
+    CursorPos.Y := Y;
+    CodeTool:=TCodeTool(CodeToolBoss.FindCodeToolForSource(CodeBuffer));
+  
+    if CodeTool.CaretToCleanPos(CursorPos, CleanPos) <> 0 then
+      exit;
+  
+    CodeTool.BuildTreeAndGetCleanPos(CursorPos, CleanPos);
+    CodeTool.GetCleanPosInfo(-1, CleanPos, false, SameArea);
+    
+    if SameArea.Flag = cafNone then
+      IsComment := (SameArea.StartPos <= CleanPos) and (CleanPos < SameArea.EndPos);
+  
+    if not IsComment then
+      begin
+        CodeTool.MoveCursorToCleanPos(SameArea.StartPos);
+        CodeTool.ReadNextAtom;
+        
+        if CodeTool.AtomIsStringConstant then
+          IsString := True
+        else if CodeTool.StringIsKeyWord(CodeTool.GetAtom) then
+          isKeyword := True;
+      end;
+  
+    Result := not (IsString or isKeyword or IsComment);
+  end;
 
 begin
   // Check for errors.
   Result:=CodeToolBoss.Explore(Code,Tool,true);
 
   if not Result then
-    // Errors found ? Publish them.
-    AddCodeToolError(aTransport);
+    begin
+      // Errors found ? Publish them.
+      AddCodeToolError(aTransport);
+      Exit;
+    end;
+
+    Node := Tool.Tree.Root;
+    while Node <> nil do 
+      begin
+        if Node.Desc = ctnIdentifier then
+          begin
+            Identifier := Tool.GetNodeIdentifier(Node);
+            Tool.CleanPosToCaret(Node.StartPos, CursorPos);
+            if IsIdentifier(Code, CursorPos.X, CursorPos.Y) then
+              begin
+                if not CodeToolBoss.FindDeclaration(
+                  Code, 
+                  CursorPos.X, 
+                  CursorPos.Y, 
+                  NewCode,
+                  NewX, 
+                  NewY, 
+                  NewTopLine, 
+                  BlockTopLine, 
+                  BlockBottomLine
+                ) then
+                  begin
+                    AddCodeToolError(aTransport);
+                  end;
+              end;
+          end;
+
+        if Node.FirstChild <> nil then
+          Node := Node.FirstChild
+        else if Node.NextBrother <> nil then
+          Node := Node.NextBrother
+        else 
+          begin
+            while (Node <> nil) and (Node.NextBrother = nil) do
+              Node := Node.Parent;
+            if Node <> nil then
+              Node := Node.NextBrother;
+          end;
+      end;
 end;
 
 procedure TDiagnosticsHandler.AddParserError(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);

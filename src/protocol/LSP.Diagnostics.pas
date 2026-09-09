@@ -159,6 +159,7 @@ procedure TPublishDiagnostics.AddCodeToolError(
 var
   CodeToolErrorsDiagnostics: TDiagnosticItems;
   Diagnostic: TDiagnostic;
+  i: Integer;
 begin
   DiagnosticParams.uri := PathToURI(fileName);
   if not fCodeToolErrors.
@@ -169,7 +170,20 @@ begin
       fCodeToolErrors.Add(DiagnosticParams.uri, CodeToolErrorsDiagnostics);
     end;
 
-  Diagnostic := CodeToolErrorsDiagnostics.Add;
+  i := 0;
+  while i < CodeToolErrorsDiagnostics.Count do
+    begin
+      Diagnostic := CodeToolErrorsDiagnostics.Items[i];
+      if Diagnostic.range.InRange(line, column) then
+        Break;
+      Inc(i);
+    end;
+
+  if i >= CodeToolErrorsDiagnostics.Count then
+    begin
+      Diagnostic := CodeToolErrorsDiagnostics.Add;
+    end;
+    
   Diagnostic.range.SetRange(line, column);
   Diagnostic.severity := severity;
   Diagnostic.code := code;
