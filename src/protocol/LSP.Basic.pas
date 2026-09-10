@@ -379,7 +379,7 @@ type
     fSeverity: TDiagnosticSeverity;
     fCode: TOptionalInteger;
     fSource: TOptionalString;
-    fMessage: string;
+    fMessage: TOptionalString;
     procedure SetRange(AValue: TRange);
   Public
     Constructor Create(ACollection: TCollection); override;
@@ -397,7 +397,7 @@ type
     // diagnostic, e.g. 'typescript' or 'super lint'.
     property source: TOptionalString read fSource write fSource;
     // The diagnostic's message.
-    property message: string read fMessage write fMessage;
+    property message: TOptionalString read fMessage write fMessage;
 
     // Additional metadata about the diagnostic.
     // @since 3.15.0
@@ -1119,9 +1119,15 @@ begin
     Range:=Src.Range;
     Severity:=Src.severity;
     Code:=Src.Code;
-    self.Source:=Src.Source;
     if Src.source.HasValue then
-      Message:=Src.Source.Value;
+      self.Source:=Src.Source.Value
+    else 
+      self.Source:=Nil;
+    
+    if Src.message.HasValue then
+      self.message:=Src.message.Value
+    else 
+      self.message:=Nil;
     end
   else
     inherited Assign(Source);
