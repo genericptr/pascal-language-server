@@ -27,7 +27,8 @@ uses
   { RTL }
   Classes, Types,
   { Code Tools }
-  CodeToolManager, CodeCache, CodeTree, CodeAtom,
+  CodeToolManager, CodeCache, CodeTree, CodeAtom, 
+  BasicCodeTools, PascalReaderTool, PascalParserTool,
   { Protocol }
   LSP.BaseTypes, LSP.Base, LSP.Basic, LSP.Window, LSP.Messages, LSP.Diagnostics;
 
@@ -49,6 +50,18 @@ Type
     procedure CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
     procedure SendDiagnosticMessage(aTransport : TMessageTransport; UserMessage: String = '');
     procedure AddParserError(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
+  end;
+
+  TIdentifierGatherer = class
+  private
+    FIdentifiers: TStrings;
+    procedure OnIdentifierFound(Sender: TPascalParserTool;
+      IdentifierCleanPos: integer; Range: TEPRIRange;
+      Node: TCodeTreeNode; Data: Pointer; var Abort: boolean;
+      RefsStart: integer);
+  public
+    constructor Create(AIdentifiers: TStrings);
+    procedure Gather(Tool: TPascalReaderTool);
   end;
 
 Function DiagnosticsHandler : TDiagnosticsHandler;
@@ -303,51 +316,8 @@ function TDiagnosticsHandler.CodeToolsCheckSyntax(aTransport : TMessageTransport
 var
   Tool: TCodeTool;
   Node: TCodeTreeNode;
-  Identifier: string;
-  CursorPos: TCodeXYPosition;
-  NewCode: TCodeBuffer;
-  NewX, NewY, NewTopLine, BlockTopLine, BlockBottomLine: Integer;
-
-
-  function IsIdentifier(CodeBuffer: TCodeBuffer; X, Y: Integer): Boolean; 
-  var
-    IsString, IsComment, isKeyword: Boolean;
-    CursorPos: TCodeXYPosition;
-    CodeTool: TCodeTool;
-    SameArea: TAtomPosition;
-    CleanPos: integer;
-  begin
-    IsString := False;
-    IsComment := False;
-    isKeyword := False;
-  
-    CursorPos.Code := CodeBuffer;
-    CursorPos.X := X;
-    CursorPos.Y := Y;
-    CodeTool:=TCodeTool(CodeToolBoss.FindCodeToolForSource(CodeBuffer));
-  
-    if CodeTool.CaretToCleanPos(CursorPos, CleanPos) <> 0 then
-      exit;
-  
-    CodeTool.BuildTreeAndGetCleanPos(CursorPos, CleanPos);
-    CodeTool.GetCleanPosInfo(-1, CleanPos, false, SameArea);
-    
-    if SameArea.Flag = cafNone then
-      IsComment := (SameArea.StartPos <= CleanPos) and (CleanPos < SameArea.EndPos);
-  
-    if not IsComment then
-      begin
-        CodeTool.MoveCursorToCleanPos(SameArea.StartPos);
-        CodeTool.ReadNextAtom;
-        
-        if CodeTool.AtomIsStringConstant then
-          IsString := True
-        else if CodeTool.StringIsKeyWord(CodeTool.GetAtom) then
-          isKeyword := True;
-      end;
-  
-    Result := not (IsString or isKeyword or IsComment);
-  end;
+  Identifiers: TStringList;
+  Gatherer: TIdentifierGatherer;
 
 begin
   // Check for errors.
@@ -360,49 +330,44 @@ begin
       Exit;
     end;
 
-    Node := Tool.Tree.Root;
-    while Node <> nil do 
-      begin
-        if Node.Desc = ctnIdentifier then
-          begin
-            Identifier := Tool.GetNodeIdentifier(Node);
-            Tool.CleanPosToCaret(Node.StartPos, CursorPos);
-            if IsIdentifier(Code, CursorPos.X, CursorPos.Y) then
-              begin
-                if not CodeToolBoss.FindDeclaration(
-                  Code, 
-                  CursorPos.X, 
-                  CursorPos.Y, 
-                  NewCode,
-                  NewX, 
-                  NewY, 
-                  NewTopLine, 
-                  BlockTopLine, 
-                  BlockBottomLine
-                ) then
-                  begin
-                    AddCodeToolError(aTransport);
-                  end;
-              end;
-          end;
+  try
+    Identifiers := TStringList.Create;
+    Gatherer := TIdentifierGatherer.Create(Identifiers);
+    Gatherer.Gather(Tool);
 
-        if Node.FirstChild <> nil then
-          Node := Node.FirstChild
-        else if Node.NextBrother <> nil then
-          Node := Node.NextBrother
-        else 
-          begin
-            while (Node <> nil) and (Node.NextBrother = nil) do
-              Node := Node.Parent;
-            if Node <> nil then
-              Node := Node.NextBrother;
-          end;
-      end;
+    Identifiers.Delimiter := ',';
+    aTransport.SendDiagnostic('===theoi: %s', [Identifiers.DelimitedText]);
+  finally
+    Gatherer.Free;
+    Identifiers.Free;
+  end;
 end;
 
 procedure TDiagnosticsHandler.AddParserError(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
 begin
   fPublishDiagnostics.AddParserError(fileName, message, line, column, code, severity);
+end;
+
+constructor TIdentifierGatherer.Create(AIdentifiers: TStrings);
+begin
+  FIdentifiers := AIdentifiers;
+end;
+ 
+procedure TIdentifierGatherer.OnIdentifierFound(Sender: TPascalParserTool;
+  IdentifierCleanPos: integer; Range: TEPRIRange;
+  Node: TCodeTreeNode; Data: Pointer; var Abort: boolean;
+  RefsStart: integer);
+var
+  IdentifierStr: string;
+begin
+  IdentifierStr := GetIdentifier(@Sender.Src[IdentifierCleanPos]);
+  if IdentifierStr <> '' then
+    FIdentifiers.Add(IdentifierStr);
+end;
+ 
+procedure TIdentifierGatherer.Gather(Tool: TPascalReaderTool);
+begin
+  Tool.ForEachIdentifier(true, @OnIdentifierFound, nil, 0);
 end;
 
 Initialization
