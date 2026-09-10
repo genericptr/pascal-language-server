@@ -56,10 +56,17 @@ Type
   TIdentifierGatherer = class
   private
     FIdentifiers: TCodeXYPositions;
+    {$if FPC_FULLVERSION >= 30301}
     procedure OnIdentifierFound(Sender: TPascalParserTool;
       IdentifierCleanPos: integer; Range: TEPRIRange;
       Node: TCodeTreeNode; Data: Pointer; var Abort: boolean;
       RefsStart: integer);
+    {$else}
+    procedure OnIdentifierFound(Sender: TPascalParserTool;
+          IdentifierCleanPos: integer; Range: TEPRIRange;
+          Node: TCodeTreeNode; Data: Pointer; var Abort: boolean);
+    {$endif}
+
   public
     constructor Create(AIdentifiers: TCodeXYPositions);
     procedure Gather(Tool: TPascalReaderTool);
@@ -328,14 +335,11 @@ begin
   Result:=CodeToolBoss.Explore(Code,Tool,true);
 
   if not Result then
-    begin
       // Errors found ? Publish them.
       AddCodeToolError(aTransport);
-      Exit;
-    end;
 
   try
-    IdentifiersPos := TCodeXYPositions.Create;
+    IdentifiersPos := TCodeXYPositions.Create
     Gatherer := TIdentifierGatherer.Create(IdentifiersPos);
     Gatherer.Gather(Tool);
 
@@ -364,11 +368,19 @@ constructor TIdentifierGatherer.Create(AIdentifiers: TCodeXYPositions);
 begin
   FIdentifiers := AIdentifiers;
 end;
- 
+
+{$if FPC_FULLVERSION >= 30301}
 procedure TIdentifierGatherer.OnIdentifierFound(Sender: TPascalParserTool;
   IdentifierCleanPos: integer; Range: TEPRIRange;
   Node: TCodeTreeNode; Data: Pointer; var Abort: boolean;
   RefsStart: integer);
+{$else}
+procedure TIdentifierGatherer.OnIdentifierFound(Sender: TPascalParserTool;
+  IdentifierCleanPos: integer; Range: TEPRIRange;
+  Node: TCodeTreeNode; Data: Pointer; var Abort: boolean);
+{$endif}
+
+
 var
   IdentifierStr: string;
   CodeTool: TCodeTool;
@@ -378,7 +390,7 @@ begin
   if not (Sender is TCodeTool) then
     Exit;
   
-  CodeTool := TCodeTool(Sender);
+  CodeTool := TCodeTool(Sender)
   if CodeTool.CleanPosToCaretAndTopLine(IdentifierCleanPos, IdentifierPos, NewTopLine) then
     begin
       IdentifierStr := GetIdentifier(@Sender.Src[IdentifierCleanPos]);
@@ -391,7 +403,11 @@ end;
  
 procedure TIdentifierGatherer.Gather(Tool: TPascalReaderTool);
 begin
+{$if FPC_FULLVERSION >= 30301}
   Tool.ForEachIdentifier(true, @OnIdentifierFound, nil, 0);
+{$else}
+  Tool.ForEachIdentifier(true, @OnIdentifierFound, nil);
+{$endif}
 end;
 
 Initialization
