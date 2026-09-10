@@ -339,7 +339,7 @@ begin
       AddCodeToolError(aTransport);
 
   try
-    IdentifiersPos := TCodeXYPositions.Create
+    IdentifiersPos := TCodeXYPositions.Create;
     Gatherer := TIdentifierGatherer.Create(IdentifiersPos);
     Gatherer.Gather(Tool);
 
@@ -390,7 +390,7 @@ begin
   if not (Sender is TCodeTool) then
     Exit;
   
-  CodeTool := TCodeTool(Sender)
+  CodeTool := TCodeTool(Sender);
   if CodeTool.CleanPosToCaretAndTopLine(IdentifierCleanPos, IdentifierPos, NewTopLine) then
     begin
       IdentifierStr := GetIdentifier(@Sender.Src[IdentifierCleanPos]);
