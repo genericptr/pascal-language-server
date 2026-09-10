@@ -25,11 +25,12 @@ interface
 
 uses
   { RTL }
-  Classes, Types,
+  Classes, Types, fgl,
   { Code Tools }
   CodeToolManager, CodeCache, CodeTree, CodeAtom, 
   BasicCodeTools, PascalReaderTool, PascalParserTool,
   { Protocol }
+  PasLS.CodeUtils,
   LSP.BaseTypes, LSP.Base, LSP.Basic, LSP.Window, LSP.Messages, LSP.Diagnostics;
 
 Type
@@ -54,13 +55,13 @@ Type
 
   TIdentifierGatherer = class
   private
-    FIdentifiers: TStrings;
+    FIdentifiers: TCodeXYPositions;
     procedure OnIdentifierFound(Sender: TPascalParserTool;
       IdentifierCleanPos: integer; Range: TEPRIRange;
       Node: TCodeTreeNode; Data: Pointer; var Abort: boolean;
       RefsStart: integer);
   public
-    constructor Create(AIdentifiers: TStrings);
+    constructor Create(AIdentifiers: TCodeXYPositions);
     procedure Gather(Tool: TPascalReaderTool);
   end;
 
@@ -316,8 +317,11 @@ function TDiagnosticsHandler.CodeToolsCheckSyntax(aTransport : TMessageTransport
 var
   Tool: TCodeTool;
   Node: TCodeTreeNode;
-  Identifiers: TStringList;
+  IdentifiersPos: TCodeXYPositions;
   Gatherer: TIdentifierGatherer;
+  NewCode: TCodeBuffer;
+  NewX, NewY, NewTopLine: integer;
+  i: Integer;
 
 begin
   // Check for errors.
@@ -331,15 +335,23 @@ begin
     end;
 
   try
-    Identifiers := TStringList.Create;
-    Gatherer := TIdentifierGatherer.Create(Identifiers);
+    IdentifiersPos := TCodeXYPositions.Create;
+    Gatherer := TIdentifierGatherer.Create(IdentifiersPos);
     Gatherer.Gather(Tool);
 
-    Identifiers.Delimiter := ',';
-    aTransport.SendDiagnostic('===theoi: %s', [Identifiers.DelimitedText]);
+    for i := 0 to IdentifiersPos.Count - 1 do
+      begin
+        with IdentifiersPos.Items[i]^ do
+          begin
+            if CodeToolBoss.FindMainDeclaration(Code, X, Y, NewCode, NewX, NewY, NewTopLine) then
+              Continue
+            else
+              AddCodeToolError(aTransport);
+          end;
+      end
   finally
     Gatherer.Free;
-    Identifiers.Free;
+    IdentifiersPos.Free;
   end;
 end;
 
@@ -348,7 +360,7 @@ begin
   fPublishDiagnostics.AddParserError(fileName, message, line, column, code, severity);
 end;
 
-constructor TIdentifierGatherer.Create(AIdentifiers: TStrings);
+constructor TIdentifierGatherer.Create(AIdentifiers: TCodeXYPositions);
 begin
   FIdentifiers := AIdentifiers;
 end;
@@ -359,28 +371,20 @@ procedure TIdentifierGatherer.OnIdentifierFound(Sender: TPascalParserTool;
   RefsStart: integer);
 var
   IdentifierStr: string;
-  codeTool: TCodeTool;
-  IdentifierPos, NewPos: TCodeXYPosition;
+  CodeTool: TCodeTool;
+  IdentifierPos: TCodeXYPosition;
   NewTopLine: Integer;
 begin
-  IdentifierStr := GetIdentifier(@Sender.Src[IdentifierCleanPos]);
-  if IdentifierStr <> '' then
+  if not (Sender is TCodeTool) then
+    Exit;
+  
+  CodeTool := TCodeTool(Sender);
+  if CodeTool.CleanPosToCaretAndTopLine(IdentifierCleanPos, IdentifierPos, NewTopLine) then
     begin
-      codeTool := TCodeTool(Sender);
-      codeTool.MoveCursorToCleanPos(IdentifierCleanPos);
-      codeTool.ReadNextAtom;
-      if not (codeTool.AtomIsStringConstant or codeTool.StringIsKeyWord(codeTool.GetAtom)) and 
-        codetool.CleanPosToCaretAndTopLine(IdentifierCleanPos, IdentifierPos, NewTopLine) then
+      IdentifierStr := GetIdentifier(@Sender.Src[IdentifierCleanPos]);
+      if IdentifierStr <> '' then
         begin
-          try
-            if not codeTool.FindMainDeclaration(IdentifierPos,NewPos,NewTopLine) then 
-              begin
-                FIdentifiers.Add(IdentifierStr);
-              end;
-          except
-            on e: Exception do
-              FIdentifiers.Add(IdentifierStr);
-          end;
+          FIdentifiers.Add(IdentifierPos);
         end;
     end;
 end;
