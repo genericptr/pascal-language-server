@@ -359,10 +359,30 @@ procedure TIdentifierGatherer.OnIdentifierFound(Sender: TPascalParserTool;
   RefsStart: integer);
 var
   IdentifierStr: string;
+  codeTool: TCodeTool;
+  IdentifierPos, NewPos: TCodeXYPosition;
+  NewTopLine: Integer;
 begin
   IdentifierStr := GetIdentifier(@Sender.Src[IdentifierCleanPos]);
   if IdentifierStr <> '' then
-    FIdentifiers.Add(IdentifierStr);
+    begin
+      codeTool := TCodeTool(Sender);
+      codeTool.MoveCursorToCleanPos(IdentifierCleanPos);
+      codeTool.ReadNextAtom;
+      if not (codeTool.AtomIsStringConstant or codeTool.StringIsKeyWord(codeTool.GetAtom)) and 
+        codetool.CleanPosToCaretAndTopLine(IdentifierCleanPos, IdentifierPos, NewTopLine) then
+        begin
+          try
+            if not codeTool.FindMainDeclaration(IdentifierPos,NewPos,NewTopLine) then 
+              begin
+                FIdentifiers.Add(IdentifierStr);
+              end;
+          except
+            on e: Exception do
+              FIdentifiers.Add(IdentifierStr);
+          end;
+        end;
+    end;
 end;
  
 procedure TIdentifierGatherer.Gather(Tool: TPascalReaderTool);
