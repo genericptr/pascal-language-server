@@ -26,7 +26,7 @@ unit LSP.Basic;
 
 interface
 uses
-  FPJson,
+  FPJson, fgl,
   Classes, SysUtils, LSP.BaseTypes, LSP.Messages;
 
 type
@@ -78,6 +78,7 @@ type
     constructor Create(startLine, startColumn: integer; endLine, endColumn: integer); overload;
     Procedure  SetRange(line, column: integer; len: integer = 0); overload;
     Procedure  SetRange(startLine, startColumn: integer; endLine, endColumn: integer); overload;
+    function  InRange(line, column: integer; len: integer = 0): Boolean;
     Destructor destroy; override;
     Procedure Assign(Source : TPersistent); override;
     function ToString: String; override;
@@ -378,7 +379,7 @@ type
     fSeverity: TDiagnosticSeverity;
     fCode: TOptionalInteger;
     fSource: TOptionalString;
-    fMessage: string;
+    fMessage: TOptionalString;
     procedure SetRange(AValue: TRange);
   Public
     Constructor Create(ACollection: TCollection); override;
@@ -396,7 +397,7 @@ type
     // diagnostic, e.g. 'typescript' or 'super lint'.
     property source: TOptionalString read fSource write fSource;
     // The diagnostic's message.
-    property message: string read fMessage write fMessage;
+    property message: TOptionalString read fMessage write fMessage;
 
     // Additional metadata about the diagnostic.
     // @since 3.15.0
@@ -410,6 +411,7 @@ type
   end;
 
   TDiagnosticItems = specialize TGenericCollection<TDiagnostic>;
+  TUriDiagnostics = specialize TFPGMapObject<string, TDiagnosticItems>;
 
   { TCommand
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#command
@@ -976,6 +978,17 @@ begin
   fEnd.Character:=endColumn;
 end;
 
+function TRange.InRange(line, column: integer; len: integer): Boolean;
+begin
+  Result := ((fStart.line < line) and (fEnd.line > line)) or 
+    ((fStart.line = line) and (fStart.character <= column) and 
+      ((fEnd.line > line) or (fEnd.character >= column))
+    ) or
+    ((fEnd.line = line) and (fEnd.character >= column) and 
+      ((fStart.line < line) or (fStart.character <= column))
+    );
+end;
+
 destructor TRange.destroy;
 begin
   FreeAndNil(fStart);
@@ -1106,9 +1119,15 @@ begin
     Range:=Src.Range;
     Severity:=Src.severity;
     Code:=Src.Code;
-    self.Source:=Src.Source;
     if Src.source.HasValue then
-      Message:=Src.Source.Value;
+      self.Source:=Src.Source.Value
+    else 
+      self.Source:=Nil;
+    
+    if Src.message.HasValue then
+      self.message:=Src.message.Value
+    else 
+      self.message:=Nil;
     end
   else
     inherited Assign(Source);
