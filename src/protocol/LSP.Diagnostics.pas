@@ -252,7 +252,6 @@ procedure TPublishDiagnostics.SendDiagnostics(
   );
 var
   Diagnostic, sentDiagnostic: TDiagnostic;
-  IsHaveDiagnostics: Boolean;
 
   procedure IterateDiagnosticItems(uriDiagnostics: TUriDiagnostics);
   var
@@ -268,17 +267,11 @@ var
 
     for TCollectionItem(Diagnostic) in DiagnosticItems do
       begin
-        if not IsHaveDiagnostics then
-          begin
-            IsHaveDiagnostics := True;
-            Clear(fileName);
-          end;
         sentDiagnostic := DiagnosticParams.diagnostics.Add;
         sentDiagnostic.Assign(Diagnostic);
       end;
   end;
 begin
-  IsHaveDiagnostics := False;
   DiagnosticParams.diagnostics.Clear;
     // loop over all fCodeToolErrors[fileName] and fParserErrors[fileName]
     // add to DiagnosticParams.diagnostics
@@ -289,11 +282,6 @@ begin
   if Length(fileName) = 0 then
     for TCollectionItem(Diagnostic) in fUserMessages do
       begin
-        if not IsHaveDiagnostics then
-          begin
-            IsHaveDiagnostics := True;
-            Clear(fileName);
-          end;
         sentDiagnostic := DiagnosticParams.diagnostics.Add;
         sentDiagnostic.Assign(Diagnostic);
       end;
