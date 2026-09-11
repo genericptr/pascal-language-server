@@ -271,20 +271,28 @@ var
         sentDiagnostic.Assign(Diagnostic);
       end;
   end;
+  
 begin
   DiagnosticParams.diagnostics.Clear;
-    // loop over all fCodeToolErrors[fileName] and fParserErrors[fileName]
-    // add to DiagnosticParams.diagnostics
-  IterateDiagnosticItems(fCodeToolErrors);
-  IterateDiagnosticItems(fParserErrors);
-
     // if fUserMessages.count > 0 add to DiagnosticParams.diagnostics
   if Length(fileName) = 0 then
-    for TCollectionItem(Diagnostic) in fUserMessages do
-      begin
-        sentDiagnostic := DiagnosticParams.diagnostics.Add;
-        sentDiagnostic.Assign(Diagnostic);
-      end;
+    begin
+      DiagnosticParams.uri := '';
+      for TCollectionItem(Diagnostic) in fUserMessages do
+        begin
+          sentDiagnostic := DiagnosticParams.diagnostics.Add;
+          sentDiagnostic.Assign(Diagnostic);
+        end;
+    end
+  else
+    begin
+      DiagnosticParams.uri := PathToURI(fileName);
+
+        // loop over all fCodeToolErrors[fileName] and fParserErrors[fileName]
+        // add to DiagnosticParams.diagnostics
+      IterateDiagnosticItems(fCodeToolErrors);
+      IterateDiagnosticItems(fParserErrors);
+    end;
 
   Send(aTransport);
 end;
