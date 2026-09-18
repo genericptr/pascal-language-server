@@ -252,13 +252,19 @@ var
   I: Integer;
   FPCOptions: TStringArray;
 begin
-  if Params.clientInfo.version.HasValue then
+  // clientInfo is optional in the LSP spec and TClientInfo.version is
+  // not auto-created, so both must be checked before use
+  if (Params.clientInfo <> nil) and (Params.clientInfo.version <> nil)
+     and Params.clientInfo.version.HasValue then
     clientInfoVersion := ' ' + Params.clientInfo.version.Value
   else
     clientInfoVersion := '';
 
   DoLog(kStatusPrefix+'Server: ' + {$INCLUDE %DATE%});
-  DoLog(kStatusPrefix+'Client: ' + Params.clientInfo.name + clientInfoVersion);
+  if Params.clientInfo <> nil then
+    DoLog(kStatusPrefix+'Client: ' + Params.clientInfo.name + clientInfoVersion)
+  else
+    DoLog(kStatusPrefix+'Client: [unspecified]');
 
   DoLog(kStatusPrefix+'FPCPath: ' + CodeToolsOptions.FPCPath);
   DoLog(kStatusPrefix+'FPCSrcDir: ' + CodeToolsOptions.FPCSrcDir);
