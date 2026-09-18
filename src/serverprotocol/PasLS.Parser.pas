@@ -125,7 +125,15 @@ begin
     else
       aCode:=-1;
     With FParser.CurSourcePos do
-      FOnError(Self,aContext.Error.Message,FileName,aCode, Row,Column);
+      begin
+      // scanner errors (e.g. include file not found) fire before the parser
+      // advanced, CurSourcePos is still empty (Line=0, Column=0, FileName='') -
+      // fall back to the buffer filename so the diagnostic keeps a valid URI
+      if FileName='' then
+        FOnError(Self,aContext.Error.Message,FCode.FileName,aCode, Row,Column)
+      else
+        FOnError(Self,aContext.Error.Message,FileName,aCode, Row,Column);
+      end;
     end;
 end;
 {$ENDIF}
@@ -274,15 +282,18 @@ begin
         begin
         FreeAndNil(Result);
         if Assigned(FOnError) then
-          With FParser.CurSourcePos do
-             begin
-             aCode:=-1;
-             {$IFDEF MULTIERROR}
-             if E is EParserError then
-               aCode:=EParserError(E).ErrNo;
-             {$ENDIF}
-             FOnError(Self,E.Message,FileName,aCode,Row,Column);
-             end;
+          begin
+          aCode:=-1;
+          {$IFDEF MULTIERROR}
+          if E is EParserError then
+            aCode:=EParserError(E).ErrNo;
+          {$ENDIF}
+          // note: no "with FParser.CurSourcePos do" here - its FileName field is
+          // empty for scanner errors (e.g. include file not found) and would
+          // shadow the local Filename, producing diagnostics with a broken URI
+          FOnError(Self,E.Message,Filename,aCode,
+                   FParser.CurSourcePos.Row,FParser.CurSourcePos.Column);
+          end;
         end;
     end;
   finally
