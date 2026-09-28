@@ -252,13 +252,20 @@ var
   I: Integer;
   FPCOptions: TStringArray;
 begin
-  if Params.clientInfo.version.HasValue then
+  // clientInfo and its version are optional in the LSP spec; both may be
+  // nil here (TOptionalString is a class that stays nil when the client
+  // omits the field), so guard before dereferencing.
+  if Assigned(Params.clientInfo) and Assigned(Params.clientInfo.version)
+     and Params.clientInfo.version.HasValue then
     clientInfoVersion := ' ' + Params.clientInfo.version.Value
   else
     clientInfoVersion := '';
 
   DoLog(kStatusPrefix+'Server: ' + {$INCLUDE %DATE%});
-  DoLog(kStatusPrefix+'Client: ' + Params.clientInfo.name + clientInfoVersion);
+  if Assigned(Params.clientInfo) then
+    DoLog(kStatusPrefix+'Client: ' + Params.clientInfo.name + clientInfoVersion)
+  else
+    DoLog(kStatusPrefix+'Client: <unknown>');
 
   DoLog(kStatusPrefix+'FPCPath: ' + CodeToolsOptions.FPCPath);
   DoLog(kStatusPrefix+'FPCSrcDir: ' + CodeToolsOptions.FPCSrcDir);
