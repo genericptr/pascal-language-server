@@ -24,7 +24,7 @@ unit PasLS.TextLoop;
 interface
 
 uses
-  Classes, SysUtils, LSP.Base, LSP.Messages, fpjson;
+  Classes, SysUtils, LSP.Base, LSP.Messages, fpjson, PasLS.JSONSignaledQueue;
 
 Type
 
@@ -44,7 +44,16 @@ Type
     Procedure EmitMessage(aMessage: TJSONStringType);
   end;
 
-
+  TRequestReaderThread = class(TThread)
+  private
+    FQueue: TJSONSignaledQueue;
+    FFile: ^Text;
+    FContext: ^TLSPContext;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(AQueue: TJSONSignaledQueue; var aFile : text; var aContext : TLSPContext);
+  end;
 
 Procedure SetupTextLoop(var aInput,aOutput,aError : Text);
 Procedure RunMessageLoop(var aInput,aOutput,aError : Text; aContext : TLSPContext);
@@ -89,40 +98,56 @@ begin
 end;
 
 
+constructor TRequestReaderThread.Create(AQueue: TJSONSignaledQueue; var aFile : text; var aContext : TLSPContext);
+begin
+  inherited Create(False); // Start immediately
+  FQueue := AQueue;
+  FreeOnTerminate := False;
 
-Function ReadRequest(var aFile : text; aContext : TLSPContext) : TJSONData;
+  FFile := @aFile;
+  FContext := @aContext;
+end;
 
+procedure TRequestReaderThread.Execute;
 Var
   Header,Name,Value: String;
   Content : TJSONStringType;
   I,ContentLength : Integer;
   P : PJSONCharType;
+  ContentData: TJSONData;
 
 begin
-  Result:=Nil;
-  aContext.Log('Reading request');
-  ReadLn(aFile,Header);
-  while Header <> '' do
+  while not Terminated and not EOF(FFile^) do
     begin
-      aContext.Log('Read header: %s',[Header]);
-      I := Pos(':', Header);
-      Name := Copy(Header, 1, I - 1);
-      Delete(Header, 1, i);
-      Value := Trim(Header);
-      if Name = 'Content-Length' then
-        ContentLength := StrToIntDef(Value,0);
-      ReadLn(aFile,Header);
+      FContext^.Log('Reading request');
+      ReadLn(FFile^,Header);
+      
+      while Header <> '' do
+        begin
+          FContext^.Log('Read header: %s',[Header]);
+          I := Pos(':', Header);
+          Name := Copy(Header, 1, I - 1);
+          Delete(Header, 1, i);
+          Value := Trim(Header);
+          if Name = 'Content-Length' then
+            ContentLength := StrToIntDef(Value,0);
+          ReadLn(FFile^,Header);
+        end;
+      Content:='';
+      SetLength(Content,ContentLength);
+      P:=PJSONCharType(Content);
+      for I:=1 to ContentLength do
+        begin
+        Read(FFile^,P^);
+        inc(P);
+        end;
+      if Content<>'' then
+        begin
+          ContentData := GetJSON(Content, True);
+          FQueue.Enqueue(ContentData);
+        end;
+      FContext^.Log('Waiting request');
     end;
-  Content:='';
-  SetLength(Content,ContentLength);
-  P:=PJSONCharType(Content);
-  for I:=1 to ContentLength do
-    begin
-    Read(aFile,P^);
-    inc(P);
-    end;
-  if Content<>'' then
-    Result:=GetJSON(Content, True);
 end;
 
 Procedure SendResponse(aTransport : TMessageTransport; aContext : TLSPContext; aResponse : TJSONData; aFreeResponse : Boolean = True);
@@ -150,6 +175,8 @@ end;
 Procedure RunMessageLoop(var aInput,aOutput,aError : Text; aContext : TLSPContext);
 
 var
+  RequestQueue: TJSONSignaledQueue;
+  RequestReader: TRequestReaderThread;
   Request, Response: TJSONData;
   VerboseDebugging: boolean = false;
   IO : TLSPTextTransport;
@@ -158,38 +185,48 @@ begin
   IO:=Nil;
   Request:=Nil;
   try
+    RequestQueue := TJSONSignaledQueue.Create;
+    RequestReader := TRequestReaderThread.Create(RequestQueue, aInput, aContext);
+    
     if aContext.Transport is TLSPTextTransport then
       IO:=aContext.Transport as TLSPTextTransport
     else
       IO:=TLSPTextTransport.Create(@aOutput,@aError);
-    while not EOF(aInput) do
+    while not RequestReader.Finished do
       begin
-      Request:=ReadRequest(aInput,aContext);
-      // log request payload
-      if VerboseDebugging then
-        begin
-          Writeln(aError, Request.FormatJSON);
-          Flush(aError);
-        end;
-      Response := aContext.Execute(Request);
-      if Assigned(Response) then
-        begin
-        // log response payload
-        if VerboseDebugging then
+        if RequestQueue.DequeueWaiting(Request, $FFFFFFFF) then
           begin
-          writeln(aError, Response.asJSON);
-          Flush(aError);
+            // log request payload
+            if VerboseDebugging then
+              begin
+                Writeln(aError, Request.FormatJSON);
+                Flush(aError);
+              end;
+            Response := aContext.Execute(Request);
+            if Assigned(Response) then
+              begin
+              // log response payload
+              if VerboseDebugging then
+                begin
+                writeln(aError, Response.asJSON);
+                Flush(aError);
+                end;
+              SendResponse(IO, aContext, Response,True);
+              end
+            else
+              aContext.Log('No response to request');
+            FreeAndNil(Request);
           end;
-        SendResponse(IO, aContext, Response,True);
-        end
-      else
-        aContext.Log('No response to request');
-      FreeAndNil(Request);
       end;
   finally
     if IO<>aContext.Transport then
       IO.Free;
     Request.Free;
+    RequestReader.Terminate;
+    RequestQueue.SignalShutdown;
+    RequestReader.WaitFor;
+    RequestReader.Free;
+    RequestQueue.Free;
   end;
 end;
 

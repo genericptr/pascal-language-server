@@ -23,6 +23,9 @@ program pasls;
 {$mode objfpc}{$H+}
 
 uses
+  {$IFDEF UNIX}
+  cthreads, // Required for multi-threading on Linux/macOS
+  {$ENDIF}
   {$IFDEF WINDOWS}
   Windows,
   {$ENDIF}
