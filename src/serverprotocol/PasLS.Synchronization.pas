@@ -88,7 +88,7 @@ begin with Params do
         Code.Source := TTextDocumentContentChangeEvent(Change).text;
 
         // Ryan, uncomment this to have a syntax check at
-        // CheckSyntax(Self.Transport,Code);
+        // DiagnosticsHandler.CheckSyntax(Self.Transport,Code);
 
         if SymbolManager <> nil then
           SymbolManager.FileModified(Code);
