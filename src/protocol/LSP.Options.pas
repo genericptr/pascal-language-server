@@ -278,7 +278,7 @@ constructor TTextDocumentSyncOptions.Create;
 begin
   Inherited Create;
   openClose := True;
-  change := TTextDocumentSyncKind.Full;
+  change := TTextDocumentSyncKind.Incremental;
   fSave:=TSaveOptions.Create(False);
 end;
 

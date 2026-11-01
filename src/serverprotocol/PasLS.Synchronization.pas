@@ -64,8 +64,8 @@ procedure TDidChangeTextDocument.Process(var Params : TDidChangeTextDocumentPara
 var
   Code: TCodeBuffer;
   Change: TCollectionItem;
-{  Range: TRange;
-  StartPos, EndPos: integer;}
+  Range: TRange;
+  StartPos, EndPos: integer;
 
 
 begin with Params do
@@ -73,22 +73,18 @@ begin with Params do
     Code := CodeToolBoss.FindFile(textDocument.LocalPath);
     for Change in contentChanges do
       begin
-        // note(ryan): can't get this working yet
-        // and I'm not even sure if it's worth it
-{
         Range := TTextDocumentContentChangeEvent(Change).range;
         if Range <> nil then
           begin
-            //Code.LineColToPosition(Range.start.line + 1, Range.start.character + 1, StartPos);
-            //Code.LineColToPosition(Range.&end.line + 1, Range.&end.character + 1, EndPos);
-            DoLog('insert: %d -> %d  text=%s',[StartPos,EndPos, TTextDocumentContentChangeEvent(Change).text]);
-            //Code.Replace(StartPos, EndPos - StartPos, TTextDocumentContentChangeEvent(Change).text);
+            Code.LineColToPosition(Range.start.line + 1, Range.start.character + 1, StartPos);
+            Code.LineColToPosition(Range.&end.line + 1, Range.&end.character + 1, EndPos);
+            // DoLog('insert: %d -> %d  text=%s',[StartPos,EndPos, TTextDocumentContentChangeEvent(Change).text]);
+            Code.Replace(StartPos, EndPos - StartPos, TTextDocumentContentChangeEvent(Change).text);
           end
-        else }
+        else 
         Code.Source := TTextDocumentContentChangeEvent(Change).text;
 
-        // Ryan, uncomment this to have a syntax check at
-        // CheckSyntax(Self.Transport,Code);
+        DiagnosticsHandler.CheckSyntax(Self.Transport,Code, Range);
 
         if SymbolManager <> nil then
           SymbolManager.FileModified(Code);

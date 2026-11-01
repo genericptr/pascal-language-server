@@ -405,7 +405,7 @@ begin
   fcompletionProvider := TCompletionOptions.Create;
   fsignatureHelpProvider := TSignatureHelpOptions.Create;
   fexecuteCommandProvider := TExecuteCommandOptions.Create;
-  ftextDocumentSync.change := TTextDocumentSyncKind.Full;
+  ftextDocumentSync.change := TTextDocumentSyncKind.Incremental;
   fRenameProvider := TRenameOptions.Create;
 end;
 
