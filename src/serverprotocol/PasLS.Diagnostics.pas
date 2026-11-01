@@ -276,7 +276,7 @@ begin
   else 
   if (CodeToolBoss.ErrorCode<>Nil) then
     begin
-      AddCodeToolLexicalError(aTransport, Code);
+      AddCodeToolSemanticError(aTransport, Code);
       fileName:=CodeToolBoss.ErrorCode.FileName;
     end;
   if not ServerSettings.publishDiagnostics then
@@ -413,7 +413,7 @@ begin
 
   if not Result then
       // Errors found ? Publish them.
-      AddCodeToolLexicalError(aTransport, Code);
+      AddCodeToolSemanticError(aTransport, Code);
 
   try
     IdentifiersPos := TCodeXYPositions.Create;
@@ -427,7 +427,7 @@ begin
             if CodeToolBoss.FindMainDeclaration(Code, X, Y, NewCode, NewX, NewY, NewTopLine) then
               Continue
             else
-              AddCodeToolSemanticError(aTransport, Code);
+              AddCodeToolLexicalError(aTransport, Code);
           end;
       end
   finally
