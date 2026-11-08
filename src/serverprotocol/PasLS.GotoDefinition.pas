@@ -79,7 +79,7 @@ begin with Params do
     else
       begin
         Result := nil;
-        PublishCodeToolsError(Transport,'');
+        PublishCodeToolsError(Transport,'', Code);
       end;
   end;
 end;
