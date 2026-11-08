@@ -85,7 +85,9 @@ type
     procedure AddParserError(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
     procedure AddUserMessage(message: string; line, column, code: integer; severity: TDiagnosticSeverity);
     procedure Add(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
-    procedure ClearCodeToolErrors(fileName: string);
+    procedure ClearCodeToolErrors(fileName: string; Range: TRange = nil);
+    procedure ClearLexicalErrors(fileName: string; Range: TRange = nil);
+    procedure ClearSemanticErrors(fileName: string; Range: TRange = nil);
     procedure ClearParserError(fileName: string);
     procedure ClearUserMessages;
     procedure Clear(fileName: string);
@@ -104,17 +106,25 @@ begin
   fUserMessages.Clear;
 end;
 
-procedure TPublishDiagnostics.ClearCodeToolErrors(fileName: string);
+procedure TPublishDiagnostics.ClearLexicalErrors(
+    fileName: string;
+    Range: TRange = nil
+  );
 var
   CodeToolErrorsDiagnostics: TDiagnosticItems;
+  Diagnostic: TDiagnostic;
+  I: Integer;
 begin
   DiagnosticParams.uri := PathToURI(fileName);
-  if not fCodeToolLexicalErrors.
-    TryGetData(DiagnosticParams.uri, CodeToolErrorsDiagnostics)
+  if
+    not
+      fCodeToolLexicalErrors.
+        TryGetData(DiagnosticParams.uri, CodeToolErrorsDiagnostics)
   then
     begin
       CodeToolErrorsDiagnostics := TDiagnosticItems.Create;
-      fCodeToolLexicalErrors.Add(DiagnosticParams.uri, CodeToolErrorsDiagnostics);
+      fCodeToolLexicalErrors.
+        Add(DiagnosticParams.uri, CodeToolErrorsDiagnostics);
     end;
 
   if Range = nil then
@@ -123,19 +133,63 @@ begin
     for I := 0 to CodeToolErrorsDiagnostics.Count - 1 do
       begin
         Diagnostic := CodeToolErrorsDiagnostics.Items[I];
-        if Range.InRange(Diagnostic.range.start.line, Diagnostic.range.start.character, True) then
+        if
+          Range.
+            InRange(
+              Diagnostic.range.start.line,
+              Diagnostic.range.start.character,
+              True
+            )
+        then
           CodeToolErrorsDiagnostics.Delete(I);
       end;
+end;
 
-  if not fCodeToolSemanticErrors.
-    TryGetData(DiagnosticParams.uri, CodeToolErrorsDiagnostics)
+procedure TPublishDiagnostics.ClearSemanticErrors(
+    fileName: string;
+    Range: TRange = nil
+  );
+var
+  CodeToolErrorsDiagnostics: TDiagnosticItems;
+  Diagnostic: TDiagnostic;
+  I: Integer;
+begin
+  DiagnosticParams.uri := PathToURI(fileName);
+  if
+    not
+      fCodeToolSemanticErrors.
+        TryGetData(DiagnosticParams.uri, CodeToolErrorsDiagnostics)
   then
     begin
       CodeToolErrorsDiagnostics := TDiagnosticItems.Create;
-      fCodeToolSemanticErrors.Add(DiagnosticParams.uri, CodeToolErrorsDiagnostics);
+      fCodeToolSemanticErrors.
+        Add(DiagnosticParams.uri, CodeToolErrorsDiagnostics);
     end;
+  if Range = nil then
+    CodeToolErrorsDiagnostics.Clear
+  else
+    for I := 0 to CodeToolErrorsDiagnostics.Count - 1 do
+      begin
+        Diagnostic := CodeToolErrorsDiagnostics.Items[I];
+        if
+          Range.
+            InRange(
+              Diagnostic.range.start.line,
+              Diagnostic.range.start.character,
+              True
+            )
+        then
+          CodeToolErrorsDiagnostics.Delete(I);
+      end;
+end;
 
-  CodeToolErrorsDiagnostics.Clear;
+procedure TPublishDiagnostics.ClearCodeToolErrors(
+    fileName: string;
+    Range: TRange = nil
+  );
+begin
+  ClearLexicalErrors(fileName, Range);
+  ClearSemanticErrors(fileName, Range);
 end;
 
 procedure TPublishDiagnostics.ClearParserError(fileName: string);

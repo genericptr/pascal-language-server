@@ -384,9 +384,10 @@ begin
   if not ServerSettings.checkSyntax then
     exit;
   // Check code. These routines will possibly send messages to a window or stdout, depending on settings.
-  fPublishDiagnostics.ClearCodeToolErrors(Code.Filename);
-  fPublishDiagnostics.ClearParserError(Code.Filename);
-  fPublishDiagnostics.Clear(Code.Filename);
+  if Range = nil then
+    fPublishDiagnostics.Clear(Code.Filename)
+  else
+    fPublishDiagnostics.ClearParserError(Code.Filename);
   
   CodeOk:=CodeToolsCheckSyntax(aTransport,Code);
   if CodeOK then
@@ -412,9 +413,13 @@ begin
   Result:=CodeToolBoss.Explore(Code,Tool,true);
 
   if not Result then
-      // Errors found ? Publish them.
-      AddCodeToolSemanticError(aTransport, Code);
+    // Errors found ? Publish them.
+    AddCodeToolSemanticError(aTransport, Code)
+  else 
+    fPublishDiagnostics.ClearSemanticErrors(Code.Filename);
 
+  fPublishDiagnostics.ClearLexicalErrors(Code.Filename, Range);
+  
   try
     IdentifiersPos := TCodeXYPositions.Create;
     Gatherer := TIdentifierGatherer.Create(IdentifiersPos);
