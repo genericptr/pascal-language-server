@@ -1553,6 +1553,9 @@ var
   IsImplementation: Boolean;
   ConstName, VarName: String;
 begin
+  if Node = nil then
+    Exit;
+  
   IsImplementation:=(Node.Parent<>nil) and  (Node.Parent.Desc=ctnImplementation);
   LastClassSymbol:=nil;
 
