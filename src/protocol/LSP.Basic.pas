@@ -1107,7 +1107,9 @@ begin
     Severity:=Src.severity;
     Code:=Src.Code;
     self.Source:=Src.Source;
-    if Src.source.HasValue then
+    // source is a TOptionalString class and stays nil when unset;
+    // guard before dereferencing to avoid an access violation.
+    if Assigned(Src.source) and Src.source.HasValue then
       Message:=Src.Source.Value;
     end
   else
