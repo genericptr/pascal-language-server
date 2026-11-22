@@ -25,7 +25,7 @@ unit PasLS.General;
 interface
 uses
   { RTL }
-  Classes, URIParser, typinfo,
+  Classes, URIParser, typinfo, LazFileUtils,
   { Code Tools }
   CodeToolManager, CodeToolsConfig,
   { Protocol }
@@ -186,14 +186,17 @@ var
   NormalizedExclude: String;
 begin
   Result := False;
+
   if (ExcludeFolders = nil) or (ExcludeFolders.Count = 0) then
     exit;
 
-  NormalizedPath := ExcludeTrailingPathDelimiter(aPath);
+  // Resolve symlinks so excluded paths match
+  NormalizedPath := IncludeTrailingPathDelimiter(GetPhysicalFilename(ExcludeTrailingPathDelimiter(aPath), pfeOriginal));
 
   for ExcludePath in ExcludeFolders do
     begin
-      NormalizedExclude := ExcludeTrailingPathDelimiter(ExpandFileName(ExcludePath));
+      NormalizedExclude := IncludeTrailingPathDelimiter(GetPhysicalFilename(ExcludeTrailingPathDelimiter(ExpandFileName(ExcludePath)), pfeOriginal));
+      
       // Check if the path starts with the excluded path
       if (Pos(NormalizedExclude, NormalizedPath) = 1) then
         begin
@@ -250,7 +253,7 @@ var
   ExcludeList, Option: String;
   clientInfoVersion: String;
   I: Integer;
-  FPCOptions: TStringArray;
+  FPCOptions: TStringList;
 begin
   if Params.clientInfo.version.HasValue then
     clientInfoVersion := ' ' + Params.clientInfo.version.Value
@@ -271,9 +274,11 @@ begin
   if CodeToolsOptions.FPCOptions <> '' then
     begin
       DoLog(kStatusPrefix+'FPCOptions:');
-      FPCOptions := SplitString(CodeToolsOptions.FPCOptions, ' ');
+      FPCOptions := TStringList.Create;
+      SplitCmdLineParams(CodeToolsOptions.FPCOptions, FPCOptions);
       for Option in FPCOptions do
         DoLog('  '+Option);
+      FPCOptions.Free;
     end
   else
     DoLog(kStatusPrefix+'FPCOptions: [unspecified]');
