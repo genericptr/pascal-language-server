@@ -25,10 +25,12 @@ interface
 
 uses
   { RTL }
-  Classes, Types,
+  Classes, Types, fgl,
   { Code Tools }
-  CodeToolManager, CodeCache,
+  CodeToolManager, CodeCache, CodeTree, CodeAtom, 
+  BasicCodeTools, PascalReaderTool, PascalParserTool,
   { Protocol }
+  PasLS.CodeUtils,
   LSP.BaseTypes, LSP.Base, LSP.Basic, LSP.Window, LSP.Messages, LSP.Diagnostics;
 
 Type
@@ -36,19 +38,43 @@ Type
 
   TDiagnosticsHandler = Class
   private
-    procedure AddCodeToolError(Diagnostics: TPublishDiagnostics; aTransport: TMessageTransport);
-    procedure AddUserDiagnostic(Diagnostics: TPublishDiagnostics; aTransport: TMessageTransport; UserMessage: String);
-    procedure ClearDiagnostics(aTransport: TMessageTransport; Code: TCodeBuffer);
+    fPublishDiagnostics: TPublishDiagnostics;
+
+    procedure AddCodeToolLexicalError(aTransport: TMessageTransport; Code: TCodeBuffer = nil);
+    procedure AddCodeToolSemanticError(aTransport: TMessageTransport; Code: TCodeBuffer = nil);
+    procedure AddUserDiagnostic(aTransport: TMessageTransport; UserMessage: String);
     procedure ShowErrorMessage(aTransport: TMessageTransport;  const MessageString: String);
-    function StrictSyntaxCheck(aDiagnostics : TPublishDiagnostics; aTransport: TMessageTransport; Code: TCodeBuffer): Boolean;
-    function CodeToolsCheckSyntax(aDiagnostics: TPublishDiagnostics; aTransport: TMessageTransport; Code: TCodeBuffer): boolean;
+    function StrictSyntaxCheck(aTransport: TMessageTransport; Code: TCodeBuffer): Boolean;
+    function CodeToolsCheckSyntax(aTransport: TMessageTransport; Code: TCodeBuffer): boolean;
   Public
+    constructor Create;
+    destructor Destroy; override;
     procedure CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
-    procedure SendDiagnosticMessage(aTransport : TMessageTransport; UserMessage: String = '');
+    procedure SendDiagnosticMessage(aTransport : TMessageTransport; UserMessage: String = ''; Code: TCodeBuffer = nil);
+    procedure AddParserError(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
+  end;
+
+  TIdentifierGatherer = class
+  private
+    FIdentifiers: TCodeXYPositions;
+    {$if FPC_FULLVERSION >= 30301}
+    procedure OnIdentifierFound(Sender: TPascalParserTool;
+      IdentifierCleanPos: integer; Range: TEPRIRange;
+      Node: TCodeTreeNode; Data: Pointer; var Abort: boolean;
+      RefsStart: integer);
+    {$else}
+    procedure OnIdentifierFound(Sender: TPascalParserTool;
+          IdentifierCleanPos: integer; Range: TEPRIRange;
+          Node: TCodeTreeNode; Data: Pointer; var Abort: boolean);
+    {$endif}
+
+  public
+    constructor Create(AIdentifiers: TCodeXYPositions);
+    procedure Gather(Tool: TPascalReaderTool);
   end;
 
 Function DiagnosticsHandler : TDiagnosticsHandler;
-procedure PublishCodeToolsError(aTransport : TMessageTransport; const aMessage : string);
+procedure PublishCodeToolsError(aTransport : TMessageTransport; const aMessage : string; Code: TCodeBuffer = nil);
 
 implementation
 
@@ -68,18 +94,34 @@ begin
 end;
 
 procedure PublishCodeToolsError(aTransport: TMessageTransport;
-  const aMessage: string);
+  const aMessage: string; Code: TCodeBuffer = nil);
 begin
-  DiagnosticsHandler.SendDiagnosticMessage(aTransport,aMessage);
+  DiagnosticsHandler.SendDiagnosticMessage(aTransport,aMessage, Code);
 end;
 
-Procedure TDiagnosticsHandler.AddUserDiagnostic(Diagnostics : TPublishDiagnostics; aTransport: TMessageTransport; UserMessage : String);
+constructor TDiagnosticsHandler.Create;
+begin
+  inherited;
+
+  fPublishDiagnostics := TPublishDiagnostics.Create;
+end;
+
+destructor TDiagnosticsHandler.Destroy;
+begin
+  fPublishDiagnostics.Free;
+  
+  inherited;
+end;
+
+Procedure TDiagnosticsHandler.AddUserDiagnostic(aTransport: TMessageTransport; UserMessage : String);
 
 begin
+  // Clear previous user message on new message
+  fPublishDiagnostics.ClearUserMessages;
   // Message on stdErr
   aTransport.SendDiagnostic(UserMessage);
   // Actual diagnostic
-  Diagnostics.Add('',
+  fPublishDiagnostics.AddUserMessage(
                    UserMessage,
                    0,
                    0,
@@ -104,15 +146,18 @@ begin
 end;
 
 
-Procedure TDiagnosticsHandler.AddCodeToolError(Diagnostics : TPublishDiagnostics; aTransport: TMessageTransport);
+Procedure TDiagnosticsHandler.AddCodeToolLexicalError(aTransport: TMessageTransport; Code: TCodeBuffer = nil);
 
 Var
   MessageString : String;
   aLine,aCol : Integer;
+  eLine,eCol : Integer;
   aFileName : string;
   aErrorMessage : String;
+  identRange: TRange;
 
 begin
+  identRange := nil;
   aErrorMessage:=CodeToolBoss.ErrorMessage;
   if aErrorMessage='' then
     exit;
@@ -131,14 +176,86 @@ begin
   MessageString := MessageString+Format('"%s" @ %d:%d;',[aErrorMessage,aLine,aCol]);
   // Message on stdErr
   aTransport.SendDiagnostic('Syntax Error -> %s',[MessageString]);
+
+  eLine := aLine - 1;
+  eCol := aCol - 1;
+  if Assigned(Code) then
+    begin
+      identRange := GetIdentifierRangeAtPos(Code, aCol, aLine - 1);
+      
+      if Assigned(identRange) then
+        begin
+          eLine := identRange.&end.line;
+          eCol := identRange.&end.character;
+          identRange.Free;
+        end;
+    end;
+    
   // Show message in the gui also
   if ServerSettings.showSyntaxErrors then
     ShowErrorMessage(aTransport, MessageString);
   if aFileName<>'' then
-    Diagnostics.Add(aFileName,
+    fPublishDiagnostics.AddCodeToolLexicalError(aFileName,
                     aErrorMessage,
                     aLine - 1,
                     aCol - 1,
+                    eLine,
+                    eCol,
+                    // TODO: code tools error ID is too large (int64), what should we do?
+                    1{CodeToolBoss.ErrorID},
+                    TDiagnosticSeverity.Error);
+end;
+
+procedure TDiagnosticsHandler.AddCodeToolSemanticError(aTransport: TMessageTransport; Code: TCodeBuffer = nil);
+Var
+  MessageString : String;
+  aLine,aCol : Integer;
+  eLine,eCol : Integer;
+  aFileName : string;
+  aErrorMessage : String;
+  identRange: TRange;
+begin
+  aErrorMessage:=CodeToolBoss.ErrorMessage;
+  if aErrorMessage='' then
+    exit;
+  aLine:=CodeToolBoss.ErrorLine;
+  aCol:=CodeToolBoss.ErrorColumn;
+  if CodeToolBoss.ErrorCode<> nil then
+    begin
+    aFileName:=CodeToolBoss.ErrorCode.FileName;
+    MessageString:=aFileName+': ';
+    end
+  else
+    begin
+    aFileName:='';
+    MessageString:='';
+    end;
+
+  MessageString := MessageString+Format('"%s" @ %d:%d;',[aErrorMessage,aLine,aCol]);
+  // Message on stdErr
+  aTransport.SendDiagnostic('Semantic Error -> %s',[MessageString]);
+
+  eLine := aLine - 1;
+  eCol := aCol - 1;
+  if Assigned(Code) then
+    begin
+      identRange := GetIdentifierRangeAtPos(Code, aCol, aLine - 1);
+      
+      if Assigned(identRange) then
+        begin
+          eLine := identRange.&end.line;
+          eCol := identRange.&end.character;
+          identRange.Free;
+        end;
+    end;
+    
+  if aFileName<>'' then
+    fPublishDiagnostics.AddCodeToolSemanticError(aFileName,
+                    aErrorMessage,
+                    aLine - 1,
+                    aCol - 1,
+                    eLine,
+                    eCol,
                     // TODO: code tools error ID is too large (int64), what should we do?
                     1{CodeToolBoss.ErrorID},
                     TDiagnosticSeverity.Error);
@@ -146,24 +263,25 @@ end;
 
 { Publish the last code tools error as a diagnostics }
 
-procedure TDiagnosticsHandler.SendDiagnosticMessage(aTransport : TMessageTransport; UserMessage: String = '');
+procedure TDiagnosticsHandler.SendDiagnosticMessage(aTransport : TMessageTransport; UserMessage: String = ''; Code: TCodeBuffer = nil);
 var
-  Notification: TPublishDiagnostics;
+  fileName: string;
 
 begin
-  Notification:=TPublishDiagnostics.Create;
-  try
-    if UserMessage <> '' then
-      AddUserDiagnostic(Notification,aTransport,UserMessage)
-    else if (CodeToolBoss.ErrorCode<>Nil) then
-      AddCodeToolError(Notification,aTransport);
-    if not ServerSettings.publishDiagnostics then
-      exit;
-    if Notification.HaveDiagnostics then
-      Notification.Send(aTransport);
-  finally
-    Notification.Free;
-  end;
+  if UserMessage <> '' then
+  begin
+    AddUserDiagnostic(aTransport,UserMessage);
+    fileName := '';
+  end
+  else 
+  if (CodeToolBoss.ErrorCode<>Nil) then
+    begin
+      AddCodeToolSemanticError(aTransport, Code);
+      fileName:=CodeToolBoss.ErrorCode.FileName;
+    end;
+  if not ServerSettings.publishDiagnostics then
+    exit;
+  fPublishDiagnostics.SendDiagnostics(fileName, aTransport);
 end;
 
 Type
@@ -175,24 +293,22 @@ Type
     FErrorCount: Integer;
     FHandler : TDiagnosticsHandler;
     FParser : TSourceParser;
-    FDiagnostics : TPublishDiagnostics;
     FTransport : TMessageTransport;
   Protected
     procedure ReportError(Sender: TObject; const aError, aFileName: string; aCode, aLine, aCol: Integer);
   Public
-    Constructor Create(aHandler : TDiagnosticsHandler; aParser : TSourceParser;aDiagnostics : TPublishDiagnostics; aTransport : TMessageTransport);
+    Constructor Create(aHandler : TDiagnosticsHandler; aParser : TSourceParser; aTransport : TMessageTransport);
     Property ErrorCount : Integer Read FErrorCount;
   end;
 
 { TErrorReporter }
 
 constructor TErrorReporter.Create(aHandler: TDiagnosticsHandler;
-  aParser: TSourceParser; aDiagnostics: TPublishDiagnostics;
+  aParser: TSourceParser; 
   aTransport: TMessageTransport);
 begin
   FHandler:=aHandler;
   FParser:=aParser;
-  FDiagnostics:=aDiagnostics;
   FTransport:=aTransport;
   FParser.OnError:=@ReportError;
 end;
@@ -210,7 +326,7 @@ begin
   if ServerSettings.showSyntaxErrors then
     FHandler.ShowErrorMessage(FTransport,S);
   if ServerSettings.publishDiagnostics then
-    FDiagnostics.Add(aFileName,
+    FHandler.AddParserError(aFileName,
                      aError,
                      aLine-1,
                      aCol-1,
@@ -218,7 +334,7 @@ begin
                      TDiagnosticSeverity.Error);
 end;
 
-function TDiagnosticsHandler.StrictSyntaxCheck(aDiagnostics : TPublishDiagnostics; aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
+function TDiagnosticsHandler.StrictSyntaxCheck(aTransport : TMessageTransport; Code: TCodeBuffer) : Boolean;
 
 Var
   Module : TPasModule;
@@ -245,7 +361,7 @@ begin
         Args[i]:=ServerSettings.fpcOptions[i];
       Args[Length(Args)-1]:=Code.Filename;
       SourceParser.CommandLine:=Args;
-      Reporter:=TErrorReporter.Create(Self,SourceParser,aDiagnostics,aTransport);
+      Reporter:=TErrorReporter.Create(Self,SourceParser,aTransport);
       Module:=SourceParser.ParseSource;
       Result:=Reporter.ErrorCount=0;
     except
@@ -262,35 +378,35 @@ end;
 procedure TDiagnosticsHandler.CheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer);
 
 Var
-  Diagnostics : TPublishDiagnostics;
   CodeOK : Boolean;
 
 begin
   if not ServerSettings.checkSyntax then
     exit;
-  // All diagnostics in 1 message.
-  Diagnostics := TPublishDiagnostics.Create;
-  try
-    // Check code. These routines will possibly send messages to a window or stdout, depending on settings.
-    CodeOk:=CodeToolsCheckSyntax(Diagnostics,aTransport,Code);
-    if CodeOK then
-      CodeOK:=StrictSyntaxCheck(Diagnostics,aTransport,Code);
-    // If we need to publish settings, then send the diagnostics.
-    if ServerSettings.publishDiagnostics then
-      begin
-      if CodeOK then
-        Diagnostics.Clear(Code.FileName);
-      Diagnostics.Send(aTransport);
-      end;
-  finally
-    Diagnostics.Free;
-  end;
+  // Check code. These routines will possibly send messages to a window or stdout, depending on settings.
+  if Range = nil then
+    fPublishDiagnostics.Clear(Code.Filename)
+  else
+    fPublishDiagnostics.ClearParserError(Code.Filename);
+  
+  CodeOk:=CodeToolsCheckSyntax(aTransport,Code);
+  if CodeOK then
+      CodeOK:=StrictSyntaxCheck(aTransport,Code);
+  // If we need to publish settings, then send the diagnostics.
+  if ServerSettings.publishDiagnostics then
+    fPublishDiagnostics.SendDiagnostics(Code.Filename, aTransport);
 end;
 
-function TDiagnosticsHandler.CodeToolsCheckSyntax(aDiagnostics: TPublishDiagnostics; aTransport : TMessageTransport; Code: TCodeBuffer): boolean;
+function TDiagnosticsHandler.CodeToolsCheckSyntax(aTransport : TMessageTransport; Code: TCodeBuffer): boolean;
 
 var
   Tool: TCodeTool;
+  Node: TCodeTreeNode;
+  IdentifiersPos: TCodeXYPositions;
+  Gatherer: TIdentifierGatherer;
+  NewCode: TCodeBuffer;
+  NewX, NewY, NewTopLine: integer;
+  i: Integer;
 
 begin
   // Check for errors.
@@ -298,24 +414,83 @@ begin
 
   if not Result then
     // Errors found ? Publish them.
-    AddCodeToolError(aDiagnostics,aTransport);
-end;
+    AddCodeToolSemanticError(aTransport, Code)
+  else 
+    fPublishDiagnostics.ClearSemanticErrors(Code.Filename);
 
-procedure TDiagnosticsHandler.ClearDiagnostics(aTransport : TMessageTransport; Code: TCodeBuffer);
-var
-  Diagnostics: TPublishDiagnostics;
-begin
-  if not ServerSettings.publishDiagnostics then
-    Exit;
-  Diagnostics:=TPublishDiagnostics.Create;
+  fPublishDiagnostics.ClearLexicalErrors(Code.Filename, Range);
+  
   try
-    Diagnostics.Clear(Code.FileName);
-    Diagnostics.Send(aTransport);
+    IdentifiersPos := TCodeXYPositions.Create;
+    Gatherer := TIdentifierGatherer.Create(IdentifiersPos);
+    Gatherer.Gather(Tool);
+
+    for i := 0 to IdentifiersPos.Count - 1 do
+      begin
+        with IdentifiersPos.Items[i]^ do
+          begin
+            if CodeToolBoss.FindMainDeclaration(Code, X, Y, NewCode, NewX, NewY, NewTopLine) then
+              Continue
+            else
+              AddCodeToolLexicalError(aTransport, Code);
+          end;
+      end
   finally
-    Diagnostics.Free;
+    Gatherer.Free;
+    IdentifiersPos.Free;
   end;
 end;
 
+procedure TDiagnosticsHandler.AddParserError(fileName, message: string; line, column, code: integer; severity: TDiagnosticSeverity);
+begin
+  fPublishDiagnostics.AddParserError(fileName, message, line, column, code, severity);
+end;
+
+constructor TIdentifierGatherer.Create(AIdentifiers: TCodeXYPositions);
+begin
+  FIdentifiers := AIdentifiers;
+end;
+
+{$if FPC_FULLVERSION >= 30301}
+procedure TIdentifierGatherer.OnIdentifierFound(Sender: TPascalParserTool;
+  IdentifierCleanPos: integer; Range: TEPRIRange;
+  Node: TCodeTreeNode; Data: Pointer; var Abort: boolean;
+  RefsStart: integer);
+{$else}
+procedure TIdentifierGatherer.OnIdentifierFound(Sender: TPascalParserTool;
+  IdentifierCleanPos: integer; Range: TEPRIRange;
+  Node: TCodeTreeNode; Data: Pointer; var Abort: boolean);
+{$endif}
+
+
+var
+  IdentifierStr: string;
+  CodeTool: TCodeTool;
+  IdentifierPos: TCodeXYPosition;
+  NewTopLine: Integer;
+begin
+  if not (Sender is TCodeTool) then
+    Exit;
+  
+  CodeTool := TCodeTool(Sender);
+  if CodeTool.CleanPosToCaretAndTopLine(IdentifierCleanPos, IdentifierPos, NewTopLine) then
+    begin
+      IdentifierStr := GetIdentifier(@Sender.Src[IdentifierCleanPos]);
+      if IdentifierStr <> '' then
+        begin
+          FIdentifiers.Add(IdentifierPos);
+        end;
+    end;
+end;
+ 
+procedure TIdentifierGatherer.Gather(Tool: TPascalReaderTool);
+begin
+{$if FPC_FULLVERSION >= 30301}
+  Tool.ForEachIdentifier(true, @OnIdentifierFound, nil, 0);
+{$else}
+  Tool.ForEachIdentifier(true, @OnIdentifierFound, nil);
+{$endif}
+end;
 
 Initialization
 
